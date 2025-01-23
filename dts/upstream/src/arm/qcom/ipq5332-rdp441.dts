@@ -1,0 +1,12 @@
+// SPDX-License-Identifier: GPL-2.0+
+/*
+ * Copyright (c) 2025, Qualcomm Innovation Center, Inc. All rights reserved.
+ */
+
+#include <arm64/qcom/ipq5332-rdp441.dts>
+
+/ {
+	chosen {
+		stdout-path = "serial0";
+	};
+};

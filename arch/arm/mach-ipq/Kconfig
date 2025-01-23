@@ -1,0 +1,109 @@
+if ARCH_IPQ
+
+config SYS_SOC
+	default "ipq"
+
+config SYS_VENDOR
+	string "IPQ board vendor"
+	default "qualcomm"
+	help
+	  Allows to specify vendor for the IPQ SoCs based boards.
+	  Based on this option board/<CONFIG_SYS_VENDOR>/<CONFIG_SYS_BOARD>
+	  will be used as the custom board directory.
+
+config SYS_BOARD
+	string "IPQ SoCs based board"
+	help
+	  Allows to specify the IPQ SoCs based board name.
+	  Based on this option board/<CONFIG_SYS_VENDOR>/<CONFIG_SYS_BOARD>
+	  will be used as the custom board directory.
+
+config SYS_CONFIG_NAME
+	string "Board configuration name"
+	default SYS_BOARD if SYS_BOARD != ""
+	default "qcom"
+	help
+	  This option contains information about board configuration name.
+	  Based on this option include/configs/<CONFIG_SYS_CONFIG_NAME>.h header
+	  will be used for board configuration.
+
+config SYS_MALLOC_LEN
+	default 0x100000
+
+config SYS_MALLOC_F_LEN
+	default 0x10000
+
+config TEXT_SIZE
+	hex "Define Size of u-boot text size in DDR region"
+	default 0x1C0000 if TARGET_IPQ9574
+	default 0x180000 if TARGET_IPQ5332 || TARGET_IPQ5424
+
+config ARCH_32BIT_SUPPORT
+	bool "IPQSOC 32-bit support"
+	select CPU_V7A
+	select SYS_ARCH_TIMER
+	select SYS_THUMB_BUILD
+	default n
+
+config ARCH_64BIT_SUPPORT
+	bool "IPQSOC 64-bit support"
+	select ARM64
+	default n
+
+config RAM_NUM_PART_ENTRIES
+	int "Number of RAM partition entries which are usable by APPS"
+	default 32
+
+config RAM_PART_NAME_LENGTH
+	int "Max length of ram partition name"
+	default 16
+
+config IPQ_MMC
+	bool "Enable eMMC support in IPQ SOC"
+	select MMC_SDHCI
+	select MMC_SDHCI_MSM
+	select MMC_SDHCI_ADMA
+	select CMD_MMC
+	imply MMC_HS200_SUPPORT
+
+choice
+	prompt "IPQ board select"
+
+config TARGET_IPQ5332
+	bool "QTI IPQ5332 SOC"
+	help
+	  Support for the IPQ53XX SoC.
+	  - Board Open Platform Specifications.
+	  - Quad Cores A53, Nom@1.2G ,Turbo@1.5G, L1@32KB L2@512KB
+	  - DDR3L/DDR4
+	  - QSPI NAND / NOR / eMMC
+	  - USB 3.0/I2C/UART/PCIe Gen3 2Lane
+	  - 1G/2.5G/10G Ethernet Ports
+
+
+config TARGET_IPQ9574
+	bool "QTI IPQ9574 SOC"
+	help
+	  Support for IPQ95xx SoC.
+	  - Board Open Platform Specifications.
+	  - Quad Cores A73, max@2.2G, L1@32KB L2@512KB
+	  - DDR3L/DDR4
+	  - QSPI NAND / NOR / eMMC
+	  - USB 3.0/I2C/UART/PCIe Gen3 2Lane
+	  - 1G/2.5G/10G Ethernet Ports
+
+config TARGET_IPQ5424
+	bool "QTI IPQ5424"
+	help
+	  Support for IPQ5424 SoC.
+	  - Board Open Platform Specifications.
+	  - Quad Cores A55, Nom@1.4G, Turbo@1.8G, L1@32KB L2@512KB, L3@1MB
+	  - DDR3L/DDR4
+	  - QSPI NAND / NOR / eMMC
+	  - USB 3.0/I2C/UART/PCIe Gen3 2Lane
+	  - 2.5G/10G Ethernet Ports
+
+
+endchoice
+
+endif
