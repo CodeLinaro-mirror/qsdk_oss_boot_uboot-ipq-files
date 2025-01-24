@@ -28,3 +28,7 @@
 	reset-names = "bcr_rst";
 	max-frequency = <96000000>;
 };
+
+&blsp1_spi0 {
+	force-cs;
+};

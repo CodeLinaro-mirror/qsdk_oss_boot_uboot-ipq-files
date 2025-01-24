@@ -25,6 +25,20 @@
 #define GCC_SDCC1_APPS_CBCR			0x3302C
 #define GCC_SDCC1_AHB_CBCR			0x33034
 
+/* BLSP QUP SPI clock register */
+#define BLSP1_QUP1_SPI_BCR		0x02000
+
+#define BLSP1_QUP_SPI_BCR(id)		((id < 1) ? \
+					(BLSP1_QUP1_SPI_BCR):\
+					(BLSP1_QUP1_SPI_BCR + (0x1000 * id)))
+
+#define BLSP1_QUP_SPI_APPS_CMD_RCGR(id)	(BLSP1_QUP_SPI_BCR(id) + 0x04)
+#define BLSP1_QUP_SPI_APPS_CFG_RCGR(id)	(BLSP1_QUP_SPI_BCR(id) + 0x08)
+#define BLSP1_QUP_SPI_APPS_M(id)	(BLSP1_QUP_SPI_BCR(id) + 0x0c)
+#define BLSP1_QUP_SPI_APPS_N(id)	(BLSP1_QUP_SPI_BCR(id) + 0x10)
+#define BLSP1_QUP_SPI_APPS_D(id)	(BLSP1_QUP_SPI_BCR(id) + 0x14)
+#define BLSP1_QUP_SPI_APPS_CBCR(id)	(BLSP1_QUP_SPI_BCR(id) + 0x20)
+
 static ulong ipq9574_set_rate(struct clk *clk, ulong rate)
 {
 	struct msm_clk_priv *priv = dev_get_priv(clk->dev);
@@ -33,14 +47,51 @@ static ulong ipq9574_set_rate(struct clk *clk, ulong rate)
 	case GCC_BLSP1_UART3_APPS_CLK:
 		clk_rcg_set_rate_mnd(priv->base, GCC_BLSP1_UART3_APPS_CMD_RCGR,
 				     0, 144, 15625, CFG_CLK_SRC_GPLL0, 16);
-		return rate;
+		break;
 	case GCC_SDCC1_APPS_CLK:
 		clk_rcg_set_rate_mnd(priv->base, GCC_SDCC1_APPS_CMD_RCGR,
 				     23, 0, 0, CFG_CLK_SRC_GPLL2, 16);
-		return rate;
+		break;
+	case GCC_BLSP1_QUP1_SPI_APPS_CLK:
+		/* QUP1 SPI APPS CLK: 50MHz */
+		clk_rcg_set_rate_mnd(priv->base,
+				     BLSP1_QUP_SPI_APPS_CMD_RCGR(0), 16, 0, 0,
+				     CFG_CLK_SRC_GPLL0, 16);
+		break;
+	case GCC_BLSP1_QUP2_SPI_APPS_CLK:
+		/* QUP2 SPI APPS CLK: 50MHz */
+		clk_rcg_set_rate_mnd(priv->base,
+				     BLSP1_QUP_SPI_APPS_CMD_RCGR(1), 16, 0, 0,
+				     CFG_CLK_SRC_GPLL0, 16);
+		break;
+	case GCC_BLSP1_QUP3_SPI_APPS_CLK:
+		/* QUP3 SPI APPS CLK: 50MHz */
+		clk_rcg_set_rate_mnd(priv->base,
+				     BLSP1_QUP_SPI_APPS_CMD_RCGR(2), 16, 0, 0,
+				     CFG_CLK_SRC_GPLL0, 16);
+		break;
+	case GCC_BLSP1_QUP4_SPI_APPS_CLK:
+		/* QUP4 SPI APPS CLK: 50MHz */
+		clk_rcg_set_rate_mnd(priv->base,
+				     BLSP1_QUP_SPI_APPS_CMD_RCGR(3), 16, 0, 0,
+				     CFG_CLK_SRC_GPLL0, 16);
+		break;
+	case GCC_BLSP1_QUP5_SPI_APPS_CLK:
+		/* QUP5 SPI APPS CLK: 50MHz */
+		clk_rcg_set_rate_mnd(priv->base,
+				     BLSP1_QUP_SPI_APPS_CMD_RCGR(4), 16, 0, 0,
+				     CFG_CLK_SRC_GPLL0, 16);
+		break;
+	case GCC_BLSP1_QUP6_SPI_APPS_CLK:
+		/* QUP6 SPI APPS CLK: 50MHz */
+		clk_rcg_set_rate_mnd(priv->base,
+				     BLSP1_QUP_SPI_APPS_CMD_RCGR(5), 16, 0, 0,
+				     CFG_CLK_SRC_GPLL0, 16);
+		break;
 	default:
 		return -EINVAL;
 	}
+	return rate;
 }
 
 static int ipq9574_enable(struct clk *clk)
@@ -61,7 +112,25 @@ static int ipq9574_enable(struct clk *clk)
 		clk_enable_cbc(priv->base + GCC_SDCC1_APPS_CBCR);
 		break;
 	case GCC_SDCC1_ICE_CORE_CLK:
-		return 0;
+		break;
+	case GCC_BLSP1_QUP1_SPI_APPS_CLK:
+		clk_enable_cbc(priv->base + BLSP1_QUP_SPI_APPS_CBCR(0));
+		break;
+	case GCC_BLSP1_QUP2_SPI_APPS_CLK:
+		clk_enable_cbc(priv->base + BLSP1_QUP_SPI_APPS_CBCR(1));
+		break;
+	case GCC_BLSP1_QUP3_SPI_APPS_CLK:
+		clk_enable_cbc(priv->base + BLSP1_QUP_SPI_APPS_CBCR(2));
+		break;
+	case GCC_BLSP1_QUP4_SPI_APPS_CLK:
+		clk_enable_cbc(priv->base + BLSP1_QUP_SPI_APPS_CBCR(3));
+		break;
+	case GCC_BLSP1_QUP5_SPI_APPS_CLK:
+		clk_enable_cbc(priv->base + BLSP1_QUP_SPI_APPS_CBCR(4));
+		break;
+	case GCC_BLSP1_QUP6_SPI_APPS_CLK:
+		clk_enable_cbc(priv->base + BLSP1_QUP_SPI_APPS_CBCR(5));
+		break;
 	default:
 		return -EINVAL;
 	}
