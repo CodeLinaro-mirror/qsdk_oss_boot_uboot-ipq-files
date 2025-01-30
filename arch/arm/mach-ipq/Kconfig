@@ -66,11 +66,19 @@ config IPQ_MMC
 	select CMD_MMC
 	imply MMC_HS200_SUPPORT
 
+config IPQ_MULTI_DTB_SUPPORT
+	bool "Enable Multi-dtb support in IPQ SOC"
+	select MULTI_DTB_FIT
+	select MULTI_DTB_FIT_LZO
+	select SYS_MALLOC_F
+	select DTB_RESELECT
+
 choice
 	prompt "IPQ board select"
 
 config TARGET_IPQ5332
 	bool "QTI IPQ5332 SOC"
+	imply IPQ_MULTI_DTB_SUPPORT
 	help
 	  Support for the IPQ53XX SoC.
 	  - Board Open Platform Specifications.
@@ -83,6 +91,7 @@ config TARGET_IPQ5332
 
 config TARGET_IPQ9574
 	bool "QTI IPQ9574 SOC"
+	imply IPQ_MULTI_DTB_SUPPORT
 	help
 	  Support for IPQ95xx SoC.
 	  - Board Open Platform Specifications.
@@ -94,6 +103,7 @@ config TARGET_IPQ9574
 
 config TARGET_IPQ5424
 	bool "QTI IPQ5424"
+	imply IPQ_MULTI_DTB_SUPPORT
 	help
 	  Support for IPQ5424 SoC.
 	  - Board Open Platform Specifications.

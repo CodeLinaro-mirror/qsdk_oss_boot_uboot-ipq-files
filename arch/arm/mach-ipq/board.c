@@ -24,6 +24,7 @@
 #include <env.h>
 #include <fdt_support.h>
 #include <smem.h>
+#include <mach/ipq.h>
 
 #define EXEC_CACHE_OPTION		0x100e
 #define NONEXEC_CACHE_OPTION		0x101e
@@ -316,3 +317,39 @@ int arm_reserve_mmu(void)
 	gd->arch.tlb_addr &= ~(0x10000 - 1);
 	return 0;
 }
+
+#ifdef CONFIG_DTB_RESELECT
+int embedded_dtb_select(void)
+{
+	int rescan, i;
+	struct multidtb_config *dtb = g_board_dtb_info;
+
+	for (i = 0; i < dtb->ncount; ++i) {
+		if (dtb->list[i].machid == g_board_machid) {
+			strlcpy(dtb->dts_base, dtb->list[i].dts,
+				BOARD_DTS_MAX_NAMELEN);
+			break;
+		}
+	}
+
+	ipq_update_board_name(g_board_machid, dtb);
+
+	fdtdec_resetup(&rescan);
+
+	return 0;
+}
+#endif /* CONFIG_DTB_RESELECT */
+
+#ifdef CONFIG_MULTI_DTB_FIT
+int board_fit_config_name_match(const char *name)
+{
+	struct multidtb_config *dtb = g_board_dtb_info;
+
+	if (!strcmp(name, dtb->dts_base)) {
+		printf("Booting %s\n", dtb->dts_name);
+		return 0;
+	}
+
+	return -1;
+}
+#endif /* CONFIG_MULTI_DTB_FIT */
