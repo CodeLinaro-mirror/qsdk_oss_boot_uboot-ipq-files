@@ -93,6 +93,9 @@ choice
 config TARGET_IPQ5332
 	bool "QTI IPQ5332 SOC"
 	imply IPQ_MULTI_DTB_SUPPORT
+	imply DMA
+	imply DMA_CHANNELS
+	select BAM_DMA if DMA
 	help
 	  Support for the IPQ53XX SoC.
 	  - Board Open Platform Specifications.
@@ -106,6 +109,9 @@ config TARGET_IPQ5332
 config TARGET_IPQ9574
 	bool "QTI IPQ9574 SOC"
 	imply IPQ_MULTI_DTB_SUPPORT
+	imply DMA
+	imply DMA_CHANNELS
+	select BAM_DMA if DMA
 	help
 	  Support for IPQ95xx SoC.
 	  - Board Open Platform Specifications.

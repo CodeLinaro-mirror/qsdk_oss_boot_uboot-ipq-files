@@ -31,4 +31,12 @@
 
 &blsp1_spi0 {
 	force-cs;
+	dmas = <&blsp_dma 12 1 16 0 0xFFFF 16>,
+	       <&blsp_dma 13 2 16 0 0xFFFF 16>;
+	status = "okay";
+};
+
+&blsp_dma {
+	#dma-cells = <6>;
+	status = "okay";
 };
