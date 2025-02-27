@@ -23,6 +23,8 @@
 #define GCC_SDCC1_APPS_CMD_RCGR			0x33004
 #define GCC_SDCC1_APPS_CBCR			0x3302C
 #define GCC_SDCC1_AHB_CBCR			0x33034
+#define GCC_QUPV3_SPI0_CMD_RCGR			0x04004
+#define GCC_QUPV3_SPI0_CBCR			0x04020
 
 static ulong ipq5424_set_rate(struct clk *clk, ulong rate)
 {
@@ -32,14 +34,20 @@ static ulong ipq5424_set_rate(struct clk *clk, ulong rate)
 	case GCC_QUPV3_UART1_CLK:
 		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_UART1_CMD_RCGR,
 				     0, 144, 15625, CFG_CLK_SRC_GPLL0, 16);
-		return rate;
+		break;
 	case GCC_SDCC1_APPS_CLK:
 		clk_rcg_set_rate_mnd(priv->base, GCC_SDCC1_APPS_CMD_RCGR,
 				     5, 0, 0, CFG_CLK_SRC_GPLL2, 16);
-		return rate;
+		break;
+	case GCC_QUPV3_SPI0_CLK:
+		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_SPI0_CMD_RCGR,
+					31, 0, 0, CFG_CLK_SRC_GPLL0, 16);
+		break;
 	default:
 		return -EINVAL;
 	}
+
+	return rate;
 }
 
 static int ipq5424_enable(struct clk *clk)
@@ -55,6 +63,9 @@ static int ipq5424_enable(struct clk *clk)
 		break;
 	case GCC_SDCC1_APPS_CLK:
 		clk_enable_cbc(priv->base + GCC_SDCC1_APPS_CBCR);
+		break;
+	case GCC_QUPV3_SPI0_CLK:
+		clk_enable_cbc(priv->base + GCC_QUPV3_SPI0_CBCR);
 		break;
 	default:
 		return -EINVAL;
