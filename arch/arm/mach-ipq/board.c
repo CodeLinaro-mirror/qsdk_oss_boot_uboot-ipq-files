@@ -33,9 +33,6 @@ DECLARE_GLOBAL_DATA_PTR;
 
 uint32_t g_board_machid;
 
-#ifdef CONFIG_ARM64
-static struct mm_region ipq_mem_map[CONFIG_NR_DRAM_BANKS + 3] = { { 0 } };
-struct mm_region *mem_map = ipq_mem_map;
 /*
  * Weak function definition
  */
@@ -43,6 +40,10 @@ __weak void ipq_board_early_init_f(void)
 {
 	return;
 }
+
+#ifdef CONFIG_ARM64
+static struct mm_region ipq_mem_map[CONFIG_NR_DRAM_BANKS + 3] = { { 0 } };
+struct mm_region *mem_map = ipq_mem_map;
 
 static void build_mem_map(void)
 {
