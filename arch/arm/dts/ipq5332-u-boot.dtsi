@@ -26,3 +26,7 @@
 	resets = <&gcc GCC_SDCC_BCR>;
 	reset-names = "bcr_rst";
 };
+
+&blsp1_spi0 {
+	force-cs;
+};
