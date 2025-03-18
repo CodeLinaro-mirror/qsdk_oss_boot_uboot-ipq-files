@@ -58,11 +58,18 @@ config RAM_PART_NAME_LENGTH
 	int "Max length of ram partition name"
 	default 16
 
+config NOR_BLK_SIZE
+	int "Block size for SPI Nor BLK device"
+	depends on NOR_BLK
+	default 4096
+
 config IPQ_SPI_NOR
 	bool "Enable SPI NOR flash support in IPQ SOC"
 	select MTD
 	select SPI
+	select MISC
 	select SPI_QUP if TARGET_IPQ9574 || TARGET_IPQ5332
+	select MSM_GENI_SPI if TARGET_IPQ5424
 	select DM_SPI
 	select DM_SPI_FLASH
 	select SPI_FLASH_STMICRO
@@ -124,6 +131,7 @@ config TARGET_IPQ9574
 config TARGET_IPQ5424
 	bool "QTI IPQ5424"
 	imply IPQ_MULTI_DTB_SUPPORT
+	imply NOR_BLK
 	help
 	  Support for IPQ5424 SoC.
 	  - Board Open Platform Specifications.
