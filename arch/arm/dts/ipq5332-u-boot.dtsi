@@ -27,6 +27,29 @@
 	reset-names = "bcr_rst";
 };
 
+&blsp_dma {
+	#dma-cells = <6>;
+	status = "okay";
+};
+
 &blsp1_spi0 {
+	dmas = <&blsp_dma 4 1 16 0 0xFFFF 16>,
+	       <&blsp_dma 5 2 16 0 0xFFFF 16>;
 	force-cs;
+	status = "okay";
+};
+
+&blsp1_uart1 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
+};
+
+&blsp1_i2c1 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
+};
+
+&blsp1_spi2 {
+	/delete-property/ dmas;
+	/delete-property/ dma-names;
 };
