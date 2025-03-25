@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+
+#include "ipq5424.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. IPQ5424 RDP464";
+	compatible = "qcom,ipq5424-rdp464", "qcom,ipq5424";
+
+	aliases {
+		serial0 = &uart1;
+	};
+};

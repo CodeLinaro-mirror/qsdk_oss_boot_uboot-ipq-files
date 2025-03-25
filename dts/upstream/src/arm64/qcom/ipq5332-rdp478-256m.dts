@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.​
+ */
+
+/dts-v1/;
+
+#include "ipq5332-rdp-common.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. IPQ5332 RDP478-256M";
+	compatible = "qcom,ipq5332-rdp478-256m", "qcom,ipq5332";
+};
