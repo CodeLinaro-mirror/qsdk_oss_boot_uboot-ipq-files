@@ -389,7 +389,7 @@ void geni_se_reg_write(uint32_t *value, uint64_t offset, uint32_t len)
 {
 	int i;
 	for (i = 0; i < len; i++)
-		writel(value[i], (offset + (i * 4)));
+		writel(value[i], (uintptr_t)(offset + (i * 4)));
 }
 
 static int qcom_geni_se_probe(struct udevice *dev)
