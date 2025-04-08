@@ -3,13 +3,14 @@
  * Common initialisation for Qualcomm ipq boards.
  *
  * Copyright (c) 2024 Linaro Ltd.
- * Copyright (c) 2023-2025, Qualcomm Innovation Center,Inc.All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  * Author: Caleb Connolly <caleb.connolly@linaro.org>
  */
 
 #ifdef CONFIG_ARM64
 #include <asm/armv8/mmu.h>
 #endif
+#include <mach/ipq.h>
 #include <asm/system.h>
 #include <asm/cache.h>
 #include <mach/smem_info.h>
@@ -23,23 +24,74 @@
 #include <dm/read.h>
 #include <env.h>
 #include <fdt_support.h>
-#include <smem.h>
-#include <mach/ipq.h>
 
-#define EXEC_CACHE_OPTION		0x100e
-#define NONEXEC_CACHE_OPTION		0x101e
-
+/******************************************************************
+ * Globals and constant
+ *****************************************************************/
 DECLARE_GLOBAL_DATA_PTR;
 
+#ifndef BOOT_PARAMS_ADDR
+#define BOOT_PARAMS_ADDR			(KERNEL_START_ADDR + 0x100)
+#endif
 uint32_t g_board_machid;
+struct ipq_board_info *ipq_bdinfo;
+#if defined(CONFIG_ENV_IS_IN_SPI_FLASH)
+uint32_t g_env_offset __section(".data") = 0;
+#endif
+/****************************************************************
+ * Weak function definition
+ * this placeholder for generic weak function definition.
+ ****************************************************************/
+__weak void ipq_board_early_init_f(void) {}
 
 /*
- * Weak function definition
+ * Global func definition
  */
-__weak void ipq_board_early_init_f(void)
+struct ipq_board_info *ipq_get_bdinfo(void)
 {
-	return;
+	return ipq_bdinfo;
 }
+
+#if defined(CONFIG_SMEM) && defined(CONFIG_MSM_SMEM)
+struct ipq_smem_flash_info *ipq_get_smem_info(void)
+{
+	if (ipq_bdinfo)
+		return &ipq_bdinfo->smem_info;
+	else
+		return NULL;
+}
+
+struct soc_info *ipq_get_socinfo(void)
+{
+	if (ipq_bdinfo)
+		return &ipq_bdinfo->ipq_socinfo;
+	else
+		return NULL;
+}
+
+struct smem_ptable *ipq_get_part_table(void)
+{
+	if (ipq_bdinfo)
+		return ipq_bdinfo->ptable;
+	else
+		return NULL;
+}
+#else
+struct ipq_smem_flash_info *ipq_get_smem_info(void)
+{
+	return NULL;
+}
+
+struct soc_info *ipq_get_socinfo(void)
+{
+	return NULL;
+}
+
+struct smem_ptable *ipq_get_part_table(void)
+{
+	return NULL;
+}
+#endif
 
 #ifdef CONFIG_ARM64
 static struct mm_region ipq_mem_map[CONFIG_NR_DRAM_BANKS + 3] = { { 0 } };
@@ -132,6 +184,9 @@ void enable_caches(void)
 }
 
 #else /* CONFIG_ARMV7 */
+#define EXEC_CACHE_OPTION				0x100e
+#define NONEXEC_CACHE_OPTION				0x101e
+
 int arch_cpu_init(void)
 {
 	u32 val;
@@ -211,7 +266,7 @@ int dram_init(void)
 	struct ram_partition_entry *rpe;
 
 	uclass_get_device(UCLASS_SMEM, 0, &dev);
-	rpt = smem_get(dev, 0, SMEM_USABLE_RAM_PARTITION_TABLE, &size);
+	rpt = smem_get(dev, -1, SMEM_USABLE_RAM_PARTITION_TABLE, &size);
 
 	if (rpt == NULL)
 		return -ENODEV;
@@ -260,11 +315,14 @@ void reset_cpu(void)
 
 int ft_board_setup(void *blob, struct bd_info __maybe_unused *bd)
 {
+	ipq_ft_board_setup(blob, bd);
+
 	return 0;
 }
 
 int board_early_init_f(void)
 {
+#if defined(CONFIG_SMEM) && defined(CONFIG_MSM_SMEM)
 	size_t size;
 	struct udevice *dev;
 	union ipq_platform *platform_type;
@@ -282,7 +340,7 @@ int board_early_init_f(void)
 				((SOCINFO_VERSION_MINOR(
 				platform_type->v1.platform_version)) << 8) |
 				(platform_type->v1.hw_platform_subtype));
-
+#endif
 	/*
 	 * SoC specific early init
 	 */
@@ -293,8 +351,52 @@ int board_early_init_f(void)
 
 int board_init(void)
 {
+	/*
+	 * create device pointer
+	 */
+	ipq_bdinfo = (struct ipq_board_info *)malloc_cache_aligned(
+			sizeof(struct ipq_board_info));
+	if (ipq_bdinfo == NULL) {
+		printf("%s No emough Space\n", __func__);
+		return -ENOMEM;
+	}
+
+	memset(ipq_bdinfo, 0, sizeof(struct ipq_board_info));
+
+#if defined(CONFIG_SMEM) && defined(CONFIG_MSM_SMEM)
+	ipq_board_read_smem_info(ipq_bdinfo);
+#endif
+
+	/*
+	 * update Global bdinfo table
+	 */
+	gd->bd->bi_boot_params = BOOT_PARAMS_ADDR;
+
 	return 0;
 }
+
+#if defined(CONFIG_BOARD_EARLY_INIT_R)
+int board_early_init_r(void)
+{
+	/*
+	 * Update env address in runtime , support only in Nor flash
+	 */
+	ipq_runtime_sf_env_update();
+
+	ipq_update_lmb_reservation();
+
+	return 0;
+}
+#endif
+
+#if defined(CONFIG_BOARD_LATE_INIT)
+int board_late_init(void)
+{
+	ipq_board_late_init();
+
+	return 0;
+}
+#endif
 
 int mach_cpu_init(void)
 {
@@ -329,6 +431,7 @@ int embedded_dtb_select(void)
 		if (dtb->list[i].machid == g_board_machid) {
 			strlcpy(dtb->dts_base, dtb->list[i].dts,
 				BOARD_DTS_MAX_NAMELEN);
+			dtb->index = i;
 			break;
 		}
 	}

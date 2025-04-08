@@ -54,6 +54,10 @@ config RAM_NUM_PART_ENTRIES
 	int "Number of RAM partition entries which are usable by APPS"
 	default 32
 
+config NUM_ALT_PARTITION
+        int
+        default 16
+
 config RAM_PART_NAME_LENGTH
 	int "Max length of ram partition name"
 	default 16
@@ -85,23 +89,110 @@ config IPQ_MMC
 	select MMC_SDHCI_MSM
 	select MMC_SDHCI_ADMA
 	select CMD_MMC
-	imply MMC_HS200_SUPPORT
+	imply EFI_PARTITION
 
-config IPQ_MULTI_DTB_SUPPORT
-	bool "Enable Multi-dtb support in IPQ SOC"
-	select MULTI_DTB_FIT
-	select MULTI_DTB_FIT_LZO
-	select SYS_MALLOC_F
-	select DTB_RESELECT
+config SOC_HW_VERSION_REG
+	hex "Define SoC HW version register"
+	default 0x194D000
+
+config ETH_MAX_MAC
+	hex "Define Maximum MAC support in SoC"
+	default 2 if TARGET_IPQ5332
+	default 6 if TARGET_IPQ9574
+	default 3 if TARGET_IPQ5424
+
+
+config FAILSAFE
+	bool "Enable failsafe mechanism"
+	default n
+	help
+	   This configuration option enables the failsafe mechanism
+	   within the system. When activated, the system is capable
+	   of booting from an alternative valid bank if the primary bank
+	   fails. This ensures continuous operation and reliability
+	   by providing a backup boot source, thereby minimizin
+	   downtime and enhancing system robustness.
+
+config BOOTCONFIG_V2
+	bool "Enable Boot Configuration Version 2"
+	imply FAILSAFE
+	default n
+	help
+	   This configuration option enables Boot Configuration
+	   Version 2 (BOOTCONFIG_V2).
+
+config BOOTCONFIG_V3
+	bool "Enable Boot Configuration Version 3"
+	imply FAILSAFE
+	default n
+	help
+	   This configuration option enables Boot Configuration
+	   Version 3 (BOOTCONFIG_V3).
+
+config CRC32_BE
+        bool "Enable CRC32 calculation in big-endian format"
+        default y if FAILSAFE
+	help
+	   This configuration option enables support for CRC32
+	   calculations in a big-endian format.
+
+config SCM
+	bool "Add scm call support"
+
+config SCM_V1
+	bool "SCM framework version 1"
+	select SCM
+	default n
+
+config SCM_V2
+	bool "SCM framework version 2"
+	select SCM
+	default n
+
+config IPQ_ROOTFS_AUTH
+	bool "Rootfs authentication support"
+	depends on IPQ_SECURE && (TARGET_IPQ9574 || TARGET_IPQ5332)
+	default n
+	help
+	    This configuration option enables the Rootfs authentication support
+	    in IPQ9574 & IPQ5332 only.
+
+config IPQ_ELF_AUTH
+	bool "IPQSOC elf image authentication"
+	default n
+	help
+	   This configuration option enables the authentication method via
+	   elf based.
+
+config IPQ_SECURE
+	bool "IPQSOC secure call support"
+	imply IPQ_ELF_AUTH
+	default n
+	help
+	   This configuration option enables secure boot support,
+	   where the kernel and optionally the root filesystem are
+	   authenticated before booting.
+
+config IPQ_BOARD_DEFAULT
+	bool "Enable default config for all SoC"
+	default y
+	imply BOARD_TYPES
+	imply BOARD_LATE_INIT
+	imply OF_BOARD_SETUP
+	imply STACKPROTECTOR
+	imply SYS_DEVICE_NULLDEV
 
 choice
 	prompt "IPQ board select"
 
 config TARGET_IPQ5332
 	bool "QTI IPQ5332 SOC"
-	imply IPQ_MULTI_DTB_SUPPORT
 	imply DMA
 	imply DMA_CHANNELS
+	imply IPQ_MMC
+	imply BOOTCONFIG_V2
+	imply SCM_V1
+	imply IPQ_SECURE
 	select BAM_DMA if DMA
 	help
 	  Support for the IPQ53XX SoC.
@@ -112,12 +203,14 @@ config TARGET_IPQ5332
 	  - USB 3.0/I2C/UART/PCIe Gen3 2Lane
 	  - 1G/2.5G/10G Ethernet Ports
 
-
 config TARGET_IPQ9574
 	bool "QTI IPQ9574 SOC"
-	imply IPQ_MULTI_DTB_SUPPORT
 	imply DMA
 	imply DMA_CHANNELS
+	imply IPQ_MMC
+	imply BOOTCONFIG_V2
+	imply SCM_V1
+	imply IPQ_SECURE
 	select BAM_DMA if DMA
 	help
 	  Support for IPQ95xx SoC.
@@ -130,8 +223,12 @@ config TARGET_IPQ9574
 
 config TARGET_IPQ5424
 	bool "QTI IPQ5424"
-	imply IPQ_MULTI_DTB_SUPPORT
 	imply NOR_BLK
+	imply IPQ_MMC
+	imply BOOTCONFIG_V3
+	imply SCM_V2
+	imply IPQ_SECURE
+	imply SHA384
 	help
 	  Support for IPQ5424 SoC.
 	  - Board Open Platform Specifications.
@@ -140,7 +237,6 @@ config TARGET_IPQ5424
 	  - QSPI NAND / NOR / eMMC
 	  - USB 3.0/I2C/UART/PCIe Gen3 2Lane
 	  - 2.5G/10G Ethernet Ports
-
 
 endchoice
 

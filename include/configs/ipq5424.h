@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright (c) 2023-2025, Qualcomm Innovation Center,Inc.All rights reserved.
  */
@@ -16,7 +16,9 @@ extern uint32_t g_board_machid;
 		(CONFIG_TEXT_BASE - CONFIG_SYS_MALLOC_LEN -\
 			CONFIG_ENV_SIZE - GENERATED_GBL_DATA_SIZE)
 
-#define CONFIG_MACH_TYPE                        (g_board_machid)
-#define CFG_SYS_SDRAM_BASE			0x80000000
-
+#define CONFIG_MACH_TYPE		(g_board_machid)
+#define CFG_SYS_SDRAM_BASE		0x80000000
+#define KERNEL_START_ADDR		CFG_SYS_SDRAM_BASE
+#define CFG_ROOTFS_LOAD_ADDR		(CFG_SYS_SDRAM_BASE + (32 << 20))
+#define FDT_HIGH			0x88500000
 #endif /* _IPQ5424_H_ */
