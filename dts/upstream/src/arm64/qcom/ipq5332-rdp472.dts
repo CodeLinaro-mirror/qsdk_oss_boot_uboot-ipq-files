@@ -5,7 +5,6 @@
 
 /dts-v1/;
 
-#include "ipq5332-rdp-common.dtsi"
 #include "ipq5332-rdp441.dts"
 
 / {
