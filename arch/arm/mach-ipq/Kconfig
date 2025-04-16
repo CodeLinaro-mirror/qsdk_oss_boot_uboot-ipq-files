@@ -50,6 +50,11 @@ config ARCH_64BIT_SUPPORT
 	select ARM64
 	default n
 
+config TEXT_SIZE
+	hex "Define Size of u-boot text size in DDR region"
+	default 0x1C0000
+
+
 config RAM_NUM_PART_ENTRIES
 	int "Number of RAM partition entries which are usable by APPS"
 	default 32
@@ -82,6 +87,33 @@ config IPQ_SPI_NOR
 	select SPI_FLASH_WINBOND
 	select SPI_FLASH_SPANSION
 	select SPI_FLASH_MTD if ENV_IS_IN_SPI_FLASH
+
+config IPQ_NET
+	bool "Enable default Network Configurations for IPQ SOC"
+	select ETH
+	select DM_MDIO
+	select MDIO_IPQ4019
+	imply MDIO_QCOM_I2C if IPQ_I2C
+	select PHYLIB
+	select CMD_NET
+	select CMD_MDIO
+	select CMD_MII
+	select CMD_PING
+	select CMD_TFTPPUT
+	select CMD_DHCP
+	select TFTP_PORT
+	imply ETH_SKIP_INIT_R
+	help
+	  This config will enable the Ethernet support in IPQSOC
+
+config ETH_MAX_MAC
+	hex "Define Maximum MAC support in SoC"
+	default 2
+
+config ETH_MAX_UNIPHY
+	int "Maximum number of uniphy available"
+	default 2
+
 
 config IPQ_MMC
 	bool "Enable eMMC support in IPQ SOC"
@@ -186,7 +218,7 @@ choice
 	prompt "IPQ board select"
 
 config TARGET_IPQ5332
-	bool "QTI IPQ5332 SOC"
+	bool "QCOM IPQ5332 SOC"
 	imply DMA
 	imply DMA_CHANNELS
 	imply IPQ_MMC
@@ -194,6 +226,14 @@ config TARGET_IPQ5332
 	imply SCM_V1
 	imply IPQ_SECURE
 	select BAM_DMA if DMA
+	select IPQ_NET
+	select QCOM_NSS_SWITCH
+	imply PHY_QCA_8X8X
+	imply PHY_QCA_81XX
+	imply PHY_QCA_8081
+	imply PHY_QCA_8033
+	imply PHY_AQUANTIA
+	select CMD_CACHE
 	help
 	  Support for the IPQ53XX SoC.
 	  - Board Open Platform Specifications.
@@ -204,7 +244,7 @@ config TARGET_IPQ5332
 	  - 1G/2.5G/10G Ethernet Ports
 
 config TARGET_IPQ9574
-	bool "QTI IPQ9574 SOC"
+	bool "QCOM IPQ9574 SOC"
 	imply DMA
 	imply DMA_CHANNELS
 	imply IPQ_MMC
@@ -212,6 +252,14 @@ config TARGET_IPQ9574
 	imply SCM_V1
 	imply IPQ_SECURE
 	select BAM_DMA if DMA
+	select IPQ_NET
+	select QCOM_NSS_SWITCH
+	imply PHY_QCA_8X8X
+	imply PHY_QCA_81XX
+	imply PHY_QCA_8075
+	imply PHY_QCA_8081
+	imply PHY_AQUANTIA
+	select CMD_CACHE
 	help
 	  Support for IPQ95xx SoC.
 	  - Board Open Platform Specifications.
@@ -222,13 +270,20 @@ config TARGET_IPQ9574
 	  - 1G/2.5G/10G Ethernet Ports
 
 config TARGET_IPQ5424
-	bool "QTI IPQ5424"
+	bool "QCOM IPQ5424"
 	imply NOR_BLK
 	imply IPQ_MMC
 	imply BOOTCONFIG_V3
 	imply SCM_V2
 	imply IPQ_SECURE
 	imply SHA384
+	select IPQ_NET
+	select QCOM_NSS_SWITCH
+	imply PHY_QCA_8X8X
+	imply PHY_QCA_81XX
+	imply PHY_QCA_8081
+	imply PHY_AQUANTIA
+	select CMD_CACHE
 	help
 	  Support for IPQ5424 SoC.
 	  - Board Open Platform Specifications.
