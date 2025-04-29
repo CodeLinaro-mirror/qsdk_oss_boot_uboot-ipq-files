@@ -724,6 +724,19 @@ config TARGET_IPQ5424
 	  - USB 3.0/I2C/UART/PCIe Gen3 2Lane
 	  - 2.5G/10G Ethernet Ports
 
+config TARGET_IPQ5200
+	bool "QTI IPQ5200"
+	imply QCOM_GENI_SE
+	imply IPQ_MULTI_DTB_SUPPORT
+	help
+	  Support for IPQ5200 SoC.
+	  - Board Open Platform Specifications.
+	  - Quad Cores A53, Nom@1.2G, L1@32KB L2@512KB
+	  - DDR3L/DDR4
+	  - QSPI NAND / NOR / eMMC
+	  - USB 3.0/I2C/UART/PCIe Gen3 2Lane
+	  - 2.5G/10G Ethernet Ports
+
 endchoice
 
 endif
