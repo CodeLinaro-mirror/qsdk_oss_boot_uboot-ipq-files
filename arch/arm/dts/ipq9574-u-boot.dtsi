@@ -4,7 +4,6 @@
  */
 
 / {
-
 	reserved-memory {
 
 		/delete-node/ smem;
