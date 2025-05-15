@@ -29,14 +29,20 @@ config SYS_CONFIG_NAME
 
 config SYS_MALLOC_LEN
 	default 0x100000
+	help
+	  This specifies the size of DRAM reserved for malloc() use.
 
 config SYS_MALLOC_F_LEN
 	default 0x10000
+	help
+	  This specifies the size of the malloc() pool for use before relocation.
 
 config TEXT_SIZE
 	hex "Define Size of u-boot text size in DDR region"
 	default 0x1C0000 if TARGET_IPQ9574
 	default 0x180000 if TARGET_IPQ5332 || TARGET_IPQ5424
+	help
+	  This option defines the size of the u-boot text in DDR region.
 
 config ARCH_32BIT_SUPPORT
 	bool "IPQSOC 32-bit support"
@@ -44,6 +50,8 @@ config ARCH_32BIT_SUPPORT
 	select SYS_ARCH_TIMER
 	select SYS_THUMB_BUILD
 	default n
+	help
+	  This config provides support for 32-bit IPQSOC.
 
 config IPQ_I2C
         bool "Enable I2C support in IPQ SOC"
@@ -57,28 +65,39 @@ config ARCH_64BIT_SUPPORT
 	bool "IPQSOC 64-bit support"
 	select ARM64
 	default n
-
-config TEXT_SIZE
-	hex "Define Size of u-boot text size in DDR region"
-	default 0x1C0000
-
+	help
+	  This config provides support for 64-bit IPQSOC.
 
 config RAM_NUM_PART_ENTRIES
 	int "Number of RAM partition entries which are usable by APPS"
 	default 32
+	help
+	  This config gives the number of RAM partition entries which are usable by APPS.
 
 config NUM_ALT_PARTITION
-        int
-        default 16
+	int
+	default 16
+	help
+	  This config gives the number of alternate partition.
 
 config RAM_PART_NAME_LENGTH
 	int "Max length of ram partition name"
 	default 16
+	help
+	  This specifies the maximum length of the alternate partition.
 
 config NOR_BLK_SIZE
 	int "Block size for SPI Nor BLK device"
 	depends on NOR_BLK
 	default 4096
+	help
+	  This config specifies the block size for SPI Nor BLK device.
+
+config SECONDARY_UART_INDEX
+	int "Access secondary UART via cli"
+	default 2
+	help
+	  This specifies the id inorder to access the secondary UART via cli.
 
 config IPQ_SPI_NOR
 	bool "Enable SPI NOR flash support in IPQ SOC"
@@ -95,6 +114,8 @@ config IPQ_SPI_NOR
 	select SPI_FLASH_WINBOND
 	select SPI_FLASH_SPANSION
 	select SPI_FLASH_MTD if ENV_IS_IN_SPI_FLASH
+	help
+	  This config helps in enabling SPI NOR flash support in IPQ SOC.
 
 config IPQ_NET
 	bool "Enable default Network Configurations for IPQ SOC"
@@ -112,16 +133,52 @@ config IPQ_NET
 	select TFTP_PORT
 	imply ETH_SKIP_INIT_R
 	help
-	  This config will enable the Ethernet support in IPQSOC
+	  This config will enable the Ethernet support in IPQSOC.
 
 config ETH_MAX_MAC
 	hex "Define Maximum MAC support in SoC"
 	default 2
+	help
+	  This config defines the maximum MAC support in SoC.
 
 config ETH_MAX_UNIPHY
 	int "Maximum number of uniphy available"
 	default 2
+	help
+	  This gives the maximum number of uniphy available.
 
+config IPQ_QCN9224_FUSING
+	depends on IPQ_PCIE
+	bool "Enable QCN9224 Fusing"
+	help
+	  This config is to enable QCN9224 Fusing.
+
+config IPQ_SMP_CMD_SUPPORT
+	bool "IPQ SMP command support"
+	depends on ARCH_32BIT_SUPPORT
+	default n
+	help
+	  This config is to support IPQ SMP command.
+
+config IPQ_SMP64_CMD_SUPPORT
+	bool "IPQ SMP64 command support"
+	depends on ARCH_64BIT_SUPPORT
+	default n
+	help
+	  This config is to support IPQ SMP64 command.
+
+config CMD_AES_256
+	bool "AES 256 command support"
+	default n
+	help
+	  This is to support AES 256 command.
+
+config AES_256_DERIVE_KEY
+	bool "AES 256 derive key support"
+	depends on CMD_AES_256
+	default n
+	help
+	  This provides support for AES 256 derive key.
 
 config IPQ_MMC
 	bool "Enable eMMC support in IPQ SOC"
@@ -130,17 +187,36 @@ config IPQ_MMC
 	select MMC_SDHCI_ADMA
 	select CMD_MMC
 	imply EFI_PARTITION
+	help
+	  This helps in enabling support for eMMC in IPQ SOC.
+
+config IPQ_NAND
+	bool "Enable NAND flash support in IPQ SOC"
+	select QTI_BAM
+	select NAND_QTI
+	select DM_MTD
+	select MTD_RAW_NAND
+	select MTD_UBI
+	select UBI_WRITE
+	select CMD_MTD
+	select CMD_NAND
+	select CMD_UBI
+	help
+	  This config enables support for NAND flash in IPQ SOC.
 
 config SOC_HW_VERSION_REG
 	hex "Define SoC HW version register"
 	default 0x194D000
+	help
+	  This config defines the SoC HW version register.
 
 config ETH_MAX_MAC
 	hex "Define Maximum MAC support in SoC"
 	default 2 if TARGET_IPQ5332
 	default 6 if TARGET_IPQ9574
 	default 3 if TARGET_IPQ5424
-
+	help
+	  This config gives the maximum MAC support in SoC.
 
 config FAILSAFE
 	bool "Enable failsafe mechanism"
@@ -170,24 +246,54 @@ config BOOTCONFIG_V3
 	   Version 3 (BOOTCONFIG_V3).
 
 config CRC32_BE
-        bool "Enable CRC32 calculation in big-endian format"
-        default y if FAILSAFE
+	bool "Enable CRC32 calculation in big-endian format"
+	default y if FAILSAFE
 	help
 	   This configuration option enables support for CRC32
 	   calculations in a big-endian format.
 
 config SCM
 	bool "Add scm call support"
+	help
+	  This config is to add support for SCM calls.
 
 config SCM_V1
 	bool "SCM framework version 1"
 	select SCM
 	default n
+	help
+	  This config provides support for SCM framework version 1 (SCM_V1).
 
 config SCM_V2
 	bool "SCM framework version 2"
 	select SCM
 	default n
+	help
+	  This config provides support for SCM framework version 2 (SCM_V2).
+
+config FUSE_IPQ
+	bool "Enable fuseipq command support"
+	default n
+	help
+	  This config provides support for fuseipq command.
+
+config FUSEIPQ_V1
+	bool "Enable fuseipq command support with version 1"
+	default n
+	help
+	  This config provides support for fuseipq command version 1.
+
+config FUSEIPQ_V2
+	bool "Enable fuseipq command support with version 2"
+	default n
+	help
+	  This config provides support for fuseipq command version 2.
+
+config LIST_FUSE
+	bool "Enable list_fuse command"
+	default n
+	help
+	  This option supports in enabling list_fuse command.
 
 config IPQ_ROOTFS_AUTH
 	bool "Rootfs authentication support"
@@ -203,6 +309,36 @@ config IPQ_ELF_AUTH
 	help
 	   This configuration option enables the authentication method via
 	   elf based.
+
+config DPR_VER_1_0
+	bool "DPR Version 1.0 support"
+	default n
+	help
+	  This option provides support for DPR Version 1.0
+	  It helps in executing dpr_execute in u-boot.
+
+config DPR_VER_2_0
+	bool "DPR Version 2.0 support"
+	default n
+        help
+          This option provides support for DPR Version 2.0
+          It helps in executing dpr_execute in u-boot.
+
+config DPR_VER_3_0
+	bool "DPR Version 3.0 support"
+	default n
+        help
+          This option provides support for DPR Version 3.0
+          It helps in executing dpr_execute in u-boot.
+
+config DPR_VERSION
+	int "Current DPR version"
+	default 1 if DPR_VER_1_0
+	default 2 if DPR_VER_2_0
+	default 3 if DPR_VER_3_0
+	help
+	  This gives the current DPR version.
+	  It helps in executing dpr_execute in u-boot.
 
 config IPQ_SECURE
 	bool "IPQSOC secure call support"
@@ -221,7 +357,8 @@ config IPQ_BOARD_DEFAULT
 	imply OF_BOARD_SETUP
 	imply STACKPROTECTOR
 	imply SYS_DEVICE_NULLDEV
-
+	help
+	  This config enables default configuration support for all SoCs.
 choice
 	prompt "IPQ board select"
 
@@ -242,6 +379,19 @@ config TARGET_IPQ5332
 	imply PHY_AQUANTIA
 	select CMD_CACHE
 	imply IPQ_I2C
+	imply FUSE_IPQ
+	imply LIST_FUSE
+	imply FUSEIPQ_V1 if IPQ_SECURE && SCM_V1
+	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V1
+	imply IPQ_QCN9224_FUSING
+	imply DPR_VER_2_0
+	imply IPQ_SMP_CMD_SUPPORT
+	imply IPQ_SMP64_CMD_SUPPORT
+	imply CMD_AES_256
+	select QSPI_LAYOUT_SWITCH if IPQ_NAND
+	imply MMC
+	imply SUPPORT_EMMC_BOOT
+	imply AES_256_DERIVE_KEY
 	help
 	  Support for the IPQ53XX SoC.
 	  - Board Open Platform Specifications.
@@ -268,6 +418,19 @@ config TARGET_IPQ9574
 	imply PHY_AQUANTIA
 	select CMD_CACHE
 	imply IPQ_I2C
+	imply FUSE_IPQ
+	imply FUSEIPQ_V1 if IPQ_SECURE && SCM_V1
+	imply LIST_FUSE_V1 if IPQ_SECURE && SCM_V1
+	imply LIST_FUSE
+	imply IPQ_QCN9224_FUSING
+	imply DPR_VER_1_0
+	imply IPQ_SMP_CMD_SUPPORT
+	imply IPQ_SMP64_CMD_SUPPORT
+	imply CMD_AES_256
+	select QSPI_LAYOUT_SWITCH if IPQ_NAND
+	imply MMC
+	imply SUPPORT_EMMC_BOOT
+	imply AES_256_DERIVE_KEY
 	help
 	  Support for IPQ95xx SoC.
 	  - Board Open Platform Specifications.
@@ -293,6 +456,19 @@ config TARGET_IPQ5424
 	select CMD_CACHE
 	imply IPQ_I2C
 	imply QCOM_GENI_SE
+	imply FUSE_IPQ
+	imply FUSEIPQ_V2 if IPQ_SECURE && SCM_V2
+	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V2
+	imply LIST_FUSE
+	imply IPQ_QCN9224_FUSING
+	imply DPR_VER_3_0
+	imply IPQ_SMP_CMD_SUPPORT
+	imply IPQ_SMP64_CMD_SUPPORT
+	imply CMD_AES_256
+	select QSPI_LAYOUT_SWITCH if IPQ_NAND
+	imply MMC
+	imply SUPPORT_EMMC_BOOT
+	imply AES_256_DERIVE_KEY
 	help
 	  Support for IPQ5424 SoC.
 	  - Board Open Platform Specifications.

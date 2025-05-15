@@ -6,7 +6,10 @@
  */
 
 #include <asm/global_data.h>
+#include <linux/arm-smccc.h>
+#include <linux/psci.h>
 #include <asm/cache.h>
+#include <command.h>
 #ifndef CONFIG_ARM64
 #include <asm/system.h>
 #include <asm/armv7.h>
@@ -64,9 +67,9 @@
 #define FLASH_TYPE_MASK			0xFF
 
 #ifndef IPQ_NAND_FLASH_VALID_BIT
-#define IPQ_NAND_FLASH_VALID_BIT        3
+#define IPQ_NAND_FLASH_VALID_BIT	3
 #endif
-#define CFG_IPQ_NAND_PART               BIT(IPQ_NAND_FLASH_VALID_BIT)
+#define CFG_IPQ_NAND_PART	       BIT(IPQ_NAND_FLASH_VALID_BIT)
 
 #if defined(CONFIG_BOOTCONFIG_V3)
 #define SET_AB_USABLE			(0x0UL)
@@ -83,21 +86,34 @@
 /*
  * TCSR bit
  */
-#define DLOAD_MAGIC_COOKIE                      0x10
-#define DLOAD_DISABLED                          0x40
-#define DLOAD_ENABLE                            BIT(4)
-#define DLOAD_DISABLE                           (~BIT(4))
-#define CRASHDUMP_RESET                         BIT(11)
+#define DLOAD_MAGIC_COOKIE		0x10
+#define DLOAD_DISABLED			0x40
+#define DLOAD_ENABLE			BIT(4)
+#define DLOAD_DISABLE			(~BIT(4))
+#define CRASHDUMP_RESET			BIT(11)
 #ifndef MARK_UBOOT_MILESTONE
-#define MARK_UBOOT_MILESTONE                    BIT(8)
+#define MARK_UBOOT_MILESTONE		BIT(8)
 #endif
 
 #if defined(CONFIG_BOOTCONFIG_V2)
-#define BOOTCONFIG_HEALTH_MASK                  BIT(13)
-#define BOOTCONFIG1_HEALTH_MASK                 BIT(14)
+#define BOOTCONFIG_HEALTH_MASK		BIT(13)
+#define BOOTCONFIG1_HEALTH_MASK		BIT(14)
 #endif
 
-#define ROOTFS_AUTH_EN				0x20
+#define ROOTFS_AUTH_EN			0x20
+
+/*
+ * Execute DPR
+ */
+#ifdef CONFIG_DPR_VER_1_0
+#define execute_dpr_fun(a, b, c, d)	execute_dprv1(a, b, c, d)
+#elif CONFIG_DPR_VER_2_0
+#define execute_dpr_fun(a, b, c, d)	execute_dprv2(a, b, c, d)
+#elif CONFIG_DPR_VER_3_0
+#define execute_dpr_fun(a, b, c, d)	execute_dprv3(a, b, c, d)
+#endif
+
+#define reset()				do_reset(NULL, 0, 0, NULL)
 
 extern struct ipq_board_info *ipq_bdinfo;
 extern struct multidtb_config *g_board_dtb_info;
@@ -114,7 +130,7 @@ enum bank {
 };
 
 enum {
-	SECURE_SYS_UPGRADE      = 0,
+	SECURE_SYS_UPGRADE = 0,
 };
 
 #ifdef CONFIG_DTB_RESELECT
@@ -494,4 +510,69 @@ void ipq_smem_get_itemv2(void **ptr, int type, int def, size_t size);
  *
  */
 void ipq_update_lmb_reservation(void);
+
+#ifdef CONFIG_DPR_VER_1_0
+/**
+ * execute_dprv1() - executes dpr in u-boot
+ * @cmdtp - u-boot cmd table
+ * @argc - no of cmd line arguments
+ * @argv - array of character pointers listing all the arguments
+ * Returns 0 if success otherwise error code.
+ */
+int execute_dprv1(struct cmd_tbl *cmdtp, int flag, int argc,
+				char *const argv[]);
+#elif CONFIG_DPR_VER_2_0
+int execute_dprv2(struct cmd_tbl *cmdtp, int flag, int argc,
+				char *const argv[]);
+#elif CONFIG_DPR_VER_3_0
+int execute_dprv3(struct cmd_tbl *cmdtp, int flag, int argc,
+				char *const argv[]);
+#endif
+
+/**
+ * ipq_bring_secondary_core_down() - brings the secondary core down
+ * @state - state of the secondary core
+ */
+void ipq_bring_secondary_core_down(unsigned long state);
+
+/**
+ * ipq_is_secondary_core_off() - checks whether the secondary core is off
+ * @cpuid - core id
+ * Returns value of register 0 from SMC/HVC call result
+ */
+int ipq_is_secondary_core_off(unsigned long cpuid);
+
+/**
+ * ipq_bring_secondary_core_up() - brings the secondary core up
+ * @cpuid - core id
+ * @entry - secondary_cpu_init
+ * @arg - address of the corresponding core in cpu_entry_arg
+ *
+ * Returns 0 if success otherwise error code.
+ */
+int ipq_bring_secondary_core_up(unsigned long cpuid, unsigned long entry,
+				unsigned long arg);
+/**
+ * ipq_init_ubi_part() - inits ubi part in mtd
+ *
+ * Returns 0 if success otherwise error code.
+ */
+int ipq_init_ubi_part(void);
+
+/**
+ * ipq_ubi_get_volume_size() - gets the ubi volume size
+ *
+ * @volume is name of the volume in ubi.
+ * returns the size in bytes if exist , else -ENODEV.
+ */
+long long ipq_ubi_get_volume_size(char *volume);
+
+/**
+ * ipq_get_training_part_info() - gets the training partition information
+ * @offset - offset to nand training partition
+ * @size - size of nand training partition
+ *
+ * Returns 0 if success otherwise error code.
+ */
+int ipq_get_training_part_info(uint32_t *offset, uint32_t *size);
 #endif

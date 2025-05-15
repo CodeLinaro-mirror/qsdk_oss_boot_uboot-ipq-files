@@ -311,7 +311,7 @@ int ubi_vol_present(char *ubi_vol_name)
 
 	ipq_get_kernel_fs_part_details(g_flash ? g_flash : sfi->flash_type);
 
-	if (init_ubi_part())
+	if (ipq_init_ubi_part())
 		goto ubi_detach;
 
 	ubi = ubi_get_device(0);

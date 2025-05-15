@@ -40,9 +40,19 @@
 #define TME_OEM_ID_MSK				0xFFFF0000
 #define TME_PRODUCT_ID_MSK			0x0000FFFF
 
+#define KERNEL_START_ADDR			CFG_SYS_SDRAM_BASE
+#define BOOT_PARAMS_ADDR			(KERNEL_START_ADDR + 0x100)
+#define FDT_HIGH				0x88500000
+
+#define PHY_ANEG_TIMEOUT			100
+
+#define ROOT_FS_PART_NAME			"rootfs"
+#define ROOT_FS_ATL_PART_NAME			"rootfs_1"
+
 struct fuse_payload {
 	u32 fuse_addr;
 	u32 lsb_val;
 	u32 msb_val;
 };
-#endif
+
+#endif /* _IPQ5424_H_ */

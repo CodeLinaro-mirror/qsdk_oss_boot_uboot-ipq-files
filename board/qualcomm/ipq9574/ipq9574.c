@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Copyright (c) 2023-2025, Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #include <asm/io.h>
@@ -341,4 +341,49 @@ bool is_atf_enbled(void)
 
 	return atf_status == ATF_STATE_ENABLED;
 }
+
+int execute_dprv1(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
+{
+	int ret = CMD_RET_USAGE;
+	unsigned long loadaddr;
+	unsigned long default_hex_val = 0xFFFFFFFF;
+	uint32_t dpr_status = 0;
+	struct scm_param param;
+
+	memset(&param, 0, sizeof(struct scm_param));
+	if (argc > cmdtp->maxargs)
+		goto fail;
+
+	if (argc == cmdtp->maxargs)
+		loadaddr = simple_strtoul(argv[1], NULL, 16);
+	else {
+		loadaddr = env_get_hex("fileaddr", default_hex_val);
+		if (loadaddr == default_hex_val)
+			goto fail;
+	}
+
+	do {
+		ret = -ENOTSUPP;
+		IPQ_SCM_EXECUTE_DPR(param, loadaddr);
+		param.get_ret = true;
+		ret = ipq_scm_call(&param);
+		dpr_status = param.res.result[0];
+
+		if (ret || dpr_status) {
+			printf("Error in DPR Processing ret : %d, " \
+					"dpr_status : %d\n",
+					ret, dpr_status);
+		} else
+			printf("DPR Process Successful\n");
+	} while (0);
+
+	if (ret == -ENOTSUPP) {
+		printf("Unsupported SCM call\n");
+		goto fail;
+	}
+
+fail:
+	return ret;
+}
+
 #endif

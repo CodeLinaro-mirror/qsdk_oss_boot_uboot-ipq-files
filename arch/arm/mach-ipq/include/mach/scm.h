@@ -83,7 +83,7 @@ struct qcom_scm_res {
 #define QCOM_PART_INFO_CMD		0x22
 #define QCOM_ROOTFS_HASH_VERIFY_CMD	0x23
 
-#define QCOM_SCM_SVC_INFO               0x06
+#define QCOM_SCM_SVC_INFO		0x06
 #define QCOM_SCM_INFO_IS_CALL_AVAIL     0x01
 #define QCOM_GET_SECURE_STATE_CMD	0x04
 

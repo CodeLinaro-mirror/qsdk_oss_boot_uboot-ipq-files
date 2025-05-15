@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /*
- * Copyright (c) 2023-2025, Qualcomm Innovation Center,Inc.All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 #ifndef _IPQ5424_H_
@@ -27,13 +27,7 @@ extern uint32_t g_board_machid;
 #endif
 
 #define CFG_SYS_SDRAM_BASE			CFG_SYS_SDRAM_BASE0_ADDR
-#define KERNEL_START_ADDR			CFG_SYS_SDRAM_BASE
-#define BOOT_PARAMS_ADDR			(KERNEL_START_ADDR + 0x100)
 #define CFG_ROOTFS_LOAD_ADDR			(CFG_SYS_SDRAM_BASE + (32 << 20))
-#define FDT_HIGH				0x88500000
-
-
-#define PHY_ANEG_TIMEOUT			100
 
 #define IPQ5424_UBOOT_END_ADDRESS		CONFIG_TEXT_BASE + \
 							CONFIG_TEXT_SIZE

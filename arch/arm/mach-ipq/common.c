@@ -593,7 +593,7 @@ void ipq_runtime_sf_env_update(void) {}
 #if defined(CONFIG_SMEM) && defined(CONFIG_MSM_SMEM)
 
 #ifdef CONFIG_IPQ_NAND
-uint32_t _get_nand_block_size(uint8_t dev_id)
+uint32_t get_nand_block_size(uint8_t dev_id)
 {
 	uint32_t block_size = 0;
 	struct mtd_info *mtd = get_nand_dev_by_index(0);
@@ -885,6 +885,53 @@ int ipq_get_current_board_flash_config(int flash_type)
 
 	return board_type;
 }
+
+#if defined (CONFIG_IPQ_SMP_CMD_SUPPORT) || (CONFIG_IPQ_SMP64_CMD_SUPPORT)
+static int ipq_qti_invoke_psci_fn_smc
+		(unsigned long function_id, unsigned long arg0,
+		 unsigned long arg1, unsigned long arg2)
+{
+	struct arm_smccc_res res;
+	arm_smccc_smc(function_id, arg0, arg1, arg2, 0, 0, 0, 0, &res);
+
+	return res.a0;
+}
+
+int ipq_is_secondary_core_off(unsigned long cpuid)
+{
+#if defined(CONFIG_BASE_CPU_64BIT_BOOTUP)
+	cpuid = cpuid << 8;
+#endif
+	return ipq_qti_invoke_psci_fn_smc(PSCI_0_2_FN_AFFINITY_INFO, cpuid, 0, 0);
+}
+
+void ipq_bring_secondary_core_down(unsigned long state)
+{
+	ipq_qti_invoke_psci_fn_smc(PSCI_0_2_FN_CPU_OFF, state, 0, 0);
+}
+
+int ipq_bring_secondary_core_up(unsigned long cpuid, unsigned long entry,
+				unsigned long arg)
+{
+	int ret;
+	unsigned long mpidr_cpuid = 0;
+#if defined(CONFIG_BASE_CPU_64BIT_BOOTUP)
+	mpidr_cpuid = cpuid << 8;
+#else
+	mpidr_cpuid = cpuid;
+#endif
+	ret = ipq_qti_invoke_psci_fn_smc(PSCI_0_2_FN_CPU_ON, mpidr_cpuid, entry,
+					arg);
+	if (ret) {
+		printf("Enabling CPU%ld via psci failed! (ret : %d)\n",
+								cpuid, ret);
+		return CMD_RET_FAILURE;
+	}
+
+	printf("Enabled CPU%ld via psci successfully!\n", cpuid);
+	return CMD_RET_SUCCESS;
+}
+#endif
 
 #if defined(CONFIG_BOOTCONFIG_V3)
 __weak int ipq_read_bootconfig(struct ipq_smem_flash_info *sfi)

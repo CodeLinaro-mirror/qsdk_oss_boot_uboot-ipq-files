@@ -531,7 +531,7 @@ static int read_from_nand(void)
 	/*
 	 * init ubi
 	 */
-	ret = init_ubi_part();
+	ret = ipq_init_ubi_part();
 	if (ret) {
 		printf(" Ubi error %d\n", ret);
 		return CMD_RET_FAILURE;
@@ -550,10 +550,10 @@ static int read_from_nand(void)
 		update_load_addr(&img_info);
 	}
 #endif
-	boot_info.size = ubi_get_volume_size("kernel");
+	boot_info.size = ipq_ubi_get_volume_size("kernel");
 
 	if (boot_info.size < 0) {
-		printf("Invalid kernel size %d\n", boot_info.size);
+		printf("Invalid kernel size %lu\n", boot_info.size);
 		return CMD_RET_FAILURE;
 	}
 
