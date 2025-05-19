@@ -229,7 +229,6 @@ config TARGET_IPQ5332
 	bool "QCOM IPQ5332 SOC"
 	imply DMA
 	imply DMA_CHANNELS
-	imply IPQ_MMC
 	imply BOOTCONFIG_V2
 	imply SCM_V1
 	imply IPQ_SECURE
@@ -256,7 +255,6 @@ config TARGET_IPQ9574
 	bool "QCOM IPQ9574 SOC"
 	imply DMA
 	imply DMA_CHANNELS
-	imply IPQ_MMC
 	imply BOOTCONFIG_V2
 	imply SCM_V1
 	imply IPQ_SECURE
@@ -282,7 +280,6 @@ config TARGET_IPQ9574
 config TARGET_IPQ5424
 	bool "QCOM IPQ5424"
 	imply NOR_BLK
-	imply IPQ_MMC
 	imply BOOTCONFIG_V3
 	imply SCM_V2
 	imply IPQ_SECURE
