@@ -221,9 +221,10 @@
 };
 
 &tlmm {
-};
+	uart1_pins: uart1-state {
+		bootph-all;
+	};
 
-&tlmm {
 	sdc_default_state: sdc-default-state {
 		clk-pins {
 			pins = "gpio5";
