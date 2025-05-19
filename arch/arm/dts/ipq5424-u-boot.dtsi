@@ -293,6 +293,12 @@
 };
 
 &qupv3 {
+	uart1_fw: uart_firmware@0 {
+		compatible = "qcom-ipq5424-uart-geni-fw";
+		reg = <0 0x01a84000 0 0x4000>;
+		status = "okay";
+	};
+
 	i2c0: i2c@1a88000 {
 		compatible = "qcom,geni-i2c";
 		reg = <0x0 0x1a88000 0x0 0x4000>;
@@ -371,6 +377,7 @@
 &uart1 {
 	pinctrl-0 = <&uart1_pins>;
 	pinctrl-names = "default";
+	qup-se-fw-load = <&uart1_fw>;
 	status = "okay";
 };
 
