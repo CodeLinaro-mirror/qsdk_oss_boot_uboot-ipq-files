@@ -11,3 +11,7 @@
 	model = "Qualcomm Technologies, Inc. IPQ5332 RDP472";
 	compatible = "qcom,ipq5332-rdp472", "qcom,ipq5332";
 };
+
+&pcie0 {
+	status = "disabled";
+};
