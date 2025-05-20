@@ -119,4 +119,28 @@
 			bias-pull-up;
 		};
 	};
+
+	i2c0_pinmux: i2c0 {
+		i2c0_scl {
+			pins = "gpio14";
+			function = "i2c0_scl";
+			drive-strength = <2>;
+			bias-pull-up;
+		};
+
+		i2c0_sda {
+			pins = "gpio15";
+			function = "i2c0_sda";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+};
+
+&qupv3 {
+	i2c0: i2c@1a88000 {
+		pinctrl-0 = <&i2c0_pinmux>;
+		pinctrl-names = "default";
+		status = "okay";
+	};
 };

@@ -293,6 +293,42 @@
 };
 
 &qupv3 {
+	i2c0: i2c@1a88000 {
+		compatible = "qcom,geni-i2c";
+		reg = <0x0 0x1a88000 0x0 0x4000>;
+		reg-names = "se_phys";
+		assigned-clocks = <&gcc GCC_QUPV3_I2C0_CLK>;
+		assigned-clock-rates = <64000000>;
+		clocks = <&gcc GCC_QUPV3_I2C0_CLK>;
+		clock-names = "se";
+		clock-frequency = <400000>;
+		qup-se-fw-load = <&i2c0_fw>;
+	};
+
+	i2c0_fw: i2c0_firmware@0 {
+		compatible = "qcom-ipq5424-i2c-geni-fw";
+		reg = <0x0 0x1a88000 0x0 0x4000>;
+		status = "okay";
+	};
+
+	i2c1: i2c@1a8c000 {
+		compatible = "qcom,geni-i2c";
+		reg = <0x0 0x1a8c000 0x0 0x4000>;
+		reg-names = "se_phys";
+		assigned-clocks = <&gcc GCC_QUPV3_I2C1_CLK>;
+		assigned-clock-rates = <64000000>;
+		clocks = <&gcc GCC_QUPV3_I2C1_CLK>;
+		clock-names = "se";
+		clock-frequency = <400000>;
+		qup-se-fw-load = <&i2c1_fw>;
+	};
+
+	i2c1_fw: i2c1_firmware@0 {
+		compatible = "qcom-ipq5424-i2c-geni-fw";
+		reg = <0x0 0x1a8c000 0x0 0x4000>;
+		status = "okay";
+	};
+
 	spi0: spi@1a90000 {
 		compatible = "qcom-ipq5424-geni-spi";
 		reg = <0 0x1a90000 0 0x4000>;
@@ -314,11 +350,17 @@
 			reg = <0 0 0 0>;
 			spi-max-frequency = <50000000>;
 		};
+	};
 
-		spi_fw: fw@0 {
-			compatible = "qcom-ipq5424-spi-geni-fw";
-			status = "okay";
-		};
+	spi_fw: spi_firmware@0 {
+		compatible = "qcom-ipq5424-spi-geni-fw";
+		reg = <0 0x1a90000 0 0x4000>;
+		reg-names = "se_phys";
+	};
+
+	se5: se5@1a94000 {
+		reg = <0 0x1a94000 0 0x4000>;
+		reg-names = "se_phys";
 	};
 };
 
