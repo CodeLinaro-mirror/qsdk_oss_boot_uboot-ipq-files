@@ -50,6 +50,7 @@ config IPQ_I2C
         select I2C
         select DM_I2C
         select SYS_I2C_GENI if TARGET_IPQ5424
+	select SYS_I2C_QUP if (TARGET_IPQ5332 || TARGET_IPQ9574)
         select CMD_I2C
 
 config ARCH_64BIT_SUPPORT
@@ -241,6 +242,7 @@ config TARGET_IPQ5332
 	imply PHY_QCA_8033
 	imply PHY_AQUANTIA
 	select CMD_CACHE
+	imply IPQ_I2C
 	help
 	  Support for the IPQ53XX SoC.
 	  - Board Open Platform Specifications.
@@ -267,6 +269,7 @@ config TARGET_IPQ9574
 	imply PHY_QCA_8081
 	imply PHY_AQUANTIA
 	select CMD_CACHE
+	imply IPQ_I2C
 	help
 	  Support for IPQ95xx SoC.
 	  - Board Open Platform Specifications.
