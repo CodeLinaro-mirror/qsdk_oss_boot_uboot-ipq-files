@@ -354,6 +354,17 @@ config MMC_FLASH_PARTITION_WRITE_PROTECT
 	depends on IPQ_MMC
 	default y
 
+config IPQ_PCIE
+	bool "Enable PCIE support in IPQ SOC"
+	select PCI
+	select PCIE_DW_QCOM
+	select PHY_QCOM_QMP_PCIE if TARGET_IPQ9574 || TARGET_IPQ5424
+	select PHY_QCOM_UNIPHY_PCIE if TARGET_IPQ5332
+	select CMD_PCI
+	select PHY
+	help
+	   This configuration option enables PCIE support in IPQ SoC's.
+
 config IPQ_BOARD_DEFAULT
 	bool "Enable default config for all SoC"
 	default y
@@ -398,6 +409,7 @@ config TARGET_IPQ5332
 	imply MMC
 	imply SUPPORT_EMMC_BOOT
 	imply AES_256_DERIVE_KEY
+	imply IPQ_PCIE
 	help
 	  Support for the IPQ53XX SoC.
 	  - Board Open Platform Specifications.
@@ -437,6 +449,7 @@ config TARGET_IPQ9574
 	imply MMC
 	imply SUPPORT_EMMC_BOOT
 	imply AES_256_DERIVE_KEY
+	imply IPQ_PCIE
 	help
 	  Support for IPQ95xx SoC.
 	  - Board Open Platform Specifications.
@@ -475,6 +488,7 @@ config TARGET_IPQ5424
 	imply MMC
 	imply SUPPORT_EMMC_BOOT
 	imply AES_256_DERIVE_KEY
+	imply IPQ_PCIE
 	help
 	  Support for IPQ5424 SoC.
 	  - Board Open Platform Specifications.
