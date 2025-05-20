@@ -101,6 +101,34 @@
 			phy-handle2 = <&phy2>;
 			status = "okay";
 		};
+
+		pcie0: pcie@70000000  {
+			pinctrl-0 = <&pcie0_default_state>;
+			pinctrl-names = "default";
+			perst-gpios = <&tlmm 25 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+
+		pcie1: pcie@60000000 {
+			pinctrl-0 = <&pcie1_default_state>;
+			pinctrl-names = "default";
+			status = "okay";
+			perst-gpios = <&tlmm 28 GPIO_ACTIVE_LOW>;
+		};
+
+		pcie2: pcie@50000000 {
+			pinctrl-0 = <&pcie2_default_state>;
+			pinctrl-names = "default";
+			status = "okay";
+			perst-gpios = <&tlmm 31 GPIO_ACTIVE_LOW>;
+		};
+
+		pcie3: pcie@40000000 {
+			perst-gpios = <&tlmm 34 GPIO_ACTIVE_LOW>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pcie3_default_state>;
+			status = "okay";
+		};
 	};
 };
 
@@ -188,6 +216,46 @@
 			function = "spi10";
 			drive-strength = <8>;
 			bias-pull-up;
+		};
+	};
+
+	pcie0_default_state: pcie0-default-state {
+		perst-n-pins {
+			pins = "gpio25";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-up;
+			output-low;
+		};
+	};
+
+	pcie1_default_state: pcie1-default-state {
+		perst-n-pins {
+			pins = "gpio28";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-up;
+			output-low;
+		};
+	};
+
+	pcie2_default_state: pcie2-default-state {
+		perst-n-pins {
+			pins = "gpio31";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-up;
+			output-low;
+		};
+	};
+
+	pcie3_default_state: pcie3-default-state {
+		perst-n-pins {
+			pins = "gpio34";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-up;
+			output-low;
 		};
 	};
 };

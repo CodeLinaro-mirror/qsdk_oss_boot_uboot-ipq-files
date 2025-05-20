@@ -87,6 +87,20 @@
 			phy-handle2 = <&phy2>;
 			status = "okay";
 		};
+
+		pcie2: pcie@50000000 {
+			pinctrl-0 = <&pcie2_default_state>;
+			pinctrl-names = "default";
+			status = "okay";
+			perst-gpios = <&tlmm 31 GPIO_ACTIVE_LOW>;
+		};
+
+		pcie3: pcie@40000000 {
+			pinctrl-0 = <&pcie3_default_state>;
+			pinctrl-names = "default";
+			status = "okay";
+			perst-gpios = <&tlmm 34 GPIO_ACTIVE_LOW>;
+		};
 	};
 };
 
@@ -134,6 +148,26 @@
 			function = "i2c0_sda";
 			drive-strength = <2>;
 			bias-disable;
+		};
+	};
+
+	pcie2_default_state: pcie2-default-state {
+		perst-n-pins {
+			pins = "gpio31";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-up;
+			output-low;
+		};
+	};
+
+	pcie3_default_state: pcie3-default-state {
+		perst-n-pins {
+			pins = "gpio34";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-up;
+			output-low;
 		};
 	};
 };
