@@ -8,7 +8,7 @@
 #include <dm.h>
 #include <misc.h>
 #include <asm/io.h>
-#include <geni_se.h>
+#include <soc/qcom/geni-se.h>
 
 #define SE_GENI_INIT_CFG_REVISION_OFFSET	0x0000
 #define SE_GENI_OUTPUT_CTRL_OFFSET		0x0024
@@ -345,7 +345,7 @@ static const struct geni_se_cfg ipq5424_spi_se_geni_cfg = {
 	.reg_64_113_len = ARRAY_SIZE(ipq5424_spi_se_geni_cfg_reg_64_113),
 	.ram = ipq5424_spi_se_geni_cfg_ram,
 	.ram_len = ARRAY_SIZE(ipq5424_spi_se_geni_cfg_ram),
-	.se_mode = QUPV3_SE_SPI,
+	.se_mode = GENI_SE_SPI,
 };
 
 static const struct geni_se_cfg ipq5424_i2c_se_geni_cfg = {
@@ -356,7 +356,7 @@ static const struct geni_se_cfg ipq5424_i2c_se_geni_cfg = {
 	.reg_64_113_len = ARRAY_SIZE(ipq5424_i2c_se_geni_cfg_reg_64_113),
 	.ram = ipq5424_i2c_se_geni_cfg_ram,
 	.ram_len = ARRAY_SIZE(ipq5424_i2c_se_geni_cfg_ram),
-	.se_mode = QUPV3_SE_I2C,
+	.se_mode = GENI_SE_I2C,
 };
 
 static const struct geni_se_cfg ipq5424_uart_se_geni_cfg = {
@@ -367,7 +367,7 @@ static const struct geni_se_cfg ipq5424_uart_se_geni_cfg = {
 	.reg_64_113_len = ARRAY_SIZE(ipq5424_uart_se_geni_cfg_reg_64_113),
 	.ram = ipq5424_uart_se_geni_cfg_ram,
 	.ram_len = ARRAY_SIZE(ipq5424_uart_se_geni_cfg_ram),
-	.se_mode = QUPV3_SE_UART,
+	.se_mode = GENI_SE_UART,
 };
 
 /**
@@ -394,8 +394,7 @@ void geni_se_reg_write(uint32_t *value, uint64_t offset, uint32_t len)
 
 static int qcom_geni_se_probe(struct udevice *dev)
 {
-	struct udevice *parent_dev = dev_get_parent(dev);
-	phys_addr_t se_base = dev_read_addr(parent_dev);
+	phys_addr_t se_base = dev_read_addr(dev);
 	struct geni_se_cfg *cfg = (struct geni_se_cfg*)dev_get_driver_data(dev);
 
 	/* Disable Peripheral clock and Output control */
@@ -444,7 +443,7 @@ static int qcom_geni_se_probe(struct udevice *dev)
 	writel(0x7F, se_base + SE_GENI_OUTPUT_CTRL_OFFSET);
 
 	/* Enable DMA for SPI SE alone */
-	if (cfg->se_mode == QUPV3_SE_SPI)
+	if (cfg->se_mode == GENI_SE_SPI)
 		writel(0x1, se_base + SE_DMA_IF_EN_OFFSET);
 
 	if (geni_se_read_proto(se_base) != cfg->se_mode)
@@ -475,4 +474,5 @@ U_BOOT_DRIVER(qcom_geni_se) = {
 	.of_match	= qcom_geni_se_ids,
 	.probe		= qcom_geni_se_probe,
 	.bind		= dm_scan_fdt_dev,
+	.flags          = DM_FLAG_PRE_RELOC,
 };
