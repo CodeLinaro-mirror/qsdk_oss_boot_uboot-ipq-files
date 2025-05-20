@@ -337,3 +337,39 @@
 		};
 	};
 };
+
+&blsp1_i2c1 {
+	/delete-property/ dmas;
+	/delete-property/ clocks;
+	/delete-property/ clock-names;
+	clocks = <&gcc GCC_BLSP1_QUP2_I2C_APPS_CLK>,
+		 <&gcc GCC_BLSP1_AHB_CLK>;
+	clock-names = "iface", "core";
+};
+
+&blsp1_i2c2 {
+	/delete-property/ dmas;
+	/delete-property/ clocks;
+	/delete-property/ clock-names;
+	clocks = <&gcc GCC_BLSP1_QUP3_I2C_APPS_CLK>,
+		 <&gcc GCC_BLSP1_AHB_CLK>;
+	clock-names = "iface", "core";
+};
+
+&blsp1_i2c3 {
+	/delete-property/ dmas;
+	/delete-property/ clocks;
+	/delete-property/ clock-names;
+	clocks = <&gcc GCC_BLSP1_QUP4_I2C_APPS_CLK>,
+		 <&gcc GCC_BLSP1_AHB_CLK>;
+	clock-names = "iface", "core";
+};
+
+&blsp1_i2c4 {
+	/delete-property/ dmas;
+	/delete-property/ clocks;
+	/delete-property/ clock-names;
+	clocks = <&gcc GCC_BLSP1_QUP5_I2C_APPS_CLK>,
+		 <&gcc GCC_BLSP1_AHB_CLK>;
+	clock-names = "iface", "core";
+};
