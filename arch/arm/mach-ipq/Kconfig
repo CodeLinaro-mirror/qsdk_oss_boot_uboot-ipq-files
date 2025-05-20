@@ -45,6 +45,13 @@ config ARCH_32BIT_SUPPORT
 	select SYS_THUMB_BUILD
 	default n
 
+config IPQ_I2C
+        bool "Enable I2C support in IPQ SOC"
+        select I2C
+        select DM_I2C
+        select SYS_I2C_GENI if TARGET_IPQ5424
+        select CMD_I2C
+
 config ARCH_64BIT_SUPPORT
 	bool "IPQSOC 64-bit support"
 	select ARM64
@@ -284,6 +291,8 @@ config TARGET_IPQ5424
 	imply PHY_QCA_8081
 	imply PHY_AQUANTIA
 	select CMD_CACHE
+	imply IPQ_I2C
+	imply QCOM_GENI_SE
 	help
 	  Support for IPQ5424 SoC.
 	  - Board Open Platform Specifications.
