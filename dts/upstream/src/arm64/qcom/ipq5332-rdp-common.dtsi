@@ -8,7 +8,7 @@
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/leds/common.h>
-#include <dt-bindings/net/qti-ipqsoc.h>
+#include <dt-bindings/net/qcom_ipqsoc.h>
 #include "ipq5332.dtsi"
 
 / {
