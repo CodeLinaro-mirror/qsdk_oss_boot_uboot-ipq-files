@@ -8,6 +8,7 @@
 #include <dm.h>
 #include <errno.h>
 #include <linux/delay.h>
+#include <dm/device_compat.h>
 #include <cpu_func.h>
 #include <spi.h>
 #include <misc.h>
@@ -880,7 +881,7 @@ static int qupv3_spi_probe(struct udevice *dev)
 	struct qupv3_spi_priv *priv = dev_get_priv(dev);
 	int ret;
 	struct ofnode_phandle_args args;
-	struct udevice *config;
+	struct udevice *config = NULL;
 #if defined(CONFIG_NOR_BLK)
 	struct blk_desc *bdesc;
 	struct udevice *bdev;
@@ -906,9 +907,12 @@ static int qupv3_spi_probe(struct udevice *dev)
 	ret = dev_read_phandle_with_args(dev, "qup-se-fw-load", NULL, 0, 0,
 						&args);
 	if (!ret) {
-		uclass_get_device_by_phandle_id(UCLASS_NOP,
-						args.node.np->phandle,
-						&config);
+		ret = uclass_get_device_by_ofnode(UCLASS_NOP, args.node,
+						  &config);
+		if (ret)
+			dev_err(dev,
+				"Failed to write SE(SPI) Firmware: %d\n",
+				ret);
 	}
 
 	priv->num_cs = dev_read_u32_default(dev, "num-cs", 1);
