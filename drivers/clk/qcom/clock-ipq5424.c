@@ -155,7 +155,7 @@ static ulong ipq5424_set_rate(struct clk *clk, ulong rate)
 		break;
 	case GCC_QUPV3_UART1_CLK:
 		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_UART1_CMD_RCGR,
-				     0, 144, 15625, CFG_CLK_SRC_GPLL0, 16);
+					0x19, 0, 0, CFG_CLK_SRC_CXO, 16);
 		break;
 	case GCC_SDCC1_APPS_CLK:
 		clk_rcg_set_rate_mnd(priv->base, GCC_SDCC1_APPS_CMD_RCGR,
