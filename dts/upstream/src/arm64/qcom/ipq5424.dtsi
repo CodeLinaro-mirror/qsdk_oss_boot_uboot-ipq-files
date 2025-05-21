@@ -9,7 +9,7 @@
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/clock/qcom,ipq5424-gcc.h>
 #include <dt-bindings/reset/qcom,ipq5424-gcc.h>
-#include <dt-bindings/net/qti-ipqsoc.h>
+#include <dt-bindings/net/qcom_ipqsoc.h>
 #include <dt-bindings/gpio/gpio.h>
 
 / {

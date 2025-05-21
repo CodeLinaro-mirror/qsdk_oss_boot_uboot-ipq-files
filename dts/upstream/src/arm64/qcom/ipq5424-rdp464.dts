@@ -136,4 +136,83 @@
 			bias-pull-up;
 		};
 	};
+
+	i2c0_pinmux: i2c0 {
+		i2c0_scl {
+			pins = "gpio14";
+			function = "i2c0_scl";
+			drive-strength = <2>;
+			bias-pull-up;
+		};
+
+		i2c0_sda {
+			pins = "gpio15";
+			function = "i2c0_sda";
+			drive-strength = <2>;
+			bias-disable;
+		};
+	};
+
+	i2c1_pinmux: i2c1 {
+		i2c1_scl {
+			pins = "gpio16";
+			function = "i2c1_scl";
+			drive-strength = <2>;
+			bias-pull-down;
+		};
+
+		i2c1_sda {
+			pins = "gpio17";
+			function = "i2c1_sda";
+			drive-strength = <2>;
+			bias-pull-down;
+		};
+	};
+
+	i2c2_pinmux: i2c2 {
+		i2c2_sda {
+			pins = "gpio47";
+			function = "spi10";
+			drive-strength = <8>;
+			bias-disable;
+		};
+
+		i2c2_scl {
+			pins = "gpio48";
+			function = "spi10";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+	};
+};
+
+&qupv3 {
+	i2c0: i2c@1a88000 {
+		pinctrl-0 = <&i2c0_pinmux>;
+		pinctrl-names = "default";
+		status = "okay";
+	};
+
+	i2c1: i2c@1a8c000 {
+		pinctrl-0 = <&i2c1_pinmux>;
+		pinctrl-names = "default";
+		status = "okay";
+	};
+
+	se5: se5@1a94000 {
+		compatible = "qcom,geni-i2c";
+		clocks = <&gcc GCC_QUPV3_SPI1_CLK>;
+		clock-names = "se";
+		clock-frequency = <400000>;
+		qup-se-fw-load = <&i2c2_fw>;
+		pinctrl-0 = <&i2c2_pinmux>;
+		pinctrl-names = "default";
+		status = "okay";
+	};
+
+	i2c2_fw: i2c2_firmware@0 {
+		compatible = "qcom-ipq5424-i2c-geni-fw";
+		reg = <0 0x1a94000 0 0x4000>;
+		status = "okay";
+	};
 };

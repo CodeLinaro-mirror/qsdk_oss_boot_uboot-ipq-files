@@ -25,8 +25,8 @@
 #define GCC_SDCC1_APPS_CBCR				0x3302C
 #define GCC_SDCC1_AHB_CBCR				0x33034
 #define GCC_QDSS_AT_CMD_RCGR				(0x2D004)
-#define PCCNOC_BFDCD_SRC_SEL_GPLL0_OUT_MAIN		(1 << 8)
-#define QDSS_SRC_SEL_GPLL4_OUT_MAIN			(1 << 8)
+#define PCCNOC_BFDCD_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
+#define QDSS_SRC_SEL_GPLL4_OUT_MAIN			BIT(8)
 #define GCC_SYSTEM_NOC_BFDCD_SRC_SEL_GPLL4_OUT_MAIN	(2 << 8)
 #define GCC_PCNOC_BFDCD_CMD_RCGR			(0x31004)
 #define GCC_SYSTEM_NOC_BFDCD_CMD_RCGR			(0x2E004)
@@ -59,7 +59,7 @@
 #define CLK_312_5_MHZ					(312500000UL)
 
 static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
-		int *div, int *cdiv)
+				     int *div, int *cdiv)
 {
 	int pclk_rate = clk_get_parent_rate(clk);
 
@@ -103,8 +103,9 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 		default:
 			return -EINVAL;
 		}
-	} else
+	} else {
 		return -EINVAL;
+	}
 
 	return 0;
 }
@@ -120,6 +121,11 @@ int msm_set_parent(struct clk *clk, struct clk *parent)
 
 ulong msm_get_rate(struct clk *clk)
 {
+	switch (clk->id) {
+	case GCC_BLSP1_QUP2_I2C_APPS_CLK:
+		clk->rate = CLK_50_MHZ;
+		break;
+	};
 
 	return (ulong)clk->rate;
 }
@@ -127,9 +133,9 @@ ulong msm_get_rate(struct clk *clk)
 /* BLSP QUP SPI clock register */
 #define BLSP1_QUP1_SPI_BCR		0x02000
 
-#define BLSP1_QUP_SPI_BCR(id)		((id < 1) ? \
+#define BLSP1_QUP_SPI_BCR(id)		(((id) < 1) ? \
 					(BLSP1_QUP1_SPI_BCR) : \
-					(BLSP1_QUP1_SPI_BCR + (0x1000 * id)))
+					(BLSP1_QUP1_SPI_BCR + (0x1000 * (id))))
 
 #define BLSP1_QUP_SPI_APPS_CMD_RCGR(id)	(BLSP1_QUP_SPI_BCR(id) + 0x04)
 #define BLSP1_QUP_SPI_APPS_CFG_RCGR(id)	(BLSP1_QUP_SPI_BCR(id) + 0x08)
@@ -137,6 +143,19 @@ ulong msm_get_rate(struct clk *clk)
 #define BLSP1_QUP_SPI_APPS_N(id)	(BLSP1_QUP_SPI_BCR(id) + 0x10)
 #define BLSP1_QUP_SPI_APPS_D(id)	(BLSP1_QUP_SPI_BCR(id) + 0x14)
 #define BLSP1_QUP_SPI_APPS_CBCR(id)	(BLSP1_QUP_SPI_BCR(id) + 0x20)
+
+/* BLSP QUP I2C clock register */
+#define BLSP1_QUP1_I2C_BCR		0x02000
+
+#define BLSP1_QUP_I2C_BCR(id)		(((id) < 1) ? \
+					(BLSP1_QUP1_I2C_BCR) : \
+					(BLSP1_QUP1_I2C_BCR + (0x1000 * (id))))
+
+#define BLSP1_QUP_I2C_APPS_CMD_RCGR(id)	(BLSP1_QUP_I2C_BCR(id) + 0x18)
+#define BLSP1_QUP_I2C_APPS_CFG_RCGR(id)	(BLSP1_QUP_I2C_BCR(id) + 0x1C)
+#define BLSP1_QUP_I2C_APPS_CBCR(id)	(BLSP1_QUP_I2C_BCR(id) + 0x24)
+
+#define BLSP1_QUP_I2C_50M_DIV_VAL	(0x1F << 0)
 
 static ulong ipq5332_set_rate(struct clk *clk, ulong rate)
 {
@@ -166,65 +185,73 @@ static ulong ipq5332_set_rate(struct clk *clk, ulong rate)
 				     BLSP1_QUP_SPI_APPS_CMD_RCGR(2), 16, 0, 0,
 				     CFG_CLK_SRC_GPLL0, 16);
 		break;
+	case GCC_BLSP1_QUP2_I2C_APPS_CLK:
+		/* QUP1 I2C APPS CLK: 50MHz */
+		clk_rcg_set_rate(priv->base, BLSP1_QUP_I2C_APPS_CMD_RCGR(1),
+				 BLSP1_QUP_I2C_50M_DIV_VAL,
+				 CFG_CLK_SRC_GPLL0);
+		break;
 	case GCC_SDCC1_APPS_CLK:
 		clk_rcg_set_rate_mnd(priv->base, GCC_SDCC1_APPS_CMD_RCGR,
 				     11, 0, 0, CFG_CLK_SRC_GPLL2, 16);
 		break;
 	case GCC_QDSS_AT_CLK:
 		clk_rcg_set_rate_v2(priv->base, GCC_QDSS_AT_CMD_RCGR, 0, 9, 0,
-				QDSS_SRC_SEL_GPLL4_OUT_MAIN);
+				    QDSS_SRC_SEL_GPLL4_OUT_MAIN);
 		break;
 	case GCC_PCNOC_BFDCD_CLK_SRC:
-		clk_rcg_set_rate_v2(priv->base, GCC_PCNOC_BFDCD_CMD_RCGR, 0, 15, 0,
-				PCCNOC_BFDCD_SRC_SEL_GPLL0_OUT_MAIN);
+		clk_rcg_set_rate_v2(priv->base, GCC_PCNOC_BFDCD_CMD_RCGR,
+				    0, 15, 0,
+				    PCCNOC_BFDCD_SRC_SEL_GPLL0_OUT_MAIN);
 		break;
 	case GCC_SYSTEM_NOC_BFDCD_CLK_SRC:
 		clk_rcg_set_rate_v2(priv->base, GCC_SYSTEM_NOC_BFDCD_CMD_RCGR,
-				0, 8, 0,
-				GCC_SYSTEM_NOC_BFDCD_SRC_SEL_GPLL4_OUT_MAIN);
+				    0, 8, 0,
+				    GCC_SYSTEM_NOC_BFDCD_SRC_SEL_GPLL4_OUT_MAIN);
 		break;
 	/*
 	 * NSS controlled clock
 	 */
 	case NSS_CC_CFG_CLK:
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_CFG_CMD_RCGR, 0, 15, 0,
-				NSS_CC_SRC_SEL_GCC_GPLL0_OUT_AUX);
+				    NSS_CC_SRC_SEL_GCC_GPLL0_OUT_AUX);
 		break;
 	case NSS_CC_PPE_CLK:
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PPE_CMD_RCGR,
-				0, 1, 0, NSS_CC_PPE_SRC_SEL_CMN_PLL_NSS_CLK_200M);
+				    0, 1, 0,
+				    NSS_CC_PPE_SRC_SEL_CMN_PLL_NSS_CLK_200M);
 		break;
 	case NSS_CC_PORT1_RX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
 		if (ret < 0)
 			return ret;
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT1_RX_CMD_RCGR,
-				NSS_CC_PORT1_RX_DIV_CDIVR, div, cdiv,
-				NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK);
+				    NSS_CC_PORT1_RX_DIV_CDIVR, div, cdiv,
+				    NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK);
 		break;
 	case NSS_CC_PORT1_TX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
 		if (ret < 0)
 			return ret;
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT1_TX_CMD_RCGR,
-				NSS_CC_PORT1_TX_DIV_CDIVR, div, cdiv,
-				NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
+				    NSS_CC_PORT1_TX_DIV_CDIVR, div, cdiv,
+				    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
 		break;
 	case NSS_CC_PORT2_RX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
 		if (ret < 0)
 			return ret;
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT2_RX_CMD_RCGR,
-				NSS_CC_PORT2_RX_DIV_CDIVR, div, cdiv,
-				NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK);
+				    NSS_CC_PORT2_RX_DIV_CDIVR, div, cdiv,
+				    NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK);
 		break;
 	case NSS_CC_PORT2_TX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
 		if (ret < 0)
 			return ret;
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT2_TX_CMD_RCGR,
-				NSS_CC_PORT2_TX_DIV_CDIVR, div, cdiv,
-				NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
+				    NSS_CC_PORT2_TX_DIV_CDIVR, div, cdiv,
+				    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
 		break;
 
 	case UNIPHY0_NSS_RX_CLK:
@@ -287,7 +314,8 @@ static const struct gate_clk ipq5332_clks[] = {
 	GATE_CLK(NSS_CC_UNIPHY_PORT1_TX_CLK,	0x004B8, 0x00000001),
 	GATE_CLK(NSS_CC_UNIPHY_PORT2_RX_CLK,	0x004BC, 0x00000001),
 	GATE_CLK(NSS_CC_UNIPHY_PORT2_TX_CLK,	0x004C0, 0x00000001),
-	GATE_CLK(GCC_MDIO_MASTER_AHB_CLK,	0x12004, 0x00000001)
+	GATE_CLK(GCC_MDIO_MASTER_AHB_CLK,	0x12004, 0x00000001),
+	GATE_CLK(GCC_BLSP1_QUP2_I2C_APPS_CLK,	BLSP1_QUP_I2C_APPS_CBCR(1), 0x00000001),
 };
 
 static int ipq5332_enable(struct clk *clk)

@@ -43,7 +43,7 @@
 #include <linux/iopoll.h>
 #include <dm/pinctrl.h>
 #include <memalign.h>
-#include <dt-bindings/net/qti-ipqsoc.h>
+#include <dt-bindings/net/qcom_ipqsoc.h>
 
 #define UPDATE_EDMA_CONFIG(_src, _dest)					\
 	do {								\

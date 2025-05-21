@@ -45,6 +45,14 @@ config ARCH_32BIT_SUPPORT
 	select SYS_THUMB_BUILD
 	default n
 
+config IPQ_I2C
+        bool "Enable I2C support in IPQ SOC"
+        select I2C
+        select DM_I2C
+        select SYS_I2C_GENI if TARGET_IPQ5424
+	select SYS_I2C_QUP if (TARGET_IPQ5332 || TARGET_IPQ9574)
+        select CMD_I2C
+
 config ARCH_64BIT_SUPPORT
 	bool "IPQSOC 64-bit support"
 	select ARM64
@@ -221,7 +229,6 @@ config TARGET_IPQ5332
 	bool "QCOM IPQ5332 SOC"
 	imply DMA
 	imply DMA_CHANNELS
-	imply IPQ_MMC
 	imply BOOTCONFIG_V2
 	imply SCM_V1
 	imply IPQ_SECURE
@@ -234,6 +241,7 @@ config TARGET_IPQ5332
 	imply PHY_QCA_8033
 	imply PHY_AQUANTIA
 	select CMD_CACHE
+	imply IPQ_I2C
 	help
 	  Support for the IPQ53XX SoC.
 	  - Board Open Platform Specifications.
@@ -247,7 +255,6 @@ config TARGET_IPQ9574
 	bool "QCOM IPQ9574 SOC"
 	imply DMA
 	imply DMA_CHANNELS
-	imply IPQ_MMC
 	imply BOOTCONFIG_V2
 	imply SCM_V1
 	imply IPQ_SECURE
@@ -260,6 +267,7 @@ config TARGET_IPQ9574
 	imply PHY_QCA_8081
 	imply PHY_AQUANTIA
 	select CMD_CACHE
+	imply IPQ_I2C
 	help
 	  Support for IPQ95xx SoC.
 	  - Board Open Platform Specifications.
@@ -272,7 +280,6 @@ config TARGET_IPQ9574
 config TARGET_IPQ5424
 	bool "QCOM IPQ5424"
 	imply NOR_BLK
-	imply IPQ_MMC
 	imply BOOTCONFIG_V3
 	imply SCM_V2
 	imply IPQ_SECURE
@@ -284,6 +291,8 @@ config TARGET_IPQ5424
 	imply PHY_QCA_8081
 	imply PHY_AQUANTIA
 	select CMD_CACHE
+	imply IPQ_I2C
+	imply QCOM_GENI_SE
 	help
 	  Support for IPQ5424 SoC.
 	  - Board Open Platform Specifications.

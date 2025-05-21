@@ -248,6 +248,7 @@ int ipq_get_valid_bank(void);
  * Applicable only for NOR flash
  */
 void ipq_runtime_sf_env_update(void);
+#if IS_ENABLED(CONFIG_MMC) || IS_ENABLED(CONFIG_NOR_BLK)
 /**
  * ipq_part_get_info_by_name() - Get partition information from GPT
  *
@@ -255,6 +256,7 @@ void ipq_runtime_sf_env_update(void);
  * Return 0 if Found , otherwise error code
  */
 int ipq_part_get_info_by_name(struct blkpart_info *blkpart);
+#endif
 /**
  * get_gpt_entry() - Get the GPT entry table
  *
