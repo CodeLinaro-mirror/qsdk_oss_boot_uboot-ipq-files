@@ -42,6 +42,30 @@
 #define MACH_TYPE_IPQ9574_DB_AL02_C3		0x1050201
 #define MACH_TYPE_IPQ9574_RDP433_SFP		0x8051101
 
+#define LINUX_6_x_SERIAL2_DTS_NODE		"/soc@0/serial@78b2000/"
+#define STATUS_DISABLED				"status%?disabled"
+#define LINUX_6_x_ROOTFS_AUTH_DTS_NODE		"/soc@0/qfprom"
+#define LINUX_6_x_ROOTFS_AUTH_FIXUP	"/soc@0/qfprom/%rootfs_auth_enable%1"
+#define LINUX_5_4_CRYPTO_BAM_NODE		"/soc/dma@704000"
+#define LINUX_5_4_CRYPTO_BAM_PIPE_TRUST_FIXUP	"/soc/dma@704000%qti,config-pipe-trust-reg%2"
+#define LINUX_5_4_CRYPTO_BAM_CTRL_REMOTE_FIXUP	"/soc/dma@704000%qcom,controlled-remotely%0"
+#define LINUX_6_x_CRYPTO_BAM_NODE		"/soc@0/dma@704000"
+#define LINUX_6_x_CRYPTO_BAM_PIPE_TRUST_FIXUP	"/soc@0/dma@704000/%qti,config-pipe-trust-reg%2"
+#define LINUX_6_x_CRYPTO_BAM_CTRL_REMOTE_FIXUP	"/soc@0/dma@704000%delete%qcom,controlled-remotely"
+
+#if CONFIG_FDT_FIXUP_PARTITIONS
+struct node_info ipq_fnodes[] = {
+	{ "n25q128a11", MTD_DEV_TYPE_NOR},
+	{ "micron,n25q128a11", MTD_DEV_TYPE_NOR},
+	{ "qcom,ipq9574-nand", MTD_DEV_TYPE_NAND},
+};
+
+int ipq_fnode_entires = ARRAY_SIZE(ipq_fnodes);
+
+struct node_info *fnodes = ipq_fnodes ;
+int *fnode_entires = &ipq_fnode_entires;
+#endif
+
 struct dts_fixup ipq9574_mmc_fixup[] = {
 	{ "/soc@0/nand@79b0000/", {"/soc@0/nand@79b0000/%status%?disabled"}, 1},
 	{ "/soc@0/mmc@7804000/", {"/soc@0/mmc@7804000/%status%?okay"}, 1},
@@ -258,6 +282,124 @@ struct multidtb_config ipq9574_dtb_info = {
 
 struct multidtb_config *g_board_dtb_info = &ipq9574_dtb_info;
 
+static struct crashdump_infos dumpinfo_n[] = {
+	{
+		.name = "EBICS.BIN",
+		.start_addr = CFG_SYS_SDRAM_BASE,
+		.size = 0xBAD0FF5E,
+		.dump_level = FULLDUMP,
+		.split_bin_sz = SZ_1G,
+		.is_aligned_access = false,
+		.compression_support = true,
+		.dumptoflash_support = false
+	},
+	{
+		.name = "CODERAM.BIN",
+		.start_addr = 0x00200000,
+		.size = 0x00028000,
+		.dump_level = FULLDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = false
+	},
+	{
+		.name = "DATARAM.BIN",
+		.start_addr = 0x00290000,
+		.size = 0x00014000,
+		.dump_level = FULLDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = false
+	},
+	{
+		.name = "MSGRAM.BIN",
+		.start_addr = 0x00060000,
+		.size = 0x00006000,
+		.dump_level = FULLDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = true,
+		.compression_support = false,
+		.dumptoflash_support = false
+	},
+	{
+		.name = "IMEM.BIN",
+		.start_addr = 0x08600000,
+		.size = 0x00001000,
+		.dump_level = FULLDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = false
+	},
+	{
+		.name = "CPU_INFO.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = true
+	},
+	{
+		.name = "UNAME.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = true
+	},
+	{
+		.name = "DMESG.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = false
+	},
+	{
+		.name = "PT.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = false
+	},
+	{
+		.name = "WLAN_MOD.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = false
+	},
+};
+
+static uint8_t dump_entries_n = ARRAY_SIZE(dumpinfo_n);
+
+struct crashdump_infos *board_dumpinfo = dumpinfo_n;
+
+uint8_t *board_dump_entries = &dump_entries_n;
+
+void reset_cpu(void)
+{
+#ifdef CONFIG_IPQ_CRASHDUMP
+	reset_crashdump(RESET_V1);
+#endif
+	psci_sys_reset(SYSRESET_COLD);
+	return;
+}
+
 void ipq_update_board_name(int machid, struct multidtb_config *dtb)
 {
 	switch(machid) {
@@ -385,5 +527,153 @@ int execute_dprv1(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 fail:
 	return ret;
 }
-
 #endif
+
+void ipq_fdt_serial_fixup(void *blob)
+{
+	int serial_nodeoff = -EINVAL;
+	uint32_t flash_type = gd->board_type & FLASH_TYPE_MASK;
+
+	if (flash_type != SMEM_BOOT_MMC_FLASH)
+		return;
+
+#ifdef LINUX_6_x_SERIAL2_DTS_NODE
+	serial_nodeoff = fdt_path_offset(blob, LINUX_6_x_SERIAL2_DTS_NODE);
+#endif
+
+	if (serial_nodeoff > 0) {
+#ifdef LINUX_6_x_SERIAL2_DTS_NODE
+		parse_fdt_fixup(LINUX_6_x_SERIAL2_DTS_NODE"%"\
+					STATUS_DISABLED,blob);
+#endif
+		}
+}
+
+void ipq_fdt_rootfs_auth_fixup(void *blob)
+{
+	int auth_nodeoff = -EINVAL;
+
+#ifdef LINUX_6_x_ROOTFS_AUTH_DTS_NODE
+	auth_nodeoff = fdt_path_offset(blob, LINUX_6_x_ROOTFS_AUTH_DTS_NODE);
+
+	if (auth_nodeoff > 0) {
+		parse_fdt_fixup(LINUX_6_x_ROOTFS_AUTH_FIXUP, blob);
+	}
+#endif
+}
+
+void ipq_fdt_board_model_fixup(void *blob)
+{
+	int node_offset;
+	char *attr_name = "model";
+	char *attr_value;
+	int len;
+	char *c1_pos = NULL;
+
+	node_offset = fdt_path_offset(blob, "/");
+	attr_value = (char *)fdt_getprop(blob, node_offset, attr_name, &len);
+
+	if (!attr_value)
+		return;
+
+	c1_pos = strstr(attr_value, "AL02-C1");
+	if (c1_pos)
+		c1_pos[6] = '2';
+}
+
+void ipq_fdt_fixup_board(void *blob)
+{
+	switch (gd->bd->bi_arch_number) {
+	case MACH_TYPE_IPQ9574_RDP418_EMMC:
+		ipq_fdt_serial_fixup(blob);
+		ipq_fdt_board_model_fixup(blob);
+		break;
+	default:
+		break;
+	}
+
+	if (is_board_support_image_auth() && ipq_check_rootfs_authentication())
+		ipq_fdt_rootfs_auth_fixup(blob);
+}
+
+void ipq_fdt_fixup_atf(void *blob)
+{
+	if (!(gd->board_type & ATF_ENABLED))
+		return;
+
+#ifdef LINUX_5_4_CRYPTO_BAM_NODE
+	if (fdt_path_offset(blob, LINUX_5_4_CRYPTO_BAM_NODE) > 0) {
+#ifdef LINUX_5_4_CRYPTO_BAM_PIPE_TRUST_FIXUP
+		parse_fdt_fixup(LINUX_5_4_CRYPTO_BAM_PIPE_TRUST_FIXUP, blob);
+#endif
+#ifdef LINUX_5_4_CRYPTO_BAM_CTRL_REMOTE_FIXUP
+		parse_fdt_fixup(LINUX_5_4_CRYPTO_BAM_CTRL_REMOTE_FIXUP, blob);
+#endif
+	}
+#endif
+
+#ifdef LINUX_6_x_CRYPTO_BAM_NODE
+	if (fdt_path_offset(blob, LINUX_6_x_CRYPTO_BAM_NODE) > 0) {
+#ifdef LINUX_6_x_CRYPTO_BAM_PIPE_TRUST_FIXUP
+		parse_fdt_fixup(LINUX_6_x_CRYPTO_BAM_PIPE_TRUST_FIXUP, blob);
+#endif
+#ifdef LINUX_6_x_CRYPTO_BAM_CTRL_REMOTE_FIXUP
+		parse_fdt_fixup(LINUX_6_x_CRYPTO_BAM_CTRL_REMOTE_FIXUP, blob);
+#endif
+	}
+#endif
+}
+
+#ifdef CONFIG_SDX_ATTACH_SUPPORT
+void ipq_board_power_cycle_sdx(void)
+{
+	/*
+	 * sdx reset during crashdump path
+	 */
+	struct udevice *dev = NULL;
+	struct gpio_desc pwr_gpio;
+	struct gpio_desc rst_gpio;
+	struct gpio_desc e911_gpio;
+
+	uclass_get_device_by_driver(UCLASS_NOP, DM_DRIVER_GET(gpio), &dev);
+
+	if (dev == NULL)
+		return;
+
+	gpio_request_by_name_nodev(dev_ofnode(dev), "power_gpio", 0,
+					&pwr_gpio, GPIOD_IS_OUT);
+
+	gpio_request_by_name_nodev(dev_ofnode(dev), "reset_gpio", 0,
+					&rst_gpio, GPIOD_IS_OUT);
+
+	gpio_request_by_name_nodev(dev_ofnode(dev), "e911_gpio", 0,
+					&e911_gpio, GPIOD_IS_IN);
+
+	if (!dm_gpio_get_value(&e911_gpio))
+		return;
+
+	dm_gpio_set_value(&pwr_gpio, 1);
+	dm_gpio_set_value(&rst_gpio, 1);
+	mdelay(100);
+	dm_gpio_set_value(&pwr_gpio, 0);
+	dm_gpio_set_value(&rst_gpio, 0);
+}
+#endif
+
+uint32_t is_board_support_image_auth(void)
+{
+	uint32_t board_type = gd->board_type;
+	uint32_t ret = -1;
+
+	switch (gd->ram_size) {
+	case SZ_128M:
+		ret = 0;
+		break;
+	default:
+		ret = (board_type & SECURE_BOARD) &&
+				!(board_type & ATF_ENABLED);
+		break;
+	}
+
+	return ret;
+}

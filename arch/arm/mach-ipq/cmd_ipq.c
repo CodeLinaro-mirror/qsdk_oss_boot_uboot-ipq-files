@@ -2439,3 +2439,37 @@ static int do_clear_tcsr(struct cmd_tbl *cmdtp, int flag, int argc,
 U_BOOT_CMD(clear_tcsr, 2, 0, do_clear_tcsr, "Clear specific bit in TCSR\n",
 		"- clear_tcsr <val>\n");
 
+#if defined(CONFIG_MMC)
+static int do_mmc_protect (struct cmd_tbl *cmdtp, int flag,
+				int argc, char * const argv[])
+{
+	struct mmc *mmc;
+	unsigned int ret;
+	unsigned int blk, cnt;
+
+	mmc = find_mmc_device(0);
+	if (!mmc) {
+		printf("MMC device not found\n");
+		return CMD_RET_FAILURE;
+	}
+
+	if (argc != 3)
+		return CMD_RET_USAGE;
+
+	blk = (unsigned int)simple_strtoul(argv[1], NULL, 16);
+	cnt = (unsigned int)simple_strtoul(argv[2], NULL, 16);
+
+	ret = mmc_write_protect(mmc, blk, cnt, 1);
+
+	if (!ret)
+		printf("Offset: 0x%x Count: %d blocks\nDone!\n", blk, cnt);
+
+	return ret ? CMD_RET_FAILURE : CMD_RET_SUCCESS;
+}
+
+U_BOOT_CMD(
+	mmc_protect, 3, 0, do_mmc_protect,
+	"MMC write protect",
+	"mmc_protect start_blk cnt_blk\n"
+);
+#endif

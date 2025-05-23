@@ -26,9 +26,18 @@
 #include <dm.h>
 #include <memalign.h>
 #include <smem.h>
+#include <sysreset.h>
+#include <fdt_support.h>
+
 #if CONFIG_IS_ENABLED(DM_SPI_FLASH)
 #include <spi.h>
 #include <spi_flash.h>
+#endif
+#if defined(CONFIG_MMC)
+#include <mmc.h>
+#endif
+#ifdef CONFIG_IPQ_NAND
+#include <nand.h>
 #endif
 
 #if defined(CONFIG_TARGET_IPQ9574)
@@ -115,6 +124,10 @@
 
 #define reset()				do_reset(NULL, 0, 0, NULL)
 
+#ifndef DUMP_NAME_STR_MAX_LEN
+#define DUMP_NAME_STR_MAX_LEN		20
+#endif
+
 extern struct ipq_board_info *ipq_bdinfo;
 extern struct multidtb_config *g_board_dtb_info;
 extern struct dts_fixup *mmc_fixup;
@@ -132,6 +145,42 @@ enum bank {
 enum {
 	SECURE_SYS_UPGRADE = 0,
 };
+
+enum fixup_type{
+	UBOOT_FIXUP_SMEM,
+	UBOOT_FIXUP_USB
+};
+
+enum debug_component {
+	DBG_DISABLE = 0,
+	DBG_CRASHDUMP,
+};
+
+
+enum {
+	FULLDUMP= 0,
+	MINIDUMP,
+	MINIDUMP_AND_FULLDUMP,
+};
+
+enum {
+	DUMP_TO_TFTP = 0,
+	DUMP_TO_USB,
+	DUMP_TO_MEM,
+	DUMP_TO_NVMEM,
+	DUMP_TO_FLASH,
+	DUMP_TO_EMMC,
+};
+
+enum {
+	RESET_V1 = 1,
+	RESET_V2,
+};
+
+enum {
+	SDX_POWER_CYCLE	= 0,		/* Power cycle the SDX in crash path */
+};
+
 
 #ifdef CONFIG_DTB_RESELECT
 struct machid_dts_map {
@@ -212,9 +261,48 @@ struct dts_fixup {
 	int ncount;
 };
 
+struct crashdump_infos{
+	char name[DUMP_NAME_STR_MAX_LEN];/* dump name */
+	uint64_t start_addr;		/* dump start addr */
+	uint64_t size;			/* dump size
+					   0xBAD0FF5E - get ram_size runtime,
+					   otherwise specify size */
+	uint8_t dump_level;		/* dump level
+					   refer crashdump_level_t */
+	uint32_t split_bin_sz;		/* split bin size
+					   if non-zero means, if size is
+					   greater than split_bin_sz, it will
+					   dump entire region as seperate bin
+					   of size split_bin_sz */
+	uint8_t is_aligned_access:1;	/* If this flag is set,
+					   'start' is considered a unaligned
+					   address, so content will be copied
+					   to a aligned one and gets dumped */
+	uint8_t compression_support:1;	/* does this binary need to be
+					   compressed ? non-zero means true. */
+	uint8_t dumptoflash_support:1;	/* does this binary need to be
+					   dumped in flash ? non-zero
+					   means true. */
+	uint8_t check_dump_support:1;	/* If this flag is set, a check is
+					   being made for dump-specific
+					   skip conditions. */
+};
+
+extern struct crashdump_infos *board_dumpinfo;
+extern uint8_t *board_dump_entries;
+
 /*********************************************************************
  * Function declaration
  ********************************************************************/
+#if defined(CONFIG_MMC)
+int mmc_write_protect(struct mmc *mmc, unsigned int start_blk,
+		      unsigned int cnt_blk, int set_clr);
+#endif
+
+void board_default_flash_protect(int flash_type);
+/*
+ * Generic API
+ */
 /**
  * ipq_update_board_name() - Update rdp for non available dts rdps
  */
@@ -575,4 +663,85 @@ long long ipq_ubi_get_volume_size(char *volume);
  * Returns 0 if success otherwise error code.
  */
 int ipq_get_training_part_info(uint32_t *offset, uint32_t *size);
+/**
+ * ipq_uboot_fdt_fixup() - Fixup to the u-boot dtb
+ *
+ * @blob - u-boot fdt blob
+ 8 @fixup_type - fixup type
+ *
+ * Returns 0 if success otherwise error code.
+ */
+int ipq_uboot_fdt_fixup(void *blob, enum fixup_type);
+/**
+ * board_cache_init() - Enable the cache specific to SoC
+ *
+ */
+void board_cache_init(void);
+/**
+ * board_cache_init() - Enable the cache specific to SoC
+ *
+ * @reset_version - reset version specific to SoC
+ */
+void reset_crashdump(int reset_version);
+/**
+ * ipq_check_rootfs_authentication() - Check rootfs auth enablement check
+ *
+ * Return 1 if enabled else 0
+ */
+int ipq_check_rootfs_authentication(void);
+/**
+ * ipq_fdt_fixup_board() - Soc specific fixup
+ *
+ */
+void ipq_fdt_fixup_board(void *blob);
+/**
+ * ipq_fdt_rootfs_auth_fixup() - Fixup rootfs auth fixup
+ *
+ * @blob - kernel blob for fixup
+ */
+void ipq_fdt_rootfs_auth_fixup(void *blob);
+/**
+ * ipq_fdt_fixup_smem() - Fixup smem info to kernel dts
+ *
+ * @blob - kernel dtb blob
+ */
+void ipq_fdt_fixup_smem(void *blob);
+/**
+ * ipq_board_update_RFA_settings() - update board RFA settings
+ *
+ */
+void ipq_board_update_RFA_settings(void);
+/**
+ * is_valid_dump() - check if dump info is valid.
+ *
+ *@dump_name - name of the dump
+ * Return true if valid else false.
+ */
+bool is_valid_dump(char *dump_name);
+/**
+ * is_version_rollback_support() - check if version rollback is supported.
+ *
+ * Return true if supported else false.
+ */
+bool is_version_rollback_support(void);
+/**
+ * update_nand_training_partition() - update nand training partition
+ *
+ * @sfi - smem flash info
+ */
+void update_nand_training_partition(struct ipq_smem_flash_info *sfi);
+/**
+ * ipq_get_training_part_info() - Get training partition info
+ *
+ * @offset - offset of training partition
+ * @size - size of training partition
+ */
+int ipq_get_training_part_info(uint32_t *offset, uint32_t *size);
+/**
+ * is_valid_bootconfig() - validate bootconfig
+ *
+ * @binfo - bdconfig info for validation
+ * Return true if valid otheriwse false.
+ */
+bool is_valid_bootconfig(struct ipq_smem_bootconfig_info *binfo);
 #endif

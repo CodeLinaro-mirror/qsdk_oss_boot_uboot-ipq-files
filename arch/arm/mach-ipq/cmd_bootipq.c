@@ -997,7 +997,7 @@ exit:
 #endif
 #endif
 
-int check_rootfs_authentication(void)
+int ipq_check_rootfs_authentication(void)
 {
 	u32 rootfs_auth = 0;
 #ifdef ROOTFS_AUTH_FUSE
@@ -1097,7 +1097,7 @@ clear_mem:
 	if (boot_info.debug)
 		printf("[debug]Kernel authenticated successfully\n");
 
-	if (check_rootfs_authentication()) {
+	if (ipq_check_rootfs_authentication()) {
 #ifdef CONFIG_IPQ_ELF_AUTH
 		if (authenticate_rootfs_elf(img_info.img_load_addr +
 			img_info.img_size) != CMD_RET_SUCCESS) {

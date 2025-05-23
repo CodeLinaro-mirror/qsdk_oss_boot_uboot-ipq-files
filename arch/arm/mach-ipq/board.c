@@ -44,6 +44,19 @@ uint32_t g_env_offset __section(".data") = 0;
  ****************************************************************/
 __weak void ipq_board_early_init_f(void) {}
 
+__weak int ipq_uboot_fdt_fixup(void *blob, enum fixup_type)
+{
+	return 0;
+}
+
+__weak void board_cache_init(void)
+{
+	icache_enable();
+#if !CONFIG_IS_ENABLED(SYS_DCACHE_OFF)
+	dcache_enable();
+#endif
+}
+
 /*
  * Global func definition
  */
@@ -308,11 +321,6 @@ int dram_init_banksize(void)
 	return 0;
 }
 
-void reset_cpu(void)
-{
-	psci_sys_reset(SYSRESET_COLD);
-}
-
 int ft_board_setup(void *blob, struct bd_info __maybe_unused *bd)
 {
 	ipq_ft_board_setup(blob, bd);
@@ -480,4 +488,42 @@ void flush_cache(unsigned long start, unsigned long size)
 			(stop & ~(CONFIG_SYS_CACHELINE_SIZE - 1));
 
 	flush_dcache_range(start, stop);
+}
+
+#if defined(CONFIG_ARM64) && defined(CFG_EMUL_FREQUENCY_DIVIDER)
+void setup_arch_cntfreq(void)
+{
+	unsigned long freq = CONFIG_COUNTER_FREQUENCY /
+				CFG_EMUL_FREQUENCY_DIVIDER;
+	asm volatile("msr cntfrq_el0, %0" : : "r" (freq) : "memory");
+
+        return;
+}
+#endif
+
+int fdtdec_board_setup(const void *fdt_blob)
+{
+	return ipq_uboot_fdt_fixup((void*)fdt_blob, UBOOT_FIXUP_SMEM);
+}
+
+#ifdef CONFIG_OF_BOARD_FIXUP
+int board_fix_fdt(void *rw_fdt_blob)
+{
+	ipq_uboot_fdt_fixup(rw_fdt_blob, UBOOT_FIXUP_SMEM);
+	ipq_uboot_fdt_fixup_usb(rw_fdt_blob, UBOOT_FIXUP_USB);
+
+	return 0;
+}
+#endif
+
+phys_size_t get_effective_memsize(void)
+{
+	phys_size_t ram_size = min(gd->ram_size,
+				(phys_size_t)CFG_SYS_SDRAM_BASE0_SIZE);
+
+#ifndef CONFIG_ARM64
+	if (((uint64_t)gd->ram_base + ram_size) > ULONG_MAX)
+		ram_size = ULONG_MAX - gd->ram_base;
+#endif
+	return ram_size;
 }

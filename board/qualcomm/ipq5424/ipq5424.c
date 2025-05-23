@@ -27,6 +27,10 @@
 #define MACH_TYPE_IPQ5424_RDP487		0x8070200
 #define MACH_TYPE_IPQ5424_DB_MR01_1		0x1070000
 
+/* USB softsku fuse */
+#define USB_SOFTSKU_STATUS			0xA628C
+#define USB_SOFTSKU_STATUS_DISABLE		BIT(0)
+
 struct dts_fixup ipq5424_mmc_fixup[] = {
 	{ "/soc@0/nand@79b0000/", {"/soc@0/nand@79b0000/%status%?disabled"}, 1},
 	{ "/soc@0/mmc@7804000/", {"/soc@0/mmc@7804000/%status%?okay"}, 1},
@@ -48,6 +52,20 @@ struct dts_fixup ipq5424_usb_fixup[] = {
 };
 
 struct dts_fixup *usb_fixup = ipq5424_usb_fixup;
+
+#if CONFIG_FDT_FIXUP_PARTITIONS
+struct node_info ipq_fnodes[] = {
+	{ "n25q128a11", MTD_DEV_TYPE_NOR},
+	{ "micron,n25q128a11", MTD_DEV_TYPE_NOR},
+	{ "spansion,s25fs128s1", MTD_DEV_TYPE_NOR},
+	{ "qcom,ipq5424-nand", MTD_DEV_TYPE_NAND},
+};
+
+int ipq_fnode_entires = ARRAY_SIZE(ipq_fnodes);
+
+struct node_info * fnodes = ipq_fnodes ;
+int * fnode_entires = &ipq_fnode_entires;
+#endif
 
 #ifdef CONFIG_DTB_RESELECT
 struct machid_dts_map machid_dts[] = {
@@ -144,6 +162,106 @@ struct multidtb_config ipq5424_dtb_info = {
 };
 
 struct multidtb_config *g_board_dtb_info = &ipq5424_dtb_info;
+
+static struct crashdump_infos dumpinfo_n[] = {
+	{
+		/* DDR Bank 0 */
+		.name = "EBICS.BIN",
+		.start_addr = CFG_SYS_SDRAM_BASE,
+		.size = 0xBAD0FF5E,
+		.dump_level = FULLDUMP,
+		.split_bin_sz = SZ_1G,
+		.is_aligned_access = false,
+		.compression_support = true
+	},
+#if (CONFIG_NR_DRAM_BANKS > 1)
+	{
+		/* DDR Bank 1 */
+		.name = "EBICS.BIN",
+		.start_addr = 0xBAD0FF5E,
+		.size = 0xBAD0FF5E,
+		.dump_level = FULLDUMP,
+		.split_bin_sz = SZ_1G,
+		.is_aligned_access = false,
+		.compression_support = true
+	},
+#endif
+	{
+		.name = "IMEM.BIN",
+		.start_addr = 0x08600000,
+		.size = 0x00001000,
+		.dump_level = FULLDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false
+	},
+	{
+		.name = "TZ_LOG.BIN",
+		.start_addr = 0x0860C000,
+		.size = 0x00003000,
+		.dump_level = FULLDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false
+	},
+	{
+		.name = "CPU_INFO.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = true
+	},
+	{
+		.name = "UNAME.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = true
+	},
+	{
+		.name = "DMESG.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = false
+	},
+	{
+		.name = "PT.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = false
+	},
+	{
+		.name = "WLAN_MOD.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = false
+	},
+};
+
+static uint8_t dump_entries_n = ARRAY_SIZE(dumpinfo_n);
+
+struct crashdump_infos *board_dumpinfo = dumpinfo_n;
+
+uint8_t *board_dump_entries = &dump_entries_n;
+
 
 void ipq_update_board_name(int machid, struct multidtb_config *dtb)
 {
@@ -274,4 +392,133 @@ fail:
 	return ret;
 }
 
+void reset_cpu(void)
+{
+#ifdef CONFIG_IPQ_CRASHDUMP
+	reset_crashdump(RESET_V2);
+#endif
+	psci_sys_reset(SYSRESET_COLD);
+}
 
+int board_get_smem_target_info(struct ipq_smem_target_info *smem_tinfo_ptr)
+{
+	uint32_t tcsr_wonce0_val = readl(TCSR_TZ_WONCE0);
+	uint32_t tcsr_wonce1_val = readl(TCSR_TZ_WONCE1);
+	uint64_t ipq_smem_target_info_addr;
+	struct ipq_smem_target_info *ipq_smem_target_info_ptr;
+
+	ipq_smem_target_info_addr = tcsr_wonce0_val |
+		(((uint64_t)(tcsr_wonce1_val)) << 32);
+
+	ipq_smem_target_info_ptr = (struct ipq_smem_target_info*)
+		(uintptr_t)ipq_smem_target_info_addr;
+	if (!ipq_smem_target_info_ptr)
+		return -EFAULT;
+
+	if (ipq_smem_target_info_ptr->identifier !=
+			IPQ_SMEM_TARGET_INFO_IDENTIFIER)
+		return -EFAULT;
+
+	memcpy((void*)smem_tinfo_ptr,
+			(void*)(uintptr_t)ipq_smem_target_info_ptr,
+			sizeof(struct ipq_smem_target_info));
+	return 0;
+}
+
+void ipq_fdt_fixup_smem(void *blob)
+{
+	uint32_t reg[4];
+	struct ipq_smem_target_info ipq_smem_target_info;
+	struct ipq_smem_target_info *smem_tinfo_ptr = &ipq_smem_target_info;
+
+	if (board_get_smem_target_info(&ipq_smem_target_info))
+		return;
+
+	reg[0] = 0;
+	reg[1] = cpu_to_fdt32((uint32_t)smem_tinfo_ptr->smem_base_addr);
+	reg[2] = 0;
+	reg[3] = cpu_to_fdt32(smem_tinfo_ptr->smem_size);
+
+	fdt_find_and_setprop(blob, "/reserved-memory/smem@8a800000/",
+			"reg", reg, sizeof(reg), 0);
+}
+
+int ipq_uboot_fdt_fixup_smem(void *blob)
+{
+	uint32_t reg[2];
+	struct ipq_smem_target_info ipq_smem_target_info;
+	struct ipq_smem_target_info *smem_tinfo_ptr = &ipq_smem_target_info;
+
+	if (board_get_smem_target_info(&ipq_smem_target_info))
+		return -EFAULT;
+
+	reg[0] = cpu_to_fdt32((uint32_t)smem_tinfo_ptr->smem_base_addr);
+	reg[1] = cpu_to_fdt32(smem_tinfo_ptr->smem_size);
+
+	fdt_find_and_setprop(blob, "/reserved-memory/smem_region@8A800000",
+			"reg", reg, sizeof(reg), 0);
+	return 0;
+}
+
+void ipq_uboot_fdt_fixup_usb(void *blob)
+{
+	int ret = 0;
+
+	if (!(readl(USB_SOFTSKU_STATUS) & USB_SOFTSKU_STATUS_DISABLE))
+		return;
+
+	ret = fdt_status_okay_by_pathf(blob, "/soc@0/usb2@8af8800/");
+	if (ret <0) {
+		printf("failed to disable the usb2@8af8800"
+				" node, err: %d \n", ret);
+		return;
+	}
+
+	ret = fdt_status_disabled_by_pathf(blob, "/soc@0/usb@8af8800/");
+	if (ret <0) {
+		printf("failed to enable the usb@8af8800"
+				" node, err: %d \n", ret);
+	}
+}
+
+int ipq_uboot_fdt_fixup(void *blob, enum fixup_type type)
+{
+	switch(type) {
+	case UBOOT_FIXUP_SMEM:
+		ipq_uboot_fdt_fixup_smem(blob);
+		break;
+	case UBOOT_FIXUP_USB:
+		ipq_uboot_fdt_fixup_usb(blob);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+void ipq_fdt_fixup_sku_based_usb_config(void *blob)
+{
+	if (!(readl(USB_SOFTSKU_STATUS) & USB_SOFTSKU_STATUS_DISABLE))
+		return;
+
+	parse_fdt_fixup("/soc@0/phy@7b000/%phandle%0xe0", blob);
+	parse_fdt_fixup("/soc@0/usb3@8a00000/dwc3@8a00000/%phys%0xe0", blob);
+	parse_fdt_fixup("/soc@0/usb3@8a00000/dwc3@8a00000/%phy-names%?usb2-phy", blob);
+	parse_fdt_fixup("/soc@0/usb3@8a00000/%qcom,select-utmi-as-pipe-clk%1", blob);
+}
+
+void ipq_fdt_fixup_atf(void *blob)
+{
+	int ret = 0;
+	if (!(gd->board_type & ATF_ENABLED))
+		return;
+
+	ret = fdt_status_okay_by_pathf(blob, "/reserved-memory/atf@8a832000");
+	if (ret <0) {
+		printf("failed to enable the atf node, err: %d \n", ret);
+		return;
+	}
+
+	fdt_status_disabled_by_pathf(blob, "/reserved-memory/tz@0x8a600000");
+}

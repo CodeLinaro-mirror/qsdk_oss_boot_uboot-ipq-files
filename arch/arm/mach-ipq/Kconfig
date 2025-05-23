@@ -349,6 +349,11 @@ config IPQ_SECURE
 	   where the kernel and optionally the root filesystem are
 	   authenticated before booting.
 
+config MMC_FLASH_PARTITION_WRITE_PROTECT
+	bool "This enable wrtie protect in EMMC flash type"
+	depends on IPQ_MMC
+	default y
+
 config IPQ_BOARD_DEFAULT
 	bool "Enable default config for all SoC"
 	default y
@@ -359,6 +364,7 @@ config IPQ_BOARD_DEFAULT
 	imply SYS_DEVICE_NULLDEV
 	help
 	  This config enables default configuration support for all SoCs.
+
 choice
 	prompt "IPQ board select"
 

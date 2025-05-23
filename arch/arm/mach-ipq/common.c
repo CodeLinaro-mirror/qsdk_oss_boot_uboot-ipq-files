@@ -4,12 +4,6 @@
  */
 
 #include <mach/ipq.h>
-#ifdef CONFIG_IPQ_MMC
-#include <mmc.h>
-#endif
-#ifdef CONFIG_IPQ_NAND
-#include <nand.h>
-#endif
 #include <env.h>
 #include <net.h>
 #ifdef CONFIG_LMB
@@ -21,8 +15,38 @@
  **********************************************************************/
 DECLARE_GLOBAL_DATA_PTR;
 
+#define MMC_MID_MICRON			0xFE
+#define MMC_PNM_MICRON			0x4D4D43333247
+
+#define MMC_GET_MID(CID0)		(CID0 >> 24)
+#define MMC_GET_PNM(CID0, CID1, CID2)	(((long long int)(CID0 & 0xff) << 40) | \
+					((long long int)CID1 << 8) |\
+					(CID2 >> 24))
+
+#define MMC_CMD_SET_WRITE_PROT          28
+#define MMC_CMD_CLR_WRITE_PROT          29
+
+#define MMC_ADDR_OUT_OF_RANGE(resp)     ((resp >> 31) & 0x01)
+
+
+/*
+ * CSD fields
+*/
+#define WP_GRP_ENABLE(csd)		((csd[3] & 0x80000000) >> 31)
+#define WP_GRP_SIZE(csd)		((csd[2] & 0x0000001f))
+#define ERASE_GRP_MULT(csd)		((csd[2] & 0x000003e0) >> 5)
+#define ERASE_GRP_SIZE(csd)		((csd[2] & 0x00007c00) >> 10)
+
+#define EXT_CSD_BOOT_WP_B_PERM_WP_EN	(0x04)  /* permanent write-protect */
+
 uint32_t g_load_addr;
 uint8_t g_recovery_path __section(".data");
+
+#ifdef CONFIG_MMC
+extern int mmc_send_status(struct mmc *mmc, unsigned int *status);
+extern int mmc_switch(struct mmc *mmc, u8 set, u8 index, u8 value);
+#endif
+
 /***********************************************************************
  * Structure enum and static
  **********************************************************************/
@@ -105,6 +129,8 @@ __weak uint32_t ipq_get_soc_hw_version(void)
 	return readl(CONFIG_SOC_HW_VERSION_REG);
 }
 
+__weak void ipq_board_update_RFA_settings(void) {};
+
 #ifdef CONFIG_CRC32_BE
 uint32_t crc32_be(uint8_t const *addr, phys_size_t size)
 {
@@ -153,7 +179,7 @@ uint32_t cal_bootconf_crc(struct ipq_smem_bootconfig_info *binfo)
 	return crc;
 }
 
-static bool is_valid_bootconfig(struct ipq_smem_bootconfig_info *binfo)
+bool is_valid_bootconfig(struct ipq_smem_bootconfig_info *binfo)
 {
 	bool fstatus = false;
 	uint32_t crc;
@@ -1163,6 +1189,34 @@ static void update_board_type(void)
 void update_board_type(void) {}
 #endif
 
+#ifdef CONFIG_EFI_PARTITION
+static void update_part_type(int flash_type)
+{
+	enum uclass_id uclass_id;
+	struct blk_desc *dev;
+
+	switch(flash_type) {
+#ifdef CONFIG_IPQ_MMC
+	case SMEM_BOOT_MMC_FLASH:
+		uclass_id = UCLASS_MMC;
+		break;
+#endif
+	case SMEM_BOOT_NORGPT_FLASH:
+		uclass_id = UCLASS_SPI;
+		break;
+	default:
+		break;
+	}
+
+	dev = blk_get_devnum_by_uclass_id(uclass_id, 0);
+
+	if (dev != NULL && dev->part_type == PART_TYPE_UNKNOWN)
+		dev->part_type = PART_TYPE_EFI;
+
+	return;
+}
+#endif
+
 int ipq_board_late_init(void)
 {
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
@@ -1170,6 +1224,9 @@ int ipq_board_late_init(void)
 
 	switch (sfi->flash_type) {
 	case SMEM_BOOT_NORGPT_FLASH:
+#ifdef CONFIG_EFI_PARTITION
+		update_part_type(sfi->flash_type);
+#endif
 		fallthrough;
 	case SMEM_BOOT_SPI_FLASH:
 		board_type =
@@ -1181,6 +1238,9 @@ int ipq_board_late_init(void)
 
 	switch (board_type) {
 	case SMEM_BOOT_NORPLUSEMMC:
+#ifdef CONFIG_EFI_PARTITION
+		update_part_type(board_type);
+#endif
 		sfi->flash_secondary_type = SMEM_BOOT_MMC_FLASH;
 		break;
 	case SMEM_BOOT_NORPLUSNAND:
@@ -1221,6 +1281,14 @@ int ipq_board_late_init(void)
 	 * setup default env
 	 */
 	ipq_setup_board_default_env();
+	/*
+	 * Update cal data in CAP IN/OUT register.
+	 */
+	ipq_board_update_RFA_settings();
+
+#ifdef CONFIG_MMC_FLASH_PARTITION_WRITE_PROTECT
+	board_default_flash_protect(SMEM_BOOT_MMC_FLASH);
+#endif
 
 	return 0;
 }
@@ -1666,6 +1734,10 @@ void ipq_setup_board_default_env(void)
 #endif
 }
 
+void setup_board_default_env(void)
+{
+	ipq_setup_board_default_env();
+}
 /**
  * ipq_read_tcsr_boot_misc() - read boot tcsr register
  */
@@ -1741,4 +1813,389 @@ void ipq_update_lmb_reservation(void)
 }
 #else
 void ipq_update_lmb_reservation(void) {}
+#endif
+#if defined(CONFIG_MMC)
+static int mmc_send_wp_set_clr(struct mmc *mmc, unsigned int start,
+					unsigned int size, int set_clr)
+{
+	unsigned int err;
+	unsigned int wp_group_size, count, i;
+	struct mmc_cmd cmd;
+	unsigned int status;
+
+	wp_group_size = (WP_GRP_SIZE(mmc->csd) + 1) * mmc->erase_grp_size;
+	count = DIV_ROUND_UP(size, wp_group_size);
+
+	if (set_clr)
+		cmd.cmdidx = MMC_CMD_SET_WRITE_PROT;
+	else
+		cmd.cmdidx = MMC_CMD_CLR_WRITE_PROT;
+
+	cmd.resp_type = MMC_RSP_R1b;
+
+	for (i = 0; i < count; i++) {
+		cmd.cmdarg = start + (i * wp_group_size);
+		err = mmc_send_cmd(mmc, &cmd, NULL);
+		if (err) {
+			printf("%s: Error at block 0x%x - %d\n",
+					__func__,cmd.cmdarg, err);
+			return err;
+		}
+
+		if (MMC_ADDR_OUT_OF_RANGE(cmd.response[0])) {
+			printf("%s: mmc block(0x%x) out of range",
+				__func__,cmd.cmdarg);
+			return -EINVAL;
+		}
+
+		err = mmc_send_status(mmc, &status);
+		if (err)
+			return err;
+	}
+
+	return 0;
+}
+
+int mmc_write_protect(struct mmc *mmc, unsigned int start_blk,
+		      unsigned int cnt_blk, int set_clr)
+{
+	ALLOC_CACHE_ALIGN_BUFFER(u8, ext_csd, MMC_MAX_BLOCK_LEN);
+	int err;
+	unsigned int wp_group_size;
+
+	if (!WP_GRP_ENABLE(mmc->csd))
+		return -1; /* group write protection is not supported */
+
+	err = mmc_send_ext_csd(mmc, ext_csd);
+	if (err) {
+		debug("ext_csd register cannot be retrieved\n");
+		return err;
+	}
+
+	if ((ext_csd[EXT_CSD_USER_WP] & EXT_CSD_BOOT_WP_B_SEC_WP_SEL) ||
+		(ext_csd[EXT_CSD_USER_WP] & EXT_CSD_BOOT_WP_B_PERM_WP_EN)) {
+		printf("User power-on write protection is disabled. \n");
+
+		return -1;
+	}
+
+	err = mmc_switch(mmc, EXT_CSD_CMD_SET_NORMAL, EXT_CSD_USER_WP,
+				EXT_CSD_BOOT_WP_B_PWR_WP_EN);
+	if (err) {
+		printf("Failed to enable user power-on write protection\n");
+
+		return err;
+	}
+
+	wp_group_size = (WP_GRP_SIZE(mmc->csd) + 1) * mmc->erase_grp_size;
+
+	if ((MMC_GET_MID(mmc->cid[0]) == MMC_MID_MICRON) &&
+		(MMC_GET_PNM(mmc->cid[0],
+			mmc->cid[1],mmc->cid[2]) == MMC_PNM_MICRON))
+		wp_group_size *= 2;
+
+	if (!cnt_blk || start_blk % wp_group_size || cnt_blk % wp_group_size) {
+		printf("Error: Unaligned offset/count. offset/count should be "
+				"aligned to 0x%x blocks\n", wp_group_size);
+
+		return -1;
+	}
+
+	err = mmc_send_wp_set_clr(mmc, start_blk, cnt_blk, set_clr);
+
+	return err;
+}
+#endif
+#ifdef CONFIG_MMC_FLASH_PARTITION_WRITE_PROTECT
+static inline int is_readonly(gpt_entry *p)
+{
+	/* bit 60 of gpt attribute denotes read-only flag */
+	if (p->attributes.raw & ((unsigned long long)1 << 60))
+		return 1;
+
+	return 0;
+}
+
+static void mmc_wp(void)
+{
+	int num_part;
+	struct mmc *mmc;
+	struct blk_desc *mmc_dev;
+	struct disk_partition info;
+	int curr_device = -1;
+	gpt_entry *gpt_pte = NULL;
+	struct ipq_board_info *_bdinfo = ipq_get_bdinfo();
+
+	if (curr_device < 0) {
+		if (get_mmc_num() > 0) {
+			curr_device = 0;
+		} else {
+			puts("No MMC device available\n");
+			goto out;
+		}
+	}
+
+	mmc = find_mmc_device(curr_device);
+	if (!mmc) {
+		printf("no mmc device at slot %x\n", curr_device);
+		goto out;
+	}
+
+	mmc_dev = mmc_get_blk_desc(mmc);
+
+	if (mmc_dev != NULL && mmc_dev->type != DEV_TYPE_UNKNOWN) {
+		gpt_pte = get_gpt_entry(mmc_dev);
+		if (!gpt_pte) {
+			printf("%s: Failed to get gpt table entry\n", __func__);
+			goto out;
+		}
+
+		num_part = _bdinfo->mmc_gpt_pte.ncount;
+
+		if (num_part < 0) {
+			printf("Both primary & backup GPT are invalid,"
+					" skipping mmc write protection.\n");
+			goto out;
+		}
+
+#ifdef CONFIG_EFI_PARTITION
+		for (uint8_t part = 1; part <= num_part; part++) {
+			uint8_t readonly = is_readonly(&gpt_pte[part - 1]);
+			if (readonly) {
+				if (part_get_info(mmc_dev, part, &info))
+					continue;
+
+				if (!mmc_write_protect(mmc,
+						  info.start,
+						  info.size, 1))
+					printf("\"%s\""
+						"-protected MMC partition\n",
+						info.name);
+				else
+					printf("Write protect failed for "
+							"\"%s\"", info.name);
+			}
+		}
+#endif
+	}
+out:
+	if (gpt_pte)
+		free(gpt_pte);
+
+	return;
+}
+#endif
+
+void board_default_flash_protect(int flash_type)
+{
+	switch(flash_type) {
+#ifdef CONFIG_MMC_FLASH_PARTITION_WRITE_PROTECT
+	case SMEM_BOOT_MMC_FLASH:
+		mmc_wp();
+		break;
+#endif
+	default:
+		break;
+	}
+}
+
+void arch_preboot_os(void)
+{
+/*
+ * restrict booting if image is not authenticated
+ * in secure board.
+ */
+	uint32_t board_type = gd->board_type;
+
+	if (!is_board_support_image_auth())
+		return;
+
+	if (board_type & KERNEL_AUTH_SUCCESS) {
+		if (ipq_check_rootfs_authentication())
+			if (board_type & ROOTFS_AUTH_SUCCESS)
+				return;
+			else
+				reset_cpu();
+		else
+			return;
+	} else {
+		reset_cpu();
+	}
+
+	return;
+}
+
+#ifdef CONFIG_CMD_UBI
+long long ipq_ubi_get_volume_size(char *volume)
+{
+	int i;
+	struct ubi_device *ubi = ubi_get_device(0);
+	struct ubi_volume *vol = NULL;
+
+	if(NULL == ubi)
+		return -ENODEV;
+
+	for (i = 0; i < ubi->vtbl_slots; i++) {
+		vol = ubi->volumes[i];
+		if (vol && !strcmp(vol->name, volume))
+			return vol->used_bytes;
+	}
+
+	printf("Volume %s not found!\n", volume);
+
+	return -ENODEV;
+}
+#endif
+
+#ifdef CONFIG_IPQ_NAND
+void update_nand_training_partition(struct ipq_smem_flash_info *sfi)
+{
+	uint32_t offset, part_size;
+	int ret = -1;
+	struct ipq_part_entry *part = &sfi->training;
+#if defined(CONFIG_NOR_BLK)
+	struct disk_partition disk_info;
+	struct blkpart bpart_info;
+
+	if (sfi->flash_type == SMEM_BOOT_NORGPT_FLASH) {
+		BLK_PART_GET_INFO_S(bpart_info, "0:TRAINING", &disk_info,
+					sfi->flash_type, true);
+
+		ret = ipq_part_get_info_by_name(&bpart_info);
+	} else
+#endif
+		if (sfi->flash_type != SMEM_BOOT_NO_FLASH)
+			ret = ipq_getpart_offset_size("0:TRAINING", &offset,
+							&part_size);
+	if (ret) {
+		part->offset = 0xBAD0FF5E;
+		part->size = 0xBAD0FF5E;
+	} else {
+#if defined(CONFIG_NOR_BLK)
+		if (sfi->flash_type == SMEM_BOOT_NORGPT_FLASH) {
+			part->offset = (u32)disk_info.start * disk_info.blksz;
+			part->size = (u32)disk_info.size * disk_info.blksz;
+		} else
+#endif
+		{
+			part->offset = offset;
+			part->size = part_size;
+		}
+	}
+
+}
+
+int ipq_get_training_part_info(uint32_t *offset, uint32_t *size)
+{
+	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
+	struct ipq_part_entry *part = &sfi->training;
+
+	if (part->offset == 0)
+		update_nand_training_partition(sfi);
+
+	if (part->offset == 0xBAD0FF5E)
+		return 1;
+	else {
+		*offset = part->offset;
+		*size = part->size;
+	}
+
+	return 0;
+}
+#endif
+
+#ifdef CONFIG_CMD_UBI
+int ipq_init_ubi_part(void)
+{
+	int ret;
+	uint32_t offset = 0;
+	uint32_t part_size = 0;
+	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
+	struct ubi_device *ubi = ubi_get_device(0);
+	char env_strings[64];
+
+	if(ubi == NULL) {
+		offset = sfi->rootfs.offset;
+		part_size = sfi->rootfs.size;
+
+		if ((part_size == 0xBAD0FF5E) || (offset == 0xBAD0FF5E))
+			return -ENOENT;
+
+		snprintf(env_strings, sizeof(env_strings),
+			"mtdparts=nand0:0x%x@0x%x(%s)", part_size, offset,
+				CFG_UBI_FS_NAME);
+
+		ret = env_set("mtdparts", env_strings);
+		if (ret)
+			return -EPERM;
+
+		ret = ubi_part(CFG_UBI_FS_NAME, NULL);
+		if (ret)
+			return -EPERM;
+	} else
+		ubi_put_device(ubi);
+
+	return 0;
+}
+#endif
+
+#ifdef CONFIG_GPIO_CONFIG
+/*
+ * NOP driver: only for GPIO configuration
+ */
+static const struct udevice_id gpio_ids[] = {
+	{ .compatible = "gpio, config", },
+	{ }
+};
+
+U_BOOT_DRIVER(gpio) = {
+	.name		= "gpio",
+	.id		= UCLASS_NOP,
+	.of_match	= gpio_ids,
+};
+
+void ipq_board_gpio_config(int type)
+{
+	switch(type) {
+#ifdef CONFIG_SDX_ATTACH_SUPPORT
+	case SDX_POWER_CYCLE:
+		ipq_board_power_cycle_sdx();
+		break;
+#endif
+	default:
+		break;
+	}
+}
+#endif
+
+#ifdef CONFIG_WDT
+int ipq_wdt_expire(void) {
+	int ret = 0;
+	static struct udevice *wdt_dev;
+
+	ret = uclass_get_device_by_seq(UCLASS_WDT, 0, &wdt_dev);
+	if (ret) {
+		printf("WDT disabled\n");
+		return -ENODEV;
+	}
+
+	wdt_expire_now(wdt_dev, 0);
+
+	return 0;
+}
+#endif
+
+#if defined(CONFIG_CMD_NET) && defined(CONFIG_ETH_SKIP_INIT_R)
+int initr_net(void)
+{
+	if (g_eth_initalized == 0) {
+		puts("Net:   ");
+		eth_initialize();
+		g_eth_initalized = 1;
+	} else {
+		return 1;
+	}
+
+	return 0;
+}
 #endif
