@@ -808,4 +808,15 @@ int ipq_get_training_part_info(uint32_t *offset, uint32_t *size);
  * Return true if valid otheriwse false.
  */
 bool is_valid_bootconfig(struct ipq_smem_bootconfig_info *binfo);
+/**
+ * ipq_wdt_start() - start or stop wdt
+ *
+ * @start - true for start wdt , false for stop
+ */
+void ipq_wdt_start(bool start);
+/**
+ * ipq_wdt_expire() - Trigger wdt
+ *
+ */
+void ipq_wdt_expire(void);
 #endif

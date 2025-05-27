@@ -374,6 +374,13 @@ config IPQ_MAX_PCIE
 	help
 	   This config declare maximum PCIE in SoC.
 
+config IPQ_STOP_WDT
+	bool "Stop WDT if autoboot abort"
+	depends on WDT
+	default y
+	help
+	   This config stop watchdog if autoboot abort.
+
 config IPQ_BOARD_DEFAULT
 	bool "Enable default config for all SoC"
 	default y

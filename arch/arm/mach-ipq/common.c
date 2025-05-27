@@ -9,6 +9,12 @@
 #ifdef CONFIG_LMB
 #include <lmb.h>
 #endif
+#ifdef CONFIG_WDT
+#include <dm/device-internal.h>
+#include <dm/uclass-internal.h>
+#include <wdt.h>
+#include <asm/io.h>
+#endif
 
 /***********************************************************************
  * Global and constant
@@ -2174,19 +2180,17 @@ void ipq_board_gpio_config(int type)
 #endif
 
 #ifdef CONFIG_WDT
-int ipq_wdt_expire(void) {
+void ipq_wdt_expire(void)
+{
 	int ret = 0;
 	static struct udevice *wdt_dev;
 
 	ret = uclass_get_device_by_seq(UCLASS_WDT, 0, &wdt_dev);
 	if (ret) {
 		printf("WDT disabled\n");
-		return -ENODEV;
 	}
 
 	wdt_expire_now(wdt_dev, 0);
-
-	return 0;
 }
 #endif
 
@@ -2202,5 +2206,28 @@ int initr_net(void)
 	}
 
 	return 0;
+}
+#endif
+
+#if defined(CONFIG_WDT)
+void ipq_wdt_start(bool start)
+{
+	u32 timeout = 0;
+	struct udevice *dev;
+	int ret;
+
+	if (uclass_find_device_by_seq(UCLASS_WDT, 0, &dev))
+		return;
+
+	if (start) {
+		timeout = dev_read_u32_default(dev, "timeout-sec", timeout);
+		if (timeout) {
+			ret = wdt_start(dev, timeout * 1000, 0);
+			if (ret != 0)
+				printf("WDT: Failed to start %s\n",
+					dev->name);
+		}
+	} else
+		wdt_stop(dev);
 }
 #endif

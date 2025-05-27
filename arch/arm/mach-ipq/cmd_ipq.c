@@ -37,11 +37,6 @@
 #include <mmc.h>
 #endif
 
-#ifdef CONFIG_WDT
-#include <dm/uclass-internal.h>
-#include <wdt.h>
-#endif
-
 #if defined (CONFIG_IPQ_SMP_CMD_SUPPORT) || (CONFIG_IPQ_SMP64_CMD_SUPPORT)
 #include <cli.h>
 #include <console.h>
@@ -1636,10 +1631,6 @@ int do_runmulticore(struct cmd_tbl *cmdtp,
 	int ret = CMD_RET_SUCCESS;
 	int i, j, delay = 0, core_status = 0, core_on_status = 0;
 	uint8_t *ptr = NULL;
-#if defined(CONFIG_WDT)
-	struct udevice *dev;
-	u32 timeout = 0;
-#endif
 
 	if ((argc <= 1) || (argc > 4)) {
 		ret = CMD_RET_USAGE;
@@ -1647,8 +1638,7 @@ int do_runmulticore(struct cmd_tbl *cmdtp,
 	}
 
 #if defined(CONFIG_WDT)
-	if (uclass_find_device_by_seq(UCLASS_WDT, 0, &dev) == 0)
-		wdt_stop(dev);
+	ipq_wdt_start(false);
 #endif
 
 	for (i = 1; i < argc; i++) {
@@ -1764,16 +1754,8 @@ int do_runmulticore(struct cmd_tbl *cmdtp,
 exit:
 	invalidate_dcache_all();
 	dcache_enable();
-#if defined(CONFIG_WDT)
-	if (uclass_find_device_by_seq(UCLASS_WDT, 0, &dev) == 0) {
-		timeout = dev_read_u32_default(dev, "timeout-sec", timeout);
-		if (timeout) {
-			ret = wdt_start(dev, timeout * 1000, 0);
-			if (ret != 0)
-				printf("WDT: Failed to start %s\n",
-					dev->name);
-		}
-	}
+#if defined(CONFIG_WDT) && !defined(CONFIG_IPQ_STOP_WDT)
+	ipq_wdt_start(true);
 #endif
 	return ret;
 }

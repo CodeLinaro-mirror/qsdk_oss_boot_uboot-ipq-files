@@ -1235,6 +1235,11 @@ static int do_bootipq(struct cmd_tbl *cmdtp, int flag, int argc,
 	if (argc == 2 && strncmp(argv[1], "debug", 5) == 0)
 		boot_info.debug = true;
 
+#if defined(CONFIG_WDT) && !defined(CONFIG_IPQ_STOP_WDT)
+	if (!boot_info.debug)
+		ipq_wdt_start(true);
+#endif
+
 #ifdef CFG_CUSTOM_LOAD_ADDR
 	boot_info.load_address = CFG_CUSTOM_LOAD_ADDR;
 #else
