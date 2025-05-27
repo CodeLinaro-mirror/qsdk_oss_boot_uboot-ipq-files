@@ -1253,9 +1253,9 @@ static int do_pci_cmd(struct cmd_tbl *cmdtp, int flag, int argc,
 	 * Init Pci
 	 * disable console to avoid pci init logs
 	 */
-	gd->have_console = 0;
+	gd->flags &= ~GD_FLG_HAVE_CONSOLE;
 	pci_init();
-	gd->have_console = 1;
+	gd->flags |= GD_FLG_HAVE_CONSOLE;
 
 	cmd = pci_cmd(argv[0]);
 
@@ -1284,7 +1284,7 @@ static int do_pci_cmd(struct cmd_tbl *cmdtp, int flag, int argc,
 			/*
 			 * avoid unwannted error logs, so disabling console
 			 */
-			gd->have_console = 0;
+			gd->flags &= ~GD_FLG_HAVE_CONSOLE;
 
 			if (uclass_get_device_by_seq(UCLASS_PCI, busnum, &bus))
 				continue;
@@ -1292,7 +1292,7 @@ static int do_pci_cmd(struct cmd_tbl *cmdtp, int flag, int argc,
 			if (!device_is_on_pci_bus(bus))
 				continue;
 
-			gd->have_console = 1;
+			gd->flags |= GD_FLG_HAVE_CONSOLE;
 
 			if (cmd == PCI_LIST)
 				list_pci_device(bus);
@@ -1306,7 +1306,7 @@ static int do_pci_cmd(struct cmd_tbl *cmdtp, int flag, int argc,
 		;
 	}
 fail:
-	gd->have_console = 1;
+	gd->flags |= GD_FLG_HAVE_CONSOLE;
 
 	return ret;
 }

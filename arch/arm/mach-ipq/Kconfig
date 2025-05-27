@@ -365,6 +365,15 @@ config IPQ_PCIE
 	help
 	   This configuration option enables PCIE support in IPQ SoC's.
 
+config IPQ_MAX_PCIE
+	int "Max PCIE supported in IPQSOC"
+	depends on PCI
+	default 3 if TARGET_IPQ5332
+	default 4 if TARGET_IPQ9574
+	default 4 if TARGET_IPQ5424
+	help
+	   This config declare maximum PCIE in SoC.
+
 config IPQ_BOARD_DEFAULT
 	bool "Enable default config for all SoC"
 	default y

@@ -47,6 +47,11 @@ extern int mmc_send_status(struct mmc *mmc, unsigned int *status);
 extern int mmc_switch(struct mmc *mmc, u8 set, u8 index, u8 value);
 #endif
 
+#if defined(CONFIG_CMD_NET) && defined(CONFIG_ETH_SKIP_INIT_R)
+static int g_eth_initalized = 0;
+extern int eth_initialize(void);
+#endif
+
 /***********************************************************************
  * Structure enum and static
  **********************************************************************/
