@@ -373,6 +373,9 @@ config IPQ_BOARD_DEFAULT
 	imply OF_BOARD_SETUP
 	imply STACKPROTECTOR
 	imply SYS_DEVICE_NULLDEV
+	imply WDT
+	imply WDT_QCOM
+	imply CMD_WDT
 	help
 	  This config enables default configuration support for all SoCs.
 
