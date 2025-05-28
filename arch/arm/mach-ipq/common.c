@@ -1933,22 +1933,12 @@ static void mmc_wp(void)
 	struct mmc *mmc;
 	struct blk_desc *mmc_dev;
 	struct disk_partition info;
-	int curr_device = -1;
 	gpt_entry *gpt_pte = NULL;
 	struct ipq_board_info *_bdinfo = ipq_get_bdinfo();
 
-	if (curr_device < 0) {
-		if (get_mmc_num() > 0) {
-			curr_device = 0;
-		} else {
-			puts("No MMC device available\n");
-			goto out;
-		}
-	}
-
-	mmc = find_mmc_device(curr_device);
+	mmc = find_mmc_device(0);
 	if (!mmc) {
-		printf("no mmc device at slot %x\n", curr_device);
+		printf("no mmc device found\n");
 		goto out;
 	}
 

@@ -381,6 +381,28 @@ config IPQ_STOP_WDT
 	help
 	   This config stop watchdog if autoboot abort.
 
+config GPT_UPDATE_PARAMS
+	bool "Update GPT parameters"
+	depends on IPQ_MMC || NOR_BLK
+	default n
+	help
+	   Enable this option to update the backup GPT location in the GPT
+	   header based on the actual device size, if required.
+
+config DEFAULT_MMC_FLASH_SIZE
+	int "Default MMC flash size (in MB)"
+	default 15269888
+	help
+	   Specifies the default MMC flash size used when generating GPT
+	   partitions via GPT tools.
+
+config DEFAULT_NOR_FLASH_SIZE
+	int "Default NOR flash size (in MB)"
+	default 8192
+	help
+	   Specifies the default SPI-NOR flash size used when generating GPT
+	   partitions via GPT tools
+
 config IPQ_BOARD_DEFAULT
 	bool "Enable default config for all SoC"
 	default y
@@ -508,6 +530,7 @@ config TARGET_IPQ5424
 	imply SUPPORT_EMMC_BOOT
 	imply AES_256_DERIVE_KEY
 	imply IPQ_PCIE
+	imply GPT_UPDATE_PARAMS
 	help
 	  Support for IPQ5424 SoC.
 	  - Board Open Platform Specifications.
