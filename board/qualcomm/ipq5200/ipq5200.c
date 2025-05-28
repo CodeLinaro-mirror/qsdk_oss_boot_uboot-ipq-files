@@ -9,6 +9,8 @@
 #include <mach/ipq.h>
 #include <fdtdec.h>
 #include <config.h>
+#include <mtd_node.h>
+#include <jffs2/load_kernel.h>
 
 #define IM_SLEEP_CLK				0x1834020
 /* MACH IDs for various RDPs */
@@ -37,6 +39,20 @@ struct dts_fixup ipq5200_usb_fixup [] = {
 };
 
 struct dts_fixup *usb_fixup = ipq5200_usb_fixup;
+
+#if CONFIG_FDT_FIXUP_PARTITIONS
+struct node_info ipq_fnodes[] = {
+	{ "n25q128a11", MTD_DEV_TYPE_NOR},
+	{ "micron,n25q128a11", MTD_DEV_TYPE_NOR},
+	{ "spansion,s25fs128s1", MTD_DEV_TYPE_NOR},
+	{ "qcom,ipq5200-nand", MTD_DEV_TYPE_NAND},
+};
+
+int ipq_fnode_entires = ARRAY_SIZE(ipq_fnodes);
+
+struct node_info * fnodes = ipq_fnodes ;
+int * fnode_entires = &ipq_fnode_entires;
+#endif
 
 #ifdef CONFIG_DTB_RESELECT
 struct machid_dts_map machid_dts[] = {

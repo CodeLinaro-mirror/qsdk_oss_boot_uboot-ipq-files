@@ -20,6 +20,7 @@
 
 #define	GCC_QUPV3_UART1_CMD_RCGR		0x5004
 #define GCC_SDCC1_APPS_CMD_RCGR			0x33004
+#define GCC_QUPV3_SPI0_CMD_RCGR			0x3018
 
 int msm_set_parent(struct clk *clk, struct clk *parent)
 {
@@ -48,6 +49,10 @@ static ulong ipq5200_set_rate(struct clk *clk, ulong rate)
 		clk_rcg_set_rate_mnd(priv->base, GCC_SDCC1_APPS_CMD_RCGR,
 				     5, 0, 0, CFG_CLK_SRC_GPLL2, 16);
 		break;
+	case GCC_QUPV3_SPI0_CLK:
+		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_SPI0_CMD_RCGR,
+				     31, 0, 0, CFG_CLK_SRC_GPLL0, 16);
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -59,6 +64,7 @@ static const struct gate_clk ipq5200_clks[] = {
 	GATE_CLK(GCC_QUPV3_UART1_CLK,		0x05020, 0x00000001),
 	GATE_CLK(GCC_SDCC1_AHB_CLK,		0x3303C, 0x00000001),
 	GATE_CLK(GCC_SDCC1_APPS_CLK,		0x3302C, 0x00000001),
+	GATE_CLK(GCC_QUPV3_SPI0_CLK,		0x0302C, 0x00000001),
 };
 
 static int ipq5200_enable(struct clk *clk)

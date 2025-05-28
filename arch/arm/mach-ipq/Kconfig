@@ -137,7 +137,7 @@ config IPQ_SPI_NOR
 	select SPI
 	select MISC
 	select SPI_QUP if TARGET_IPQ9574 || TARGET_IPQ5332
-	select MSM_GENI_SPI if TARGET_IPQ5424
+	select MSM_GENI_SPI if TARGET_IPQ5424 || TARGET_IPQ5200
 	select DM_SPI
 	select DM_SPI_FLASH
 	select SPI_FLASH_STMICRO
@@ -728,6 +728,7 @@ config TARGET_IPQ5200
 	bool "QTI IPQ5200"
 	imply QCOM_GENI_SE
 	imply IPQ_MULTI_DTB_SUPPORT
+	imply NOR_BLK
 	help
 	  Support for IPQ5200 SoC.
 	  - Board Open Platform Specifications.
