@@ -99,6 +99,25 @@ config SECONDARY_UART_INDEX
 	help
 	  This specifies the id inorder to access the secondary UART via cli.
 
+config IPQ_NAND
+	bool "Enable NAND flash support in IPQ SOC"
+	select MTD
+	select DM_MTD
+	select CMD_MTD
+	select CMD_MTDPARTS
+	select NAND_QTI
+	select MTD_RAW_NAND
+	select MTD_UBI
+	select UBI_WRITE
+	select CMD_NAND
+	select CMD_UBI
+	help
+	  Enables support for QPIC NAND controller and its dependent drivers.
+	  This option is required to use NAND flash devices connected via the
+	  QPIC interface on supported platforms.
+
+
+
 config IPQ_SPI_NOR
 	bool "Enable SPI NOR flash support in IPQ SOC"
 	select MTD
@@ -424,7 +443,6 @@ config TARGET_IPQ5332
 	imply IPQ_SMP_CMD_SUPPORT
 	imply IPQ_SMP64_CMD_SUPPORT
 	imply CMD_AES_256
-	select QSPI_LAYOUT_SWITCH if IPQ_NAND
 	imply MMC
 	imply SUPPORT_EMMC_BOOT
 	imply AES_256_DERIVE_KEY
@@ -503,7 +521,6 @@ config TARGET_IPQ5424
 	imply IPQ_SMP_CMD_SUPPORT
 	imply IPQ_SMP64_CMD_SUPPORT
 	imply CMD_AES_256
-	select QSPI_LAYOUT_SWITCH if IPQ_NAND
 	imply MMC
 	imply SUPPORT_EMMC_BOOT
 	imply AES_256_DERIVE_KEY
