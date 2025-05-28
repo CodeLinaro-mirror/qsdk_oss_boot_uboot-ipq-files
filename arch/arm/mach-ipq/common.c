@@ -15,6 +15,9 @@
 #include <wdt.h>
 #include <asm/io.h>
 #endif
+#ifdef CONFIG_CMD_UBI
+#include <ubi_uboot.h>
+#endif
 
 /***********************************************************************
  * Global and constant
@@ -44,6 +47,10 @@ DECLARE_GLOBAL_DATA_PTR;
 #define ERASE_GRP_SIZE(csd)		((csd[2] & 0x00007c00) >> 10)
 
 #define EXT_CSD_BOOT_WP_B_PERM_WP_EN	(0x04)  /* permanent write-protect */
+
+#ifndef CFG_UBI_FS_NAME
+#define CFG_UBI_FS_NAME			"fs"
+#endif
 
 uint32_t g_load_addr;
 uint8_t g_recovery_path __section(".data");
@@ -548,7 +555,8 @@ struct spi_flash *ipq_spi_probe(void)
 	if (_bdinfo->sf)
 		return _bdinfo->sf;
 
-	ret = spi_flash_probe_bus_cs(CONFIG_ENV_SPI_BUS, CONFIG_ENV_SPI_CS,
+	ret = spi_flash_probe_bus_cs(CONFIG_SF_DEFAULT_BUS,
+				     CONFIG_SF_DEFAULT_CS,
 				     &new);
 	if (ret) {
 		env_set_default("spi_flash_probe_bus_cs() failed", 0);
@@ -2066,7 +2074,7 @@ void update_nand_training_partition(struct ipq_smem_flash_info *sfi)
 	struct ipq_part_entry *part = &sfi->training;
 #if defined(CONFIG_NOR_BLK)
 	struct disk_partition disk_info;
-	struct blkpart bpart_info;
+	struct blkpart_info bpart_info;
 
 	if (sfi->flash_type == SMEM_BOOT_NORGPT_FLASH) {
 		BLK_PART_GET_INFO_S(bpart_info, "0:TRAINING", &disk_info,
@@ -2186,11 +2194,10 @@ void ipq_wdt_expire(void)
 	static struct udevice *wdt_dev;
 
 	ret = uclass_get_device_by_seq(UCLASS_WDT, 0, &wdt_dev);
-	if (ret) {
+	if (ret)
 		printf("WDT disabled\n");
-	}
-
-	wdt_expire_now(wdt_dev, 0);
+	else
+		wdt_expire_now(wdt_dev, 0);
 }
 #endif
 

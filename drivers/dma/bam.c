@@ -29,8 +29,8 @@
 
 #include <asm/io.h>
 #include <errno.h>
-#include <common.h>
 #include <mach/bam.h>
+#include <time.h>
 #include <cpu_func.h>
 #define HLOS_EE_INDEX          0
 #define TIMEOUT		2000
