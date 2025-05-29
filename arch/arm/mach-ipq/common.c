@@ -171,6 +171,7 @@ int ipq_get_valid_bank(void)
 	return boot;
 }
 
+#if defined(CONFIG_BOOTCONFIG_V2) || defined(CONFIG_BOOTCONFIG_V3)
 uint32_t cal_bootconf_crc(struct ipq_smem_bootconfig_info *binfo)
 {
 	uint32_t size = 0, crc = 0;
@@ -225,6 +226,7 @@ bool is_valid_bootconfig(struct ipq_smem_bootconfig_info *binfo)
 
 	return fstatus;
 }
+#endif
 
 #if defined(CONFIG_SMEM) && defined(CONFIG_MSM_SMEM)
 void *_smem_get_item(unsigned int item)
