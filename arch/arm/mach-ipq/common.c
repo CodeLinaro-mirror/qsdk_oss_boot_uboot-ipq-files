@@ -1228,6 +1228,29 @@ static void update_part_type(int flash_type)
 }
 #endif
 
+#ifdef CONFIG_MMC
+static void init_mmc(void)
+{
+	struct mmc *mmc;
+	mmc = find_mmc_device(0);
+	if (!mmc) {
+		printf("no mmc device at slot 0\n");
+		return;
+	}
+
+	if (mmc_init(mmc))
+		printf("mmc init failed\n");
+#ifdef CONFIG_EFI_PARTITION
+	struct blk_desc *dev;
+	dev = blk_get_devnum_by_uclass_id(UCLASS_MMC, 0);
+	if (dev != NULL && dev->part_type == PART_TYPE_UNKNOWN)
+		dev->part_type = PART_TYPE_EFI;
+#endif
+
+	return;
+}
+#endif
+
 int ipq_board_late_init(void)
 {
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
@@ -1249,6 +1272,9 @@ int ipq_board_late_init(void)
 
 	switch (board_type) {
 	case SMEM_BOOT_NORPLUSEMMC:
+#ifdef CONFIG_MMC
+		init_mmc();
+#endif
 #ifdef CONFIG_EFI_PARTITION
 		update_part_type(board_type);
 #endif
