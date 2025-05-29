@@ -28,6 +28,14 @@
 #define EDL_RECOVERY_MODE			0x2
 #define UBOOT_RECOVERY_MODE			0x1
 
+/* Crashdump minimal configs */
+#define CFG_CPU_CONTEXT_DUMP_SIZE		0x180F0
+#define TME_CTXT_SIZE				(128 * 1024)
+#define CPU_CNTXT_HDR_SIZE			4624
+#define TLV_BUF_OFFSET				(500 * 1024) - TME_CTXT_SIZE \
+							- CPU_CNTXT_HDR_SIZE
+#define CFG_TLV_DUMP_SIZE			(12 * 1024)
+
 #define TME_OEM_ATE_FUSE_START			0x000A00E0
 #define TME_OEM_ATE_FUSE_CNT			0x1
 #define TME_OEM_ATE_FUSE_READ_SIZE		0x8

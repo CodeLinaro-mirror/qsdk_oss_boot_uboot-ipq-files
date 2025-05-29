@@ -18,6 +18,12 @@ struct fuse_payload {
 	u32 val;
 };
 
+/* Crashdump minimal configs */
+#define CFG_CPU_CONTEXT_DUMP_SIZE		0x1000
+#define TME_CTXT_SIZE				(300 * 1024)
+#define TLV_BUF_OFFSET				(500 * 1024) - TME_CTXT_SIZE
+#define CFG_TLV_DUMP_SIZE			(12 * 1024)
+
 #define TME_OEM_ATE_FUSE_START			0x000A00C0
 #define TME_OEM_ATE_FUSE_CNT			0x2
 #define TME_OEM_ATE_FUSE_READ_SIZE		0x4

@@ -186,7 +186,7 @@ typedef struct {
 	uint8_t dump_to;
 	uint8_t is_compress_enabled;
 	crashdump_interface_cfg_t iface_cfg;
-	crashdump_infos_t *dump_infos;
+	struct crashdump_infos *dump_infos;
 	uint8_t nos_dumps;
 	uint16_t actual_nos_dumps;
 	uint64_t ram_top;
@@ -352,7 +352,7 @@ static int wdt_extract_dump(crashdump_config_t *dump_config, int dump_idx,
 	uint8_t tlv_type = cur_type = QTI_WDT_LOG_DUMP_TYPE_INVALID;
 	uint32_t cur_size = 0;
 	wdt_dump_tlv_infos_t tlv_info;
-	crashdump_infos_t *dump_infos = &dump_config->dump_infos[dump_idx];
+	struct crashdump_infos *dump_infos = &dump_config->dump_infos[dump_idx];
 	char *dumps[] = { "INVALID",
 		UNAME_DUMP_NAME_PREFIX,
 		DMESG_DUMP_NAME_PREFIX,
@@ -1074,7 +1074,7 @@ static int prepare_crashdump_level_table(crashdump_config_t *dump_config,
 {
 	int i, ret = 0;
 	crashdump_infos_int_t dump_entry;
-	crashdump_infos_t *dump_infos = dump_config->dump_infos;
+	struct crashdump_infos *dump_infos = dump_config->dump_infos;
 	char dump_name_prefix[DUMP_NAME_STR_MAX_LEN] = { 0 };
 	uint64_t split_bin_sz = 0;
 	uint8_t file_no = 0;
