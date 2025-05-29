@@ -303,7 +303,7 @@ int dram_init_banksize(void)
 	struct ram_partition_entry *rpe;
 
 	uclass_get_device(UCLASS_SMEM, 0, &dev);
-	rpt = smem_get(dev, 0, SMEM_USABLE_RAM_PARTITION_TABLE, &size);
+	rpt = smem_get(dev, -1, SMEM_USABLE_RAM_PARTITION_TABLE, &size);
 
 	if (rpt == NULL)
 		return -ENODEV;
@@ -336,7 +336,7 @@ int board_early_init_f(void)
 	union ipq_platform *platform_type;
 
 	uclass_get_device(UCLASS_SMEM, 0, &dev);
-	platform_type = smem_get(dev, 0, SMEM_HW_SW_BUILD_ID, &size);
+	platform_type = smem_get(dev, -1, SMEM_HW_SW_BUILD_ID, &size);
 	if (IS_ERR_OR_NULL(platform_type)) {
 		debug("Failed to get SMEM item: SMEM_HW_SW_BUILD_ID\n");
 		return -ENODEV;
