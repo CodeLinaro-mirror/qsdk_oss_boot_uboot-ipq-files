@@ -1,6 +1,7 @@
 obj-y += board.o
 obj-y += common.o
 obj-y += cmd_bootipq.o
+obj-$(CONFIG_IPQ_CRASHDUMP) += cmd_crashdump.o
 obj-y += cmd_smem.o
 obj-y += cmd_flutility.o
 obj-y += cmd_ipq.o

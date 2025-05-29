@@ -418,16 +418,6 @@ void ipq_update_board_name(int machid, struct multidtb_config *dtb)
 }
 #endif /* CONFIG_DTB_RESELECT */
 
-/**
- * ipq_read_tcsr_boot_misc() - read boot tcsr register
- */
-__weak int ipq_read_tcsr_boot_misc(void)
-{
-	u32 *dmagic = TCSR_BOOT_MISC_REG;
-
-	return *dmagic;
-}
-
 uint32_t ipq_get_soc_hw_version(void)
 {
 	return 0;

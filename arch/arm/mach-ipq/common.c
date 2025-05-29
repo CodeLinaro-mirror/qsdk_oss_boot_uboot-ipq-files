@@ -1792,13 +1792,6 @@ void setup_board_default_env(void)
 {
 	ipq_setup_board_default_env();
 }
-/**
- * ipq_read_tcsr_boot_misc() - read boot tcsr register
- */
-__weak int ipq_read_tcsr_boot_misc(void)
-{
-	return 0;
-}
 
 int write_tcsr_boot_misc_reg(uint32_t mask, uint32_t value)
 {

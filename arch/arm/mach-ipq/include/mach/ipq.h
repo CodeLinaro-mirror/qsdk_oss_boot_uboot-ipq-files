@@ -429,6 +429,20 @@ void ipq_runtime_sf_env_update(void);
  */
 int ipq_part_get_info_by_name(struct blkpart_info *blkpart);
 #endif
+
+/**
+ * ipq_smem_getpart_from_offset - retrieve partition start and size
+ * for given offset belongs to.
+ * @part_name: offset for which part start and size needed
+ * @start: location where the start offset is to be stored
+ * @size: location where the size is to be stored
+ *
+ * Returns 0 at success or -ENOENT otherwise.
+ */
+int ipq_smem_getpart_from_offset(uint32_t offset, uint32_t *start,
+				 uint32_t *size);
+int ipq_gpt_getpart_from_offset(uint32_t offset, uint32_t *pstart,
+				uint32_t *psize, uint32_t flash_type);
 /**
  * get_gpt_entry() - Get the GPT entry table
  *

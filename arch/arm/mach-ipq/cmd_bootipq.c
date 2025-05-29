@@ -226,7 +226,7 @@ void set_crashdump_bootargs(char *bootargs, uint8_t pri_ftype,
 		} else
 #endif /* CONFIG_NOR_BLK */
 		{
-			if (getpart_offset_size(part_name, (uint32_t *)&offset,
+			if (ipq_getpart_offset_size(part_name, (uint32_t *)&offset,
 						(uint32_t *)&part_size))
 				return;
 		}

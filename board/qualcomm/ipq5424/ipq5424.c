@@ -307,16 +307,6 @@ void ipq_board_early_init_f(void)
 	writel((readl(IM_SLEEP_CLK) | BIT(0)), IM_SLEEP_CLK);
 }
 
-/**
- * ipq_read_tcsr_boot_misc() - read boot tcsr register
- */
-__weak int ipq_read_tcsr_boot_misc(void)
-{
-	u32 *dmagic = TCSR_BOOT_MISC_REG;
-
-	return *dmagic;
-}
-
 bool is_atf_enbled(void)
 {
 	uint32_t atf_status = 0;

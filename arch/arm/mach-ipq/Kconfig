@@ -373,6 +373,49 @@ config MMC_FLASH_PARTITION_WRITE_PROTECT
 	depends on IPQ_MMC
 	default y
 
+config IPQ_CRASHDUMP
+	bool "IPQ Crashdump collection support"
+	depends on USE_PREBOOT
+	default n
+
+config IPQ_MINIDUMP
+	bool "IPQ Minidump collection support"
+	depends on IPQ_CRASHDUMP
+	default n
+
+config IPQ_COMPRESSED_CRASHDUMP
+	bool "IPQ Compressed (GZIP) Crashdump support"
+	depends on IPQ_CRASHDUMP
+	select CMD_ZIP
+	default n
+
+config IPQ_CRASHDUMP_TO_USB
+	bool "IPQ Collect Crashdump over USB"
+	depends on IPQ_CRASHDUMP && IPQ_USB
+	default n
+
+config IPQ_CRASHDUMP_TO_MEMORY
+	bool "IPQ Collect Crashdump over DDR Memory"
+	depends on IPQ_CRASHDUMP
+	default n
+
+config IPQ_CRASHDUMP_TO_NVMEMORY
+	bool "IPQ Collect Crashdump over Non-Volatile Memory (eMMC / NAND)"
+	depends on IPQ_CRASHDUMP
+	default n
+
+config IPQ_CRASHDUMP_TO_FLASH
+	bool "IPQ Collect Crashdump over FLASH"
+	depends on IPQ_CRASHDUMP && IPQ_MINIDUMP
+	default n
+
+config IPQ_CRASHDUMP_TO_EMMC
+	bool "IPQ Collect Crashdump over EMMC"
+	depends on IPQ_CRASHDUMP && IPQ_COMPRESSED_CRASHDUMP && IPQ_MMC
+	imply CMD_EXT4
+	imply CMD_EXT4_WRITE
+	default n
+
 config IPQ_PCIE
 	bool "Enable PCIE support in IPQ SOC"
 	select PCI
@@ -430,6 +473,14 @@ config IPQ_BOARD_DEFAULT
 	imply OF_BOARD_SETUP
 	imply STACKPROTECTOR
 	imply SYS_DEVICE_NULLDEV
+	select IPQ_CRASHDUMP
+	imply IPQ_MINIDUMP
+	imply IPQ_COMPRESSED_CRASHDUMP
+	imply IPQ_CRASHDUMP_TO_USB
+	imply IPQ_CRASHDUMP_TO_MEMORY
+	imply IPQ_CRASHDUMP_TO_NVMEMORY
+	imply IPQ_CRASHDUMP_TO_FLASH
+	imply IPQ_CRASHDUMP_TO_EMMC
 	imply WDT
 	imply WDT_QCOM
 	imply CMD_WDT
