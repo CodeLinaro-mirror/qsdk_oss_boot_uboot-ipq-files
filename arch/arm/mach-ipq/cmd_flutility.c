@@ -752,13 +752,16 @@ int do_flash(struct cmd_tbl *cmdtp, int flag, int argc, char * const argv[])
 			}
 #endif
 			break;
-		default:
+		case 0:
 			ret = ipq_smem_getpart(part_name, &start_block,
 						&size_block);
 			if (!ret) {
 				offset = sfi->flash_block_size * start_block;
 				part_size = sfi->flash_block_size * size_block;
 			}
+			break;
+		default:
+			return CMD_RET_FAILURE;
 		}
 		break;
 #ifdef CONFIG_IPQ_NAND

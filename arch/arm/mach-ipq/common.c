@@ -817,6 +817,11 @@ uint32_t ipq_find_flash_by_name(char *part_name)
 	int i;
 	int flash_var = -1;
 
+	if (!ptable) {
+		printf("SMEM ptable not found\n");
+		return -ENOENT;
+	}
+
 	for (i = 0; i < ptable->len; i++) {
 		struct smem_ptn *p = &ptable->parts[i];
 
@@ -924,10 +929,12 @@ int ipq_get_current_board_flash_config(int flash_type)
 		ret = ipq_find_flash_by_name("rootfs");
 		if (ret == -1)
 			board_type = SMEM_BOOT_NORPLUSEMMC;
-		else if (ret)
+		else if (ret == 1)
 			board_type = SMEM_BOOT_NORPLUSNAND;
-		else
+		else if (ret == 0)
 			board_type = SMEM_BOOT_SPI_FLASH;
+		else
+			return ret;
 	}
 
 	return board_type;
