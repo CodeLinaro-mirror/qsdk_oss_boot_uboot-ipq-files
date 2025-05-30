@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0
-// Copyright (c) 2017-2018, The Linux foundation. All rights reserved.
-// Copyright (c) 2023-2025, Qualcomm Innovation Center, Inc. All rights reserved.
+/*
+ * Copyright (c) 2017-2018, The Linux foundation. All rights reserved.
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
 
 #include <asm/gpio.h>
 #include <asm/io.h>
@@ -16,7 +18,7 @@
 #include <blk.h>
 #include <part.h>
 #endif
-#include <geni_se.h>
+#include <soc/qcom/geni-se.h>
 
 /* SPI SE specific registers and respective register fields */
 #define SE_SPI_CPHA			0x224
@@ -158,6 +160,13 @@
 
 #define SPI_BITLEN_MSK			0x07
 #define MAX_TIMEOUT			10
+
+#define NUM_PACKING_VECTORS		4
+#define PACKING_START_SHIFT		5
+#define PACKING_DIR_SHIFT		4
+#define PACKING_LEN_SHIFT		1
+#define PACKING_STOP_BIT		BIT(0)
+#define PACKING_VECTOR_SHIFT		10
 
 enum geni_se_xfer_status {
 	XFER_IN_PROGRESS = 0,
