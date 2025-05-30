@@ -16,6 +16,7 @@
 #include <linux/bug.h>
 #include <elf.h>
 #include <linux/iopoll.h>
+#include <dm/device-internal.h>
 #ifdef CONFIG_PHY_AQUANTIA
 #include <u-boot/crc.h>
 #include <miiphy.h>

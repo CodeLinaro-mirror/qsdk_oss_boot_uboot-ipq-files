@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <fdtdec.h>
 #include <config.h>
+#include <mtd_node.h>
 
 #define IM_SLEEP_CLK				0x1834020
 #define MACH_TYPE_IPQ5424_RDP464_C2		0x8070000

@@ -39,5 +39,6 @@ struct fuse_payload {
 #define PHY_ANEG_TIMEOUT			100
 
 #define ROOT_FS_PART_NAME			"rootfs"
+#define ROOT_FS_ATL_PART_NAME			"rootfs_1"
 
 #endif

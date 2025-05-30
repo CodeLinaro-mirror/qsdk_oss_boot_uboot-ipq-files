@@ -5,7 +5,6 @@
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
-#include <common.h>
 #include <malloc.h>
 #include <memalign.h>
 #include <command.h>
@@ -22,7 +21,7 @@
 #include <clk.h>
 #include <watchdog.h>
 
-#include "qti_nand.h"
+#include "qcom_nand.h"
 
 DECLARE_GLOBAL_DATA_PTR;
 

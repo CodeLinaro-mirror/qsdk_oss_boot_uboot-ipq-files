@@ -527,3 +527,30 @@ phys_size_t get_effective_memsize(void)
 #endif
 	return ram_size;
 }
+
+#if CONFIG_IS_ENABLED(NAND_QTI)
+void board_nand_init(void)
+{
+	struct udevice *dev;
+	int ret;
+
+	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
+
+	/*
+	 * Since the training partition info present in the gpt table
+	 * which resides inside SPI-NOR flash so spi nor probe is must
+	 * before nand init in NOTGPT case.
+	 */
+	if (sfi->flash_type == SMEM_BOOT_NORGPT_FLASH) {
+#ifdef CONFIG_IPQ_SPI_NOR
+		ipq_spi_probe();
+#endif
+	}
+
+	ret = uclass_get_device_by_driver(UCLASS_MTD,
+					  DM_DRIVER_GET(qti_nand), &dev);
+	if (ret && ret != -ENODEV)
+		pr_err("Failed to initialize %s. (error %d)\n",
+		       dev->name, ret);
+}
+#endif
