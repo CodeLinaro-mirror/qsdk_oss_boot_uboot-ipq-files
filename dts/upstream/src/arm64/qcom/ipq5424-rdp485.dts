@@ -16,6 +16,26 @@
 	};
 
 	soc@0 {
+		qmp_ssphy_0: ssphy@7D000 {
+			status = "okay";
+		};
+
+		qusb2_phy_0: qusb2@7B000 {
+			status = "okay";
+		};
+
+		usb3_0: usb@8af8800 {
+			status = "okay";
+		};
+
+		qusb2_phy_1: qusb2@71000 {
+			status = "okay";
+		};
+
+		usb2_0: usb@1ef8800 {
+			status = "okay";
+		};
+
 		mdio: mdio@90000 {
 			pinctrl-names = "default";
 			pinctrl-0 = <&mdio_pinmux>;
