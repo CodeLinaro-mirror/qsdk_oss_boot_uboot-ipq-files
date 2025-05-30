@@ -82,6 +82,15 @@
 #define GCC_PCIE3X1_1_AXI_CMD_RCGR		(GCC_PCIE3X1_1_BASE+0x004)
 #define GCC_PCIE3X1_1_RCHG_CMD_RCGR		(GCC_PCIE3X1_1_BASE+0x078)
 
+#define GCC_QPIC_IO_MACRO_CMD_RCGR		(0x32004)
+#define IO_MACRO_CLK_400_MHZ				(400000000)
+#define IO_MACRO_CLK_320_MHZ				(320000000)
+#define IO_MACRO_CLK_266_MHZ				(266000000)
+#define IO_MACRO_CLK_228_MHZ				(228000000)
+#define IO_MACRO_CLK_200_MHZ				(200000000)
+#define IO_MACRO_CLK_100_MHZ				(100000000)
+#define IO_MACRO_CLK_24_MHZ				(24000000)
+
 
 
 static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
@@ -186,7 +195,7 @@ ulong msm_get_rate(struct clk *clk)
 static ulong ipq5332_set_rate(struct clk *clk, ulong rate)
 {
 	struct msm_clk_priv *priv = dev_get_priv(clk->dev);
-	int ret, div = 0, cdiv = 0;
+	int ret, src, div = 0, cdiv = 0;
 
 	switch (clk->id) {
 	case GCC_BLSP1_UART1_APPS_CLK:
@@ -340,6 +349,34 @@ static ulong ipq5332_set_rate(struct clk *clk, ulong rate)
 		else
 			ret = -EINVAL;
 		break;
+	case GCC_QPIC_IO_MACRO_CLK:
+		src = CFG_CLK_SRC_GPLL0;
+		switch (rate) {
+		case IO_MACRO_CLK_24_MHZ:
+			src = CFG_CLK_SRC_CXO;
+			div = 0;
+			break;
+		case IO_MACRO_CLK_100_MHZ:
+			div = 15;
+			break;
+		case IO_MACRO_CLK_200_MHZ:
+			div = 7;
+			break;
+		case IO_MACRO_CLK_228_MHZ:
+			div = 6;
+			break;
+		case IO_MACRO_CLK_266_MHZ:
+			div = 5;
+			break;
+		case IO_MACRO_CLK_320_MHZ:
+			div = 4;
+			break;
+		default:
+			return -EINVAL;
+		}
+		clk_rcg_set_rate_v2(priv->base, GCC_QPIC_IO_MACRO_CMD_RCGR,
+				0, div, 0, src);
+		break;
 	default:
 		ret = -EINVAL;
 	}
@@ -418,6 +455,7 @@ static const struct gate_clk ipq5332_clks[] = {
 	GATE_CLK(GCC_SNOC_PCIE3_1LANE_S_CLK,	0x2E04C, 0x00000001),
 	GATE_CLK(GCC_SNOC_PCIE3_1LANE_1_M_CLK,	0x2E050, 0x00000001),
 	GATE_CLK(GCC_SNOC_PCIE3_1LANE_1_S_CLK,	0x2E0AC, 0x00000001),
+	GATE_CLK(GCC_QPIC_IO_MACRO_CLK,		0x3200C, 0x00000001),
 };
 
 static int ipq5332_enable(struct clk *clk)

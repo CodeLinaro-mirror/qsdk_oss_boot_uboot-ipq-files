@@ -156,6 +156,16 @@
 #define GCC_PCIE_AXI_S_CMD_RCGR(id)		GCC_PCIE_OFFSET(id, 0x20)
 #define GCC_PCIE_RCHNG_CMD_RCGR(id)		GCC_PCIE_OFFSET(id, 0x28)
 
+#define GCC_QPIC_IO_MACRO_CMD_RCGR		(0x32004)
+#define IO_MACRO_CLK_400_MHZ			(400000000)
+#define IO_MACRO_CLK_320_MHZ			(320000000)
+#define IO_MACRO_CLK_266_MHZ			(266000000)
+#define IO_MACRO_CLK_228_MHZ			(228000000)
+#define IO_MACRO_CLK_200_MHZ			(200000000)
+#define IO_MACRO_CLK_100_MHZ			(100000000)
+#define IO_MACRO_CLK_24_MHZ			(24000000)
+
+
 static bool fdone;
 
 static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
@@ -564,6 +574,37 @@ static ulong ipq9574_set_rate(struct clk *clk, ulong rate)
 		else
 			ret = -EINVAL;
 		break;
+	case GCC_QPIC_IO_MACRO_CLK:
+		src = CFG_CLK_SRC_GPLL0;
+		switch (rate) {
+		case IO_MACRO_CLK_24_MHZ:
+			src = CFG_CLK_SRC_CXO;
+			div = 0;
+			break;
+		case IO_MACRO_CLK_100_MHZ:
+			div = 15;
+			break;
+		case IO_MACRO_CLK_200_MHZ:
+			div = 7;
+			break;
+		case IO_MACRO_CLK_228_MHZ:
+			div = 6;
+			break;
+		case IO_MACRO_CLK_266_MHZ:
+			div = 5;
+			break;
+		case IO_MACRO_CLK_320_MHZ:
+			div = 4;
+			break;
+		case IO_MACRO_CLK_400_MHZ:
+			div = 3;
+			break;
+		default:
+			return -EINVAL;
+		}
+		clk_rcg_set_rate_v2(priv->base, GCC_QPIC_IO_MACRO_CMD_RCGR,
+				0, div, 0, src);
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -674,6 +715,7 @@ static const struct gate_clk ipq9574_clks[] = {
 	GATE_CLK(GCC_ANOC_PCIE1_1LANE_M_CLK,	0x2E08C, 0x00000001),
 	GATE_CLK(GCC_ANOC_PCIE2_2LANE_M_CLK,	0x2E080, 0x00000001),
 	GATE_CLK(GCC_ANOC_PCIE3_2LANE_M_CLK,	0x2E090, 0x00000001),
+	GATE_CLK(GCC_QPIC_IO_MACRO_CLK,		0x3200C, 0x00000001),
 };
 
 static int ipq9574_enable(struct clk *clk)
