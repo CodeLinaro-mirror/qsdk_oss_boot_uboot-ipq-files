@@ -40,7 +40,7 @@
 			phy-handle1 = <&phy1>;
 			status = "okay";
 
-			phy0: phy@ff {
+			phy0: phy0@ff {
 				phy_addr = <0xFF>;
 				phy_type = <SFP10G_PHY_TYPE>;
 				id = <1>;
@@ -50,7 +50,7 @@
 				xgmac;
 			};
 
-			phy1: phy@ff {
+			phy1: phy1@ff {
 				phy_addr = <0xFF>;
 				phy_type = <SFP10G_PHY_TYPE>;
 				id = <2>;
