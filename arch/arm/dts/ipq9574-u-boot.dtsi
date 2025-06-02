@@ -294,6 +294,14 @@
 			bridge_mode;
 			status = "okay";
 		};
+
+		watchdog: non-sec@b017000 {
+			compatible = "qcom,wdt";
+			reg =  <0xb017000 0x24>;
+			clocks = <&sleep_clk>;
+			timeout-sec = <30>;
+			status = "okay";
+		};
 	};
 };
 
