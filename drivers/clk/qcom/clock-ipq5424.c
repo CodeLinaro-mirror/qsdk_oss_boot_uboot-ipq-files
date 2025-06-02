@@ -64,6 +64,14 @@
 #define GCC_QPIC_IO_MACRO_CMD_RCGR		(0x32004)
 #define GCC_QPIC_IO_MACRO_CBCR			(0x3200C)
 #define GCC_QPIC_AHB_CBCR			(0x32010)
+#define GCC_USB0_MOCK_UTMI_DIV_CDIVR		(0x2C040)
+#define GCC_USB0_MASTER_CMD_RCGR		(0x2C004)
+#define GCC_USB0_MOCK_UTMI_CMD_RCGR		(0x2C02C)
+#define GCC_USB0_AUX_CMD_RCGR			(0x2C018)
+#define GCC_USB1_MOCK_UTMI_DIV_CDIVR		(0x3C018)
+#define GCC_USB1_MOCK_UTMI_CMD_RCGR		(0x3C004)
+
+#define CFG_CLK_SRC_GPLL4_OUT_AUX		(1 << 8)
 
 #define NSS_CC_PPE_SRC_SEL_CMN_PLL_NSS_CLK_375M		(6 << 8)
 #define NSS_CC_PPE_SRC_SEL_GCC_GPLL0_OUT_AUX		(2 << 8)
@@ -365,6 +373,28 @@ static ulong ipq5424_set_rate(struct clk *clk, ulong rate)
 				    div, cdiv,
 				    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
 		break;
+	case GCC_USB0_MASTER_CLK:
+		/* Default: 200MHz */
+		clk_rcg_set_rate_mnd(priv->base, GCC_USB0_MASTER_CMD_RCGR, 7,
+					0, 0, CFG_CLK_SRC_GPLL0, 8);
+		break;
+	case GCC_USB0_MOCK_UTMI_CLK:
+		/* Default: 60MHz */
+		writel(1, priv->base + GCC_USB0_MOCK_UTMI_DIV_CDIVR);
+		clk_rcg_set_rate_mnd(priv->base, GCC_USB0_MOCK_UTMI_CMD_RCGR,
+					19, 0, 0, CFG_CLK_SRC_GPLL4_OUT_AUX, 16);
+		break;
+	case GCC_USB0_AUX_CLK:
+		/* Default: 24MHz */
+		clk_rcg_set_rate_mnd(priv->base, GCC_USB0_AUX_CMD_RCGR, 1,
+					0, 0, CFG_CLK_SRC_CXO, 8);
+		break;
+	case GCC_USB1_MOCK_UTMI_CLK:
+		/* Default: 60MHz */
+		writel(1, priv->base + GCC_USB1_MOCK_UTMI_DIV_CDIVR);
+		clk_rcg_set_rate_mnd(priv->base, GCC_USB1_MOCK_UTMI_CMD_RCGR,
+					19, 0, 0, CFG_CLK_SRC_GPLL4_OUT_AUX, 8);
+		break;
 	case UNIPHY0_NSS_RX_CLK:
 		fallthrough;
 	case UNIPHY0_NSS_TX_CLK:
@@ -386,7 +416,7 @@ static ulong ipq5424_set_rate(struct clk *clk, ulong rate)
 	case GCC_QPIC_CLK:
 		/* GCC_QPIC_CLK: 100 MHz  */
 		clk_rcg_set_rate_v2(priv->base, GCC_QPIC_CMD_RCGR,
-				 0, 0xF, 0, CFG_CLK_SRC_GPLL0);
+				    0, 0xF, 0, CFG_CLK_SRC_GPLL0);
 		break;
 	case GCC_QPIC_IO_MACRO_CLK:
 		src = CFG_CLK_SRC_GPLL0;
@@ -417,7 +447,7 @@ static ulong ipq5424_set_rate(struct clk *clk, ulong rate)
 			return -EINVAL;
 		}
 		clk_rcg_set_rate_v2(priv->base, GCC_QPIC_IO_MACRO_CMD_RCGR,
-				 0, div, 0, src);
+				    0, div, 0, src);
 		break;
 	default:
 		return -EINVAL;
@@ -517,6 +547,17 @@ static const struct gate_clk ipq5424_clks[] = {
 	GATE_CLK(GCC_QPIC_CLK,                  0x32028,  0x00000001),
 	GATE_CLK(GCC_QPIC_AHB_CLK,              0x32010,  0x00000001),
 	GATE_CLK(GCC_QPIC_IO_MACRO_CLK,         0x3200C,  0x00000001),
+	GATE_CLK(GCC_USB0_MASTER_CLK,		0x2C044,  0x00000001),
+	GATE_CLK(GCC_USB0_MOCK_UTMI_CLK,	0x2C050,  0x00000001),
+	GATE_CLK(GCC_USB0_SLEEP_CLK,		0x2C058,  0x00000001),
+	GATE_CLK(GCC_USB0_AUX_CLK,		0x2C04C,  0x00000001),
+	GATE_CLK(GCC_USB0_PHY_CFG_AHB_CLK,	0x2C05C,  0x00000001),
+	GATE_CLK(GCC_USB1_MASTER_CLK,		0x3C028,  0x00000001),
+	GATE_CLK(GCC_USB1_MOCK_UTMI_CLK,	0x3C024,  0x00000001),
+	GATE_CLK(GCC_USB1_SLEEP_CLK,		0x3C020,  0x00000001),
+	GATE_CLK(GCC_USB1_PHY_CFG_AHB_CLK,	0x3C01C,  0x00000001),
+	GATE_CLK(GCC_USB0_PIPE_CLK,		0x2C054,  0x00000001),
+	GATE_CLK(GCC_CNOC_USB_CLK,		0x310A8,  0x00000001),
 };
 
 static int ipq5424_enable(struct clk *clk)
@@ -599,6 +640,12 @@ static const struct qcom_reset_map ipq5424_gcc_resets[] = {
 	[GCC_PCIE0_AXI_S_STICKY_RESET]	= {0x28058, 2},
 	[GCC_PCIE0_AHB_ARES]		= {0x28030, 2},
 	[GCC_PCIE0_AUX_ARES]		= {0x28070, 2},
+	[GCC_USB_BCR]			= {0x2C000, 0},
+	[GCC_QUSB2_0_PHY_BCR]		= {0x2C068, 0},
+	[GCC_USB0_PHY_BCR]		= {0x2C06C, 0},
+	[GCC_USB3PHY_0_PHY_BCR]		= {0x2C070, 0},
+	[GCC_USB1_BCR]			= {0x3C000, 0},
+	[GCC_QUSB2_1_PHY_BCR]		= {0x3C030, 0},
 };
 
 static struct msm_clk_data ipq5424_gcc_data = {

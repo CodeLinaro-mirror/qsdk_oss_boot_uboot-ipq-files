@@ -51,6 +51,10 @@
 #define NSS_CC_PPE_SRC_SEL_CMN_PLL_NSS_CLK_200M		(6 << 8)
 #define NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK	(3 << 8)
 #define NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK	(4 << 8)
+#define GCC_USB0_MASTER_CMD_RCGR			(0x2C004)
+#define GCC_USB0_AUX_CMD_RCGR				(0x2C018)
+#define GCC_USB0_MOCK_UTMI_CMD_RCGR			(0x2C02C)
+#define GCC_USB0_LFPS_CMD_RCGR				(0x2C07C)
 
 #define CLK_2_5_MHZ					(2500000UL)
 #define CLK_12_5_MHZ					(12500000UL)
@@ -249,46 +253,46 @@ static ulong ipq5332_set_rate(struct clk *clk, ulong rate)
 	case GCC_PCIE3X2_AUX_CLK:
 		/* GCC_PCIE_AUX_CLK: 2MHz */
 		clk_rcg_set_rate_mnd(priv->base, GCC_PCIE_AUX_CMD_RCGR,0x17, 0,
-					0, PCIE_SRC_SEL_XO, 16);
+				     0, PCIE_SRC_SEL_XO, 16);
 		break;
 	case GCC_PCIE3X2_AXI_M_CLK:
 		fallthrough;
 	case GCC_SNOC_PCIE3_2LANE_M_CLK:
 		/* GCC_PCIE3X2_AXI_M_CLK: 266.67MHz */
 		clk_rcg_set_rate_v2(priv->base, GCC_PCIE3X2_AXI_M_CMD_RCGR,
-				0, 8, 0, PCIE_SRC_SEL_GPLL4_OUT_MAIN);
+				    0, 8, 0, PCIE_SRC_SEL_GPLL4_OUT_MAIN);
 		break;
 	case GCC_PCIE3X2_AXI_S_CLK:
 		fallthrough;
 	case GCC_SNOC_PCIE3_2LANE_S_CLK:
 		/* GCC_PCIE3X2_AXI_S_CLK: 240MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE3X2_AXI_S_CMD_RCGR,
-				5, PCIE_SRC_SEL_GPLL4_OUT_MAIN);
+				 5, PCIE_SRC_SEL_GPLL4_OUT_MAIN);
 		break;
 	case GCC_PCIE3X2_RCHG_CLK:
 		/* GCC_PCIE3X2_RCHG_CLK: 100MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE3X2_RCHG_CMD_RCGR,
-				8, PCIE_SRC_SEL_GPLL0_OUT_MAIN);
+				 8, PCIE_SRC_SEL_GPLL0_OUT_MAIN);
 		break;
 	case GCC_PCIE3X1_0_AXI_CLK_SRC:
 		/* GCC_PCIE3X1_0_AXI_CLK_SRC: 240MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE3X1_0_AXI_CMD_RCGR,
-				5, PCIE_SRC_SEL_GPLL4_OUT_MAIN);
+				 5, PCIE_SRC_SEL_GPLL4_OUT_MAIN);
 		break;
 	case GCC_PCIE3X1_0_RCHG_CLK:
 		/* GCC_PCIE3X1_0_RCHG_CLK: 100MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE3X1_0_RCHG_CMD_RCGR,
-				8, PCIE_SRC_SEL_GPLL0_OUT_MAIN);
+				 8, PCIE_SRC_SEL_GPLL0_OUT_MAIN);
 		break;
 	case GCC_PCIE3X1_1_AXI_CLK_SRC:
 		/* GCC_PCIE3X1_1_AXI_CLK: 240MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE3X1_1_AXI_CMD_RCGR,
-				5, PCIE_SRC_SEL_GPLL4_OUT_MAIN);
+				 5, PCIE_SRC_SEL_GPLL4_OUT_MAIN);
 		break;
 	case GCC_PCIE3X1_1_RCHG_CLK:
 		/* GCC_PCIE3X1_1_RCHG_CLK: 100MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE3X1_1_RCHG_CMD_RCGR,
-				8, PCIE_SRC_SEL_GPLL0_OUT_MAIN);
+				 8, PCIE_SRC_SEL_GPLL0_OUT_MAIN);
 		break;
 	/*
 	 * NSS controlled clock
@@ -334,7 +338,22 @@ static ulong ipq5332_set_rate(struct clk *clk, ulong rate)
 				    NSS_CC_PORT2_TX_DIV_CDIVR, div, cdiv,
 				    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
 		break;
-
+	case GCC_USB0_MASTER_CLK:
+		clk_rcg_set_rate(priv->base, GCC_USB0_MASTER_CMD_RCGR,
+				 4, CFG_CLK_SRC_GPLL0);
+		break;
+	case GCC_USB0_MOCK_UTMI_CLK:
+		clk_rcg_set_rate_mnd(priv->base, GCC_USB0_MOCK_UTMI_CMD_RCGR,
+					19, 1, 2, CFG_CLK_SRC_GPLL0, 8);
+		break;
+	case GCC_USB0_AUX_CLK:
+		clk_rcg_set_rate(priv->base, GCC_USB0_AUX_CMD_RCGR,
+				 12, CFG_CLK_SRC_CXO);
+		break;
+	case GCC_USB0_LFPS_CLK:
+		clk_rcg_set_rate_mnd(priv->base, GCC_USB0_LFPS_CMD_RCGR,
+					31, 1, 2, CFG_CLK_SRC_GPLL0, 8);
+		break;
 	case UNIPHY0_NSS_RX_CLK:
 		fallthrough;
 	case UNIPHY0_NSS_TX_CLK:
@@ -375,7 +394,7 @@ static ulong ipq5332_set_rate(struct clk *clk, ulong rate)
 			return -EINVAL;
 		}
 		clk_rcg_set_rate_v2(priv->base, GCC_QPIC_IO_MACRO_CMD_RCGR,
-				0, div, 0, src);
+				    0, div, 0, src);
 		break;
 	default:
 		ret = -EINVAL;
@@ -456,6 +475,13 @@ static const struct gate_clk ipq5332_clks[] = {
 	GATE_CLK(GCC_SNOC_PCIE3_1LANE_1_M_CLK,	0x2E050, 0x00000001),
 	GATE_CLK(GCC_SNOC_PCIE3_1LANE_1_S_CLK,	0x2E0AC, 0x00000001),
 	GATE_CLK(GCC_QPIC_IO_MACRO_CLK,		0x3200C, 0x00000001),
+	GATE_CLK(GCC_USB0_MASTER_CLK,		0x2C048, 0x00000001),
+	GATE_CLK(GCC_USB0_MOCK_UTMI_CLK,	0x2C054, 0x00000001),
+	GATE_CLK(GCC_USB0_AUX_CLK,		0x2C050, 0x00000001),
+	GATE_CLK(GCC_USB0_LFPS_CLK,		0x2C090, 0x00000001),
+	GATE_CLK(GCC_USB0_SLEEP_CLK,		0x2C058, 0x00000001),
+	GATE_CLK(GCC_USB0_PHY_CFG_AHB_CLK,	0x2C05C, 0x00000001),
+	GATE_CLK(GCC_USB0_PIPE_CLK,		0x2C078, 0x00000001),
 };
 
 static int ipq5332_enable(struct clk *clk)
@@ -516,7 +542,9 @@ static const struct qcom_reset_map ipq5332_gcc_resets[] = {
 	[GCC_PCIE3X2_PHY_AHB_CLK_ARES]	= {0x28080, 2},
 	[GCC_PCIE3X2_PHY_BCR]		= {0x28060},
 	[GCC_PCIE3X2PHY_PHY_BCR]	= {0x2805c},
-
+	[GCC_USB_BCR]			= {0x2C000, 0},
+	[GCC_QUSB2_0_PHY_BCR]		= {0x2C068, 0},
+	[GCC_USB0_PHY_BCR]		= {0x2C06C, 0},
 };
 
 static struct msm_clk_data ipq5332_gcc_data = {
