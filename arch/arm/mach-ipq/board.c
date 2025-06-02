@@ -510,7 +510,7 @@ int fdtdec_board_setup(const void *fdt_blob)
 int board_fix_fdt(void *rw_fdt_blob)
 {
 	ipq_uboot_fdt_fixup(rw_fdt_blob, UBOOT_FIXUP_SMEM);
-	ipq_uboot_fdt_fixup_usb(rw_fdt_blob, UBOOT_FIXUP_USB);
+	ipq_uboot_fdt_fixup(rw_fdt_blob, UBOOT_FIXUP_USB);
 
 	return 0;
 }

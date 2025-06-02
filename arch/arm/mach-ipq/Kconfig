@@ -306,6 +306,7 @@ config SCM_V2
 
 config FUSE_IPQ
 	bool "Enable fuseipq command support"
+	depends on IPQ_SECURE
 	default n
 	help
 	  This config provides support for fuseipq command.
