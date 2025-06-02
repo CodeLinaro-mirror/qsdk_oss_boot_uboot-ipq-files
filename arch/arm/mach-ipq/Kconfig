@@ -199,6 +199,20 @@ config AES_256_DERIVE_KEY
 	help
 	  This provides support for AES 256 derive key.
 
+config IPQ_USB
+	bool "Enable USB support in IPQ SOC"
+	select USB
+	select MISC
+	select USB_HOST
+	select USB_DWC3
+	select USB_DWC3_GENERIC
+	select USB_STORAGE
+	select USB_XHCI_HCD
+	select DM_USB
+	select CMD_USB
+	select CMD_FAT
+	select FAT_WRITE
+
 config IPQ_MMC
 	bool "Enable eMMC support in IPQ SOC"
 	select MMC_SDHCI
@@ -520,6 +534,10 @@ config TARGET_IPQ5332
 	imply SUPPORT_EMMC_BOOT
 	imply AES_256_DERIVE_KEY
 	imply IPQ_PCIE
+	imply IPQ_USB
+	imply PHY if IPQ_USB
+	imply PHY_QTI_USB_HS_M31 if IPQ_USB
+	imply PHY_QTI_UNI_SSPHY if IPQ_USB
 	help
 	  Support for the IPQ53XX SoC.
 	  - Board Open Platform Specifications.
@@ -560,6 +578,10 @@ config TARGET_IPQ9574
 	imply SUPPORT_EMMC_BOOT
 	imply AES_256_DERIVE_KEY
 	imply IPQ_PCIE
+	imply IPQ_USB
+	imply PHY if IPQ_USB
+	imply PHY_QTI_QUSB2 if IPQ_USB
+	imply PHY_QTI_QMP_USB3 if IPQ_USB
 	help
 	  Support for IPQ95xx SoC.
 	  - Board Open Platform Specifications.
@@ -599,6 +621,10 @@ config TARGET_IPQ5424
 	imply AES_256_DERIVE_KEY
 	imply IPQ_PCIE
 	imply GPT_UPDATE_PARAMS
+	imply IPQ_USB
+	imply PHY if IPQ_USB
+	imply PHY_QTI_QUSB2 if IPQ_USB
+	imply PHY_QTI_QMP_USB3 if IPQ_USB
 	help
 	  Support for IPQ5424 SoC.
 	  - Board Open Platform Specifications.
