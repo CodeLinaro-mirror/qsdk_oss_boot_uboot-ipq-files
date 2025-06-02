@@ -85,7 +85,7 @@ static const struct wdt_ops qcom_wdt_ops = {
 };
 
 static const struct udevice_id qcom_wdt_ids[] = {
-	{ .compatible = "qcom,wdt" },
+	{ .compatible = "qcom,kpss-wdt" },
 	{ }
 };
 

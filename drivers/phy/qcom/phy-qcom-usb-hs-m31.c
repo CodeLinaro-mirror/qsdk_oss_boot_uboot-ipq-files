@@ -170,7 +170,7 @@ static struct phy_ops m31usb_hsphy_ops = {
 };
 
 static const struct udevice_id m31usb_hsphy_ids[] = {
-	{ .compatible = "qti,ipq5332-m31-usb-hsphy" },
+	{ .compatible = "qcom,ipq5332-m31-usb-hsphy" },
 	{ }
 };
 

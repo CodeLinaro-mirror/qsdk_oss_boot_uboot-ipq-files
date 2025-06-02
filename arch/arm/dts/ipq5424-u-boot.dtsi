@@ -249,7 +249,9 @@
 
 		watchdog: non-sec@f410000 {
 			compatible = "qcom,wdt";
-			reg =  <0xf410000 0x1000>;
+			#address-cells = <2>;
+			#size-cells = <2>;
+			reg =  <0x0 0xf410000 0x0 0x1000>;
 			clocks = <&sleep_clk>;
 			timeout-sec = <30>;
 			status = "okay";

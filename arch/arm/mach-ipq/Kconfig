@@ -537,8 +537,8 @@ config TARGET_IPQ5332
 	imply IPQ_PCIE
 	imply IPQ_USB
 	imply PHY if IPQ_USB
-	imply PHY_QTI_USB_HS_M31 if IPQ_USB
-	imply PHY_QTI_UNI_SSPHY if IPQ_USB
+	imply PHY_QCOM_USB_HS_M31 if IPQ_USB
+	imply PHY_QCOM_UNI_SSPHY if IPQ_USB
 	help
 	  Support for the IPQ53XX SoC.
 	  - Board Open Platform Specifications.
@@ -581,8 +581,8 @@ config TARGET_IPQ9574
 	imply IPQ_PCIE
 	imply IPQ_USB
 	imply PHY if IPQ_USB
-	imply PHY_QTI_QUSB2 if IPQ_USB
-	imply PHY_QTI_QMP_USB3 if IPQ_USB
+	imply PHY_QCOM_QUSB2 if IPQ_USB
+	imply PHY_QCOM_QMP_USB3 if IPQ_USB
 	help
 	  Support for IPQ95xx SoC.
 	  - Board Open Platform Specifications.
@@ -624,8 +624,8 @@ config TARGET_IPQ5424
 	imply GPT_UPDATE_PARAMS
 	imply IPQ_USB
 	imply PHY if IPQ_USB
-	imply PHY_QTI_QUSB2 if IPQ_USB
-	imply PHY_QTI_QMP_USB3 if IPQ_USB
+	imply PHY_QCOM_QUSB2 if IPQ_USB
+	imply PHY_QCOM_QMP_USB3 if IPQ_USB
 	help
 	  Support for IPQ5424 SoC.
 	  - Board Open Platform Specifications.

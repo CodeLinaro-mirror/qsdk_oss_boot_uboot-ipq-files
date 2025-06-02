@@ -20,19 +20,19 @@
 			status = "okay";
 		};
 
-		qusb2_phy_0: qusb2@7B000 {
+		qusb2_phy_0: qusb2_0@7B000 {
 			status = "okay";
 		};
 
-		usb3_0: usb@8af8800 {
+		usb3_0: usb3_0@8af8800 {
 			status = "okay";
 		};
 
-		qusb2_phy_1: qusb2@71000 {
+		qusb2_phy_1: qusb2_1@71000 {
 			status = "okay";
 		};
 
-		usb2_0: usb@1ef8800 {
+		usb2_0: usb2_0@1ef8800 {
 			status = "okay";
 		};
 

@@ -186,7 +186,7 @@ static struct phy_ops qusb2_phy_ops = {
 
 static const struct udevice_id qusb2_phy_ids[] = {
 	{
-		.compatible = "qti,ipq9574-qusb2-phy",
+		.compatible = "qcom,ipq9574-qusb2-phy",
 		.data	    = (long unsigned int)&ipq9574_phy_cfgs,
 	},
 	{ }

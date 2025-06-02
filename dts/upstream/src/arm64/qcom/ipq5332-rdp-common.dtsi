@@ -11,7 +11,7 @@
 #include <dt-bindings/net/qcom_ipqsoc.h>
 #include "ipq5332.dtsi"
 
-/ {f
+/ {
 	aliases {
 		serial0 = &blsp1_uart0;
 	};

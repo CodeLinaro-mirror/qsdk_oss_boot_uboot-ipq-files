@@ -338,7 +338,7 @@ static struct phy_ops qmp_usb3_phy_ops = {
 
 static const struct udevice_id qmp_usb3_phy_ids[] = {
 	{
-		.compatible = "qti,ipq9574-qmp-usb3-phy",
+		.compatible = "qcom,ipq9574-qmp-usb3-phy",
 		.data	    = (long unsigned int)&ipq9574_phy_cfgs,
 	},
 	{ }

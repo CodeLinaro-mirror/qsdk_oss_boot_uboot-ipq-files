@@ -124,7 +124,7 @@ static struct phy_ops qti_uni_ssphy_ops = {
 };
 
 static const struct udevice_id qti_uni_ssphy_ids[] = {
-	{ .compatible = "qti,ipq5332-uni-ssphy" },
+	{ .compatible = "qcom,ipq5332-uni-ssphy" },
 	{ }
 };
 

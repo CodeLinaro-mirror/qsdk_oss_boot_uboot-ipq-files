@@ -1079,7 +1079,7 @@ static int prepare_crashdump_level_table(crashdump_config_t *dump_config,
 	uint64_t split_bin_sz = 0;
 	uint8_t file_no = 0;
 #if (CONFIG_NR_DRAM_BANKS > 1)
-	uint64_t total_dram_sz = gd->ram_size;
+	phys_size_t total_dram_sz = gd->ram_size;
 	uint8_t bidx = 0, last_dram_file_no = 0;
 #endif
 
