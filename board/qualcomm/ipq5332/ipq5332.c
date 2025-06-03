@@ -9,6 +9,7 @@
 #include <mach/ipq.h>
 #include <fdtdec.h>
 #include <config.h>
+#include <mtd_node.h>
 
 /* MACH IDs for various RDPs */
 #define MACH_TYPE_IPQ5332_RDP468		0x8060000

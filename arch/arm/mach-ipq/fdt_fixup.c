@@ -397,6 +397,7 @@ void ipq_smem_part_to_mtdparts(char *mtdid, int len)
 	struct blk_desc *dev = NULL;
 #if defined(CONFIG_EFI_PARTITION)
 	gpt_entry *gpt_pte;
+	struct ipq_board_info *bdinfo = ipq_get_bdinfo();
 #endif
 #endif
 #ifdef CONFIG_CMD_NAND
@@ -423,7 +424,7 @@ void ipq_smem_part_to_mtdparts(char *mtdid, int len)
 				return;
 			}
 
-			ncount = sfi->nor_gpt_pte.ncount;
+			ncount = bdinfo->nor_gpt_pte.ncount;
 		}
 #endif
 		bsize = dev->blksz;
@@ -449,8 +450,8 @@ void ipq_smem_part_to_mtdparts(char *mtdid, int len)
 #endif
 		{
 			p = &ptable->parts[i];
-			bsize = get_part_block_size(p, sfi);
-			isnand = part_which_flash(p);
+			bsize = ipq_get_part_block_size(p, sfi);
+			isnand = WHICH_FLASH(p);
 		}
 
 		if (isnand && init == 0) {
@@ -478,16 +479,16 @@ void ipq_smem_part_to_mtdparts(char *mtdid, int len)
 		if (sfi->flash_type == SMEM_BOOT_NORGPT_FLASH) {
 			if (isnand) {
 				if (((((loff_t)p->start) * bsize) + psize) >
-					smem_get_flash_size(1))
+					ipq_smem_get_flash_size(1))
 					continue;
 			} else {
 				if (((((loff_t)p->start) * bsize) + psize) >
-					smem_get_flash_size(0))
+					ipq_smem_get_flash_size(0))
 					continue;
 			}
 		} else
 #endif
-			if (is_smem_part_exceed_flash_size(p,
+			if (is_part_exceed_flash_size(p,
 				((((loff_t)p->start) * bsize) + psize)))
 				continue;
 
@@ -518,7 +519,7 @@ static int ipq_fdt_fixup_spi_nor_params(void *blob,
 {
 	int ret, nodeoff = -1;
 	uint32_t val, i;
-	ipq_smem_flash_info_t *sfi = get_ipq_smem_flash_info();
+	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
 #if defined(CONFIG_NOR_BLK)
 	struct spi_flash *flash = ipq_spi_probe();
 

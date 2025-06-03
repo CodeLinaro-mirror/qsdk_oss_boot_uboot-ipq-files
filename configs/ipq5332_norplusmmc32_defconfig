@@ -17,7 +17,6 @@ CONFIG_DEFAULT_DEVICE_TREE="qcom/ipq5332-rdp468"
 CONFIG_OF_LIST="qcom/ipq5332-db-mi01.1 qcom/ipq5332-db-mi02.1 qcom/ipq5332-db-mi03.1 qcom/ipq5332-rdp441 qcom/ipq5332-rdp441-qca81xx qcom/ipq5332-rdp441-qca81xx-i2c qcom/ipq5332-rdp442 qcom/ipq5332-rdp446 qcom/ipq5332-rdp468 qcom/ipq5332-rdp472 qcom/ipq5332-rdp474 qcom/ipq5332-rdp477-256m qcom/ipq5332-rdp477 qcom/ipq5332-rdp478-256m qcom/ipq5332-rdp478 qcom/ipq5332-rdp479 qcom/ipq5332-rdp480 qcom/ipq5332-rdp481 qcom/ipq5332-rdp483 qcom/ipq5332-rdp484 qcom/ipq5332-tb-mi03.1 qcom/ipq5332-tb-mi05.1"
 CONFIG_FIT=y
 CONFIG_FIT_VERBOSE=y
-CONFIG_BOOTSTD_FULL=y
 CONFIG_BOOTDELAY=2
 CONFIG_OF_BOARD_SETUP=y
 CONFIG_SYS_CBSIZE=1024
@@ -65,3 +64,9 @@ CONFIG_PHY_ANEG_TIMEOUT=100
 CONFIG_OF_BOARD_FIXUP=y
 CONFIG_USE_BOOTARGS=y
 CONFIG_BOOTARGS="console=ttyMSM0,115200n8"
+# CONFIG_DDR_SI_TEST is not set
+# CONFIG_LEGACY_HASHING_AND_CRYPTO is not set
+# CONFIG_CMD_ELF_BOOTVX is not set
+CONFIG_COUNTER_FREQUENCY=24000000
+# CONFIG_BOOTSTD is not set
+# CONFIG_SHA1_LEGACY is not set

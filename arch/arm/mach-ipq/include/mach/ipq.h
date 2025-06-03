@@ -196,6 +196,15 @@
 
 #define NO_MASK						(0xFFFFFFFF)
 
+#define MTDPARTS_MAXLEN					1024
+
+/*
+ * Extern variables
+ */
+#if CONFIG_FDT_FIXUP_PARTITIONS
+extern struct node_info *fnodes;
+extern int *fnode_entires;
+#endif
 extern struct ipq_board_info *ipq_bdinfo;
 extern struct multidtb_config *g_board_dtb_info;
 extern struct dts_fixup *mmc_fixup;

@@ -57,6 +57,10 @@
 #define ROOT_FS_PART_NAME			"rootfs"
 #define ROOT_FS_ATL_PART_NAME			"rootfs_1"
 
+#define TME_AUTH_EN_MASK			0x82
+#define TME_OEM_ID_MSK				0xFFFF0000
+#define TME_PRODUCT_ID_MSK			0x0000FFFF
+
 struct fuse_payload {
 	u32 fuse_addr;
 	u32 lsb_val;

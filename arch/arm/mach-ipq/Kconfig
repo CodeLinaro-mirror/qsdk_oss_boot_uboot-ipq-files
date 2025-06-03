@@ -104,7 +104,6 @@ config IPQ_NAND
 	select MTD
 	select DM_MTD
 	select CMD_MTD
-	select CMD_MTDPARTS
 	select NAND_QTI
 	select MTD_RAW_NAND
 	select MTD_UBI
@@ -213,6 +212,13 @@ config IPQ_USB
 	select CMD_FAT
 	select FAT_WRITE
 
+config IPQ_TINY
+	bool "IPQ Tiny bootloader config"
+	imply ETH_LOW_MEM
+	default n
+	help
+	  This configuration helps to enable tiny profile related configurations
+
 config IPQ_MMC
 	bool "Enable eMMC support in IPQ SOC"
 	select MMC_SDHCI
@@ -222,20 +228,6 @@ config IPQ_MMC
 	imply EFI_PARTITION
 	help
 	  This helps in enabling support for eMMC in IPQ SOC.
-
-config IPQ_NAND
-	bool "Enable NAND flash support in IPQ SOC"
-	select QTI_BAM
-	select NAND_QTI
-	select DM_MTD
-	select MTD_RAW_NAND
-	select MTD_UBI
-	select UBI_WRITE
-	select CMD_MTD
-	select CMD_NAND
-	select CMD_UBI
-	help
-	  This config enables support for NAND flash in IPQ SOC.
 
 config SOC_HW_VERSION_REG
 	hex "Define SoC HW version register"
@@ -250,6 +242,12 @@ config ETH_MAX_MAC
 	default 3 if TARGET_IPQ5424
 	help
 	  This config gives the maximum MAC support in SoC.
+
+config SKIP_RESET
+	bool "skip reset"
+	default n
+	help
+	  This configuration helps to skip reset after crashdump collection.
 
 config FAILSAFE
 	bool "Enable failsafe mechanism"
@@ -304,6 +302,18 @@ config SCM_V2
 	help
 	  This config provides support for SCM framework version 2 (SCM_V2).
 
+config SECURE_AUTH_V1
+	bool "Secure authentication command"
+	default n
+	help
+	  This config provides support to authenticate secure images
+
+config SECURE_AUTH_V2
+	bool "Secure authentication command"
+	default n
+	help
+	  This config provides support to authenticate secure images
+
 config FUSE_IPQ
 	bool "Enable fuseipq command support"
 	depends on IPQ_SECURE
@@ -329,6 +339,18 @@ config LIST_FUSE
 	help
 	  This option supports in enabling list_fuse command.
 
+config LIST_FUSE_V1
+        bool "Enable list_fuse command with version 1"
+        default n
+	help
+	  This config supports to dump fuse sense register
+
+config LIST_FUSE_V2
+        bool "Enable list_fuse command with version 2"
+        default n
+	help
+	  This config supports to dump fuse sense register
+
 config IPQ_ROOTFS_AUTH
 	bool "Rootfs authentication support"
 	depends on IPQ_SECURE && (TARGET_IPQ9574 || TARGET_IPQ5332)
@@ -343,6 +365,13 @@ config IPQ_ELF_AUTH
 	help
 	   This configuration option enables the authentication method via
 	   elf based.
+
+config VERSION_ROLLBACK_PARTITION_INFO
+	bool "IPSOC Anti roll-back support"
+	default n
+	help
+	  This configuration add support to enable anti-rollback version feature,
+	  once the image is upgraded to newer version, it cannot be downgraded
 
 config DPR_VER_1_0
 	bool "DPR Version 1.0 support"
@@ -485,10 +514,17 @@ config IPQ_BOARD_DEFAULT
 	default y
 	imply BOARD_TYPES
 	imply BOARD_LATE_INIT
+	imply CMD_MEMTEST
+	imply CMD_MTDPARTS if MTD
+	imply CMD_WDT
+	imply DM_WARN
+	imply ENV_IS_NOWHERE
+	imply FDT_FIXUP_PARTITIONS if MTD
+	imply HUSH_PARSER
 	imply OF_BOARD_SETUP
 	imply STACKPROTECTOR
 	imply SYS_DEVICE_NULLDEV
-	select IPQ_CRASHDUMP
+	imply IPQ_CRASHDUMP
 	imply IPQ_MINIDUMP
 	imply IPQ_COMPRESSED_CRASHDUMP
 	imply IPQ_CRASHDUMP_TO_USB
@@ -496,9 +532,9 @@ config IPQ_BOARD_DEFAULT
 	imply IPQ_CRASHDUMP_TO_NVMEMORY
 	imply IPQ_CRASHDUMP_TO_FLASH
 	imply IPQ_CRASHDUMP_TO_EMMC
+	imply LZMA
 	imply WDT
 	imply WDT_QCOM
-	imply CMD_WDT
 	help
 	  This config enables default configuration support for all SoCs.
 
@@ -524,8 +560,10 @@ config TARGET_IPQ5332
 	imply IPQ_I2C
 	imply FUSE_IPQ
 	imply LIST_FUSE
+	imply SECURE_AUTH_V1 if IPQ_SECURE && SCM_V1
 	imply FUSEIPQ_V1 if IPQ_SECURE && SCM_V1
 	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V1
+	imply VERSION_ROLLBACK_PARTITION_INFO if IPQ_SECURE
 	imply IPQ_QCN9224_FUSING
 	imply DPR_VER_2_0
 	imply IPQ_SMP_CMD_SUPPORT
@@ -566,9 +604,11 @@ config TARGET_IPQ9574
 	select CMD_CACHE
 	imply IPQ_I2C
 	imply FUSE_IPQ
+	imply SECURE_AUTH_V1 if IPQ_SECURE && SCM_V1
 	imply FUSEIPQ_V1 if IPQ_SECURE && SCM_V1
 	imply LIST_FUSE_V1 if IPQ_SECURE && SCM_V1
 	imply LIST_FUSE
+	imply VERSION_ROLLBACK_PARTITION_INFO if IPQ_SECURE
 	imply IPQ_QCN9224_FUSING
 	imply DPR_VER_1_0
 	imply IPQ_SMP_CMD_SUPPORT
@@ -609,6 +649,7 @@ config TARGET_IPQ5424
 	imply IPQ_I2C
 	imply QCOM_GENI_SE
 	imply FUSE_IPQ
+	imply SECURE_AUTH_V2 if IPQ_SECURE && SCM_V2
 	imply FUSEIPQ_V2 if IPQ_SECURE && SCM_V2
 	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V2
 	imply LIST_FUSE
