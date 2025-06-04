@@ -837,9 +837,9 @@ void ipq_get_kernel_fs_part_details(int flash_type)
 	struct ipq_smem_flash_info *smem = ipq_get_smem_info();
 	struct { char *name; struct ipq_part_entry *part; } entries[] = {
 		{ "0:HLOS", &smem->hlos },
-		{ "0:HLOS_1", &smem->hlos },
+		{ "0:HLOS_1", &smem->hlos_1 },
 		{ "rootfs", &smem->rootfs },
-		{ "rootfs_1", &smem->rootfs },
+		{ "rootfs_1", &smem->rootfs_1 },
 	};
 	int ret, i;
 	uint32_t start, size, bsize;
@@ -2152,8 +2152,13 @@ int ipq_init_ubi_part(void)
 	char env_strings[64];
 
 	if(ubi == NULL) {
-		offset = sfi->rootfs.offset;
-		part_size = sfi->rootfs.size;
+		if (gd->board_type & ACTIVE_BOOT_SET) {
+			offset = sfi->rootfs_1.offset;
+			part_size = sfi->rootfs_1.size;
+		} else {
+			offset = sfi->rootfs.offset;
+			part_size = sfi->rootfs.size;
+		}
 
 		if ((part_size == 0xBAD0FF5E) || (offset == 0xBAD0FF5E))
 			return -ENOENT;

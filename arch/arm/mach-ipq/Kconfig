@@ -509,6 +509,13 @@ config DEFAULT_NOR_FLASH_SIZE
 	   Specifies the default SPI-NOR flash size used when generating GPT
 	   partitions via GPT tools
 
+config MTDPARTS_MAXLEN
+	int "mdtparts string maximum length"
+	depends on CMD_MTDPARTS
+	default 1024
+	help
+	  This configuration helps to set maximum mtdpart string length
+
 config IPQ_BOARD_DEFAULT
 	bool "Enable default config for all SoC"
 	default y

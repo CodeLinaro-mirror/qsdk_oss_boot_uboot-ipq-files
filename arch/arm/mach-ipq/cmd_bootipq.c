@@ -62,7 +62,7 @@ DECLARE_GLOBAL_DATA_PTR;
 typedef int (*boot_stage)(void);
 
 #ifdef CONFIG_IPQ_NAND
-extern int ubi_volume_read(char *volume, char *buf, size_t size);
+extern int ubi_volume_read(char *volume, char *buf, loff_t offset, size_t size);
 #endif
 
 extern int initr_net(void);
@@ -540,7 +540,7 @@ static int read_from_nand(void)
 #ifdef CONFIG_IPQ_ELF_AUTH
 	if (is_board_support_image_auth()) {
 		ret = ubi_volume_read("kernel", (char *)boot_info.load_address,
-					(uintptr_t)ELF_HDR_PLUS_PHDR_SIZE);
+				      0, (uintptr_t)ELF_HDR_PLUS_PHDR_SIZE);
 		if (ret)
 			return CMD_RET_FAILURE;
 
@@ -557,7 +557,7 @@ static int read_from_nand(void)
 		return CMD_RET_FAILURE;
 	}
 
-	ret = ubi_volume_read("kernel", (char *)boot_info.load_address, 0);
+	ret = ubi_volume_read("kernel", (char *)boot_info.load_address, 0, 0);
 	if (ret)
 		return CMD_RET_FAILURE;
 
@@ -775,7 +775,7 @@ static int copy_rootfs(uint32_t request, uint32_t size)
 	case SMEM_BOOT_QSPI_NAND_FLASH:
 		ret = ubi_volume_read("ubi_rootfs",
 					(char *)(uintptr_t)request,
-					0);
+					0, 0);
 		break;
 #endif
 #ifdef CONFIG_MMC
