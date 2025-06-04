@@ -4,6 +4,7 @@
  */
 
 / {
+	/delete-node/ psci;
 	reserved-memory {
 
 		/delete-node/ smem;

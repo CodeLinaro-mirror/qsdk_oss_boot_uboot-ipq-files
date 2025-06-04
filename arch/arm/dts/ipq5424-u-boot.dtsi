@@ -9,6 +9,7 @@
 		stdout-path = "serial0:115200n8";
 	};
 
+	/delete-node/ psci;
 	reserved-memory {
 
 		/delete-node/ smem;
@@ -248,7 +249,7 @@
 		};
 
 		watchdog: non-sec@f410000 {
-			compatible = "qcom,wdt";
+			compatible = "qcom,kpss-wdt";
 			#address-cells = <2>;
 			#size-cells = <2>;
 			reg =  <0x0 0xf410000 0x0 0x1000>;
