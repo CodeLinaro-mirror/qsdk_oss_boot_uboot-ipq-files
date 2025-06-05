@@ -24,7 +24,7 @@
 		/delete-node/ phy@7b000;
 		/delete-node/ phy@7d000;
 		/delete-node/ usb@8af8800;
-		
+
 		qmp_ssphy_0: ssphy@7D000 {
 			compatible = "qcom,ipq9574-qmp-usb3-phy";
 			reg = <0x7D000 0x1C4>, <0x7D200 0x130>,
@@ -42,6 +42,8 @@
 			compatible = "qcom,ipq9574-qusb2-phy";
 			reg = <0x07B000 0x180>;
 			#phy-cells = <0>;
+			clocks = <&gcc GCC_USB0_PHY_CFG_AHB_CLK>;
+			clock-names = "cfg_ahb";
 			resets = <&gcc GCC_QUSB2_0_PHY_BCR>;
 			status = "disabled";
 		};
