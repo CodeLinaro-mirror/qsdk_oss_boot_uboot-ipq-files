@@ -38,6 +38,9 @@ struct ipq_board_info *ipq_bdinfo;
 #if defined(CONFIG_ENV_IS_IN_SPI_FLASH)
 uint32_t g_env_offset __section(".data") = 0;
 #endif
+
+#define DTS_SUFFIX			"-ub"
+
 /****************************************************************
  * Weak function definition
  * this placeholder for generic weak function definition.
@@ -456,8 +459,15 @@ int embedded_dtb_select(void)
 int board_fit_config_name_match(const char *name)
 {
 	struct multidtb_config *dtb = g_board_dtb_info;
+	char *suffix = strstr(name, DTS_SUFFIX);
+	size_t len;
 
-	if (!strcmp(name, dtb->dts_base)) {
+	if (suffix)
+		len = suffix - name;
+	else
+		len = strlen(name);
+
+	if (!strncmp(name, dtb->dts_base, len)) {
 		printf("Booting %s\n", dtb->dts_name);
 		return 0;
 	}
