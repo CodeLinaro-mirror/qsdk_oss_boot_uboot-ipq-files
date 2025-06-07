@@ -22,6 +22,20 @@
 #define GCC_SDCC1_APPS_CMD_RCGR			0x33004
 #define GCC_QUPV3_SPI0_CMD_RCGR			0x3018
 
+#define GCC_USB0_MOCK_UTMI_DIV_CDIVR		(0x2C040)
+#define GCC_USB0_MOCK_UTMI_CMD_RCGR		(0x2C02C)
+#define GCC_USB0_AUX_CMD_RCGR			(0x2C018)
+#define GCC_USB0_MASTER_CMD_RCGR		(0x2C004)
+
+#define GCC_USB0_MOCK_UTMI_CBCR			0x2C050
+#define GCC_USB0_MASTER_CBCR			0x2C044
+#define GCC_USB0_AUX_CBCR			0x2C04C
+#define GCC_USB0_PIPE_CBCR			0x2C054
+#define GCC_USB0_SLEEP_CBCR			0x2C058
+#define GCC_USB0_PHY_CFG_AHB_CBCR		0x2C05C
+
+#define CFG_CLK_SRC_GPLL4_OUT_AUX		(1 << 8)
+
 int msm_set_parent(struct clk *clk, struct clk *parent)
 {
 	assert(clk);
@@ -53,6 +67,22 @@ static ulong ipq5200_set_rate(struct clk *clk, ulong rate)
 		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_SPI0_CMD_RCGR,
 				     31, 0, 0, CFG_CLK_SRC_GPLL0, 16);
 		break;
+	case GCC_USB0_MASTER_CLK:
+		/* Default: 200MHz */
+		clk_rcg_set_rate_mnd(priv->base, GCC_USB0_MASTER_CMD_RCGR, 7,
+					0, 0, CFG_CLK_SRC_GPLL0, 8);
+		break;
+	case GCC_USB0_MOCK_UTMI_CLK:
+		/* Default: 60MHz */
+		writel(1, priv->base + GCC_USB0_MOCK_UTMI_DIV_CDIVR);
+		clk_rcg_set_rate_mnd(priv->base, GCC_USB0_MOCK_UTMI_CMD_RCGR,
+					19, 0, 0, CFG_CLK_SRC_GPLL4_OUT_AUX, 16);
+		break;
+	case GCC_USB0_AUX_CLK:
+		/* Default: 24MHz */
+		clk_rcg_set_rate_mnd(priv->base, GCC_USB0_AUX_CMD_RCGR, 1,
+					0, 0, CFG_CLK_SRC_CXO, 8);
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -65,6 +95,12 @@ static const struct gate_clk ipq5200_clks[] = {
 	GATE_CLK(GCC_SDCC1_AHB_CLK,		0x3303C, 0x00000001),
 	GATE_CLK(GCC_SDCC1_APPS_CLK,		0x3302C, 0x00000001),
 	GATE_CLK(GCC_QUPV3_SPI0_CLK,		0x0302C, 0x00000001),
+	GATE_CLK(GCC_USB0_MOCK_UTMI_CLK,	0x2C050, 0x00000001),
+	GATE_CLK(GCC_USB0_MASTER_CLK,		0x2C044, 0x00000001),
+	GATE_CLK(GCC_USB0_AUX_CLK,		0x2C04C, 0x00000001),
+	GATE_CLK(GCC_USB0_PIPE_CLK,		0x2C054, 0x00000001),
+	GATE_CLK(GCC_USB0_SLEEP_CLK,		0x2C058, 0x00000001),
+	GATE_CLK(GCC_USB0_PHY_CFG_AHB_CLK,	0x2C05C, 0x00000001),
 };
 
 static int ipq5200_enable(struct clk *clk)
@@ -85,6 +121,10 @@ static int ipq5200_enable(struct clk *clk)
 
 static const struct qcom_reset_map ipq5200_gcc_resets[] = {
 	[GCC_SDCC_BCR] = {0x33000, 0},
+	[GCC_USB0_PHY_BCR] = {0x2C06C, 0},
+	[GCC_USB3PHY_0_PHY_BCR] = {0x2C070, 0},
+	[GCC_QUSB2_0_PHY_BCR] = {0x2C068, 0},
+	[GCC_USB_BCR] = {0x2C000, 0},
 };
 
 static struct msm_clk_data ipq5200_gcc_data = {

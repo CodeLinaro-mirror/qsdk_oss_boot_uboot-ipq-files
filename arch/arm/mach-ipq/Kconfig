@@ -729,6 +729,7 @@ config TARGET_IPQ5200
 	imply QCOM_GENI_SE
 	imply IPQ_MULTI_DTB_SUPPORT
 	imply NOR_BLK
+	imply IPQ_USB
 	help
 	  Support for IPQ5200 SoC.
 	  - Board Open Platform Specifications.
