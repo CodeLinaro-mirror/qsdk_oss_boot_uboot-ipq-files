@@ -3,7 +3,7 @@
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
-#include <arm64/qcom/ipq5332-rdp474.dts>
+#include <arm64/qcom/ipq5332-rdp474-ub.dts>
 
 / {
 	chosen {

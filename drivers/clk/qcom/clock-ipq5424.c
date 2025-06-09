@@ -15,7 +15,9 @@
 #include <linux/bitops.h>
 #include <dm/device-internal.h>
 #include <dt-bindings/clock/qcom,ipq5424-gcc.h>
+#include <asm/arch/dt-bindings/clock/qcom,ipq5424-gcc.h>
 #include <dt-bindings/reset/qcom,ipq5424-gcc.h>
+#include <asm/arch/dt-bindings/reset/qcom,ipq5424-gcc.h>
 
 #include "clock-qcom.h"
 

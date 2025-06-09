@@ -5,7 +5,8 @@
 
 /dts-v1/;
 
-#include "ipq5332-rdp-common.dtsi"
+#include "ipq5332-rdp468.dts"
+#include "ipq5332-rdp-common-ub.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. IPQ5332 RDP468";

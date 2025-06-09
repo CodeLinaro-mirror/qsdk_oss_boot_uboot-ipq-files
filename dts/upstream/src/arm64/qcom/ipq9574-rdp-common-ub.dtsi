@@ -3,12 +3,13 @@
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
-/dts-v1/;
 
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/leds/common.h>
 #include <dt-bindings/net/qcom_ipqsoc.h>
+#include <asm/arch/dt-bindings/clock/qcom,ipq9574-gcc.h>
+#include <asm/arch/dt-bindings/reset/qcom,ipq9574-gcc.h>
 #include "ipq9574.dtsi"
 
 / {

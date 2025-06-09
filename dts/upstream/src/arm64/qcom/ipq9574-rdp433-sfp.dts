@@ -6,6 +6,7 @@
 /dts-v1/;
 
 #include "ipq9574-rdp-common.dtsi"
+#include "ipq9574-rdp-common-ub.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. IPQ9574/RDP433-SFP";
