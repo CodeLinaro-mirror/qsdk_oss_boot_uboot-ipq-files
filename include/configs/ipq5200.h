@@ -8,6 +8,7 @@
 
 #ifndef __ASSEMBLY__
 #include <linux/types.h>
+#include <linux/sizes.h>
 extern uint32_t g_board_machid;
 #endif
 

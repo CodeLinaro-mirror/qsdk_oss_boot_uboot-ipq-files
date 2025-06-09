@@ -26,6 +26,11 @@
 #define GCC_USB0_MOCK_UTMI_CMD_RCGR		(0x2C02C)
 #define GCC_USB0_AUX_CMD_RCGR			(0x2C018)
 #define GCC_USB0_MASTER_CMD_RCGR		(0x2C004)
+#define GCC_QPIC_CMD_RCGR			(0x32020)
+#define GCC_QPIC_CBCR				(0x32028)
+#define GCC_QPIC_IO_MACRO_CMD_RCGR		(0x32004)
+#define GCC_QPIC_IO_MACRO_CBCR			(0x3200C)
+#define GCC_QPIC_AHB_CBCR			(0x32010)
 
 #define GCC_USB0_MOCK_UTMI_CBCR			0x2C050
 #define GCC_USB0_MASTER_CBCR			0x2C044
@@ -35,6 +40,14 @@
 #define GCC_USB0_PHY_CFG_AHB_CBCR		0x2C05C
 
 #define CFG_CLK_SRC_GPLL4_OUT_AUX		(1 << 8)
+
+#define IO_MACRO_CLK_400_MHZ				(400000000)
+#define IO_MACRO_CLK_320_MHZ				(320000000)
+#define IO_MACRO_CLK_266_MHZ				(266000000)
+#define IO_MACRO_CLK_228_MHZ				(228000000)
+#define IO_MACRO_CLK_200_MHZ				(200000000)
+#define IO_MACRO_CLK_100_MHZ				(100000000)
+#define IO_MACRO_CLK_24_MHZ				(24000000)
 
 int msm_set_parent(struct clk *clk, struct clk *parent)
 {
@@ -53,6 +66,7 @@ ulong msm_get_rate(struct clk *clk)
 static ulong ipq5200_set_rate(struct clk *clk, ulong rate)
 {
 	struct msm_clk_priv *priv = dev_get_priv(clk->dev);
+	int src, div = 0;
 
 	switch (clk->id) {
 	case GCC_QUPV3_UART1_CLK:
@@ -83,6 +97,42 @@ static ulong ipq5200_set_rate(struct clk *clk, ulong rate)
 		clk_rcg_set_rate_mnd(priv->base, GCC_USB0_AUX_CMD_RCGR, 1,
 					0, 0, CFG_CLK_SRC_CXO, 8);
 		break;
+	case GCC_QPIC_CLK:
+		/* GCC_QPIC_CLK: 100 MHz  */
+		clk_rcg_set_rate_v2(priv->base, GCC_QPIC_CMD_RCGR,
+				    0, 0xF, 0, CFG_CLK_SRC_GPLL0);
+		break;
+	case GCC_QPIC_IO_MACRO_CLK:
+		src = CFG_CLK_SRC_GPLL0;
+		switch (rate) {
+		case IO_MACRO_CLK_24_MHZ:
+			src = CFG_CLK_SRC_CXO;
+			div = 0;
+			break;
+		case IO_MACRO_CLK_100_MHZ:
+			div = 15;
+			break;
+		case IO_MACRO_CLK_200_MHZ:
+			div = 7;
+			break;
+		case IO_MACRO_CLK_228_MHZ:
+			div = 6;
+			break;
+		case IO_MACRO_CLK_266_MHZ:
+			div = 5;
+			break;
+		case IO_MACRO_CLK_320_MHZ:
+			div = 4;
+			break;
+		case IO_MACRO_CLK_400_MHZ:
+			div = 3;
+			break;
+		default:
+			return -EINVAL;
+		}
+		clk_rcg_set_rate_v2(priv->base, GCC_QPIC_IO_MACRO_CMD_RCGR,
+				    0, div, 0, src);
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -101,6 +151,9 @@ static const struct gate_clk ipq5200_clks[] = {
 	GATE_CLK(GCC_USB0_PIPE_CLK,		0x2C054, 0x00000001),
 	GATE_CLK(GCC_USB0_SLEEP_CLK,		0x2C058, 0x00000001),
 	GATE_CLK(GCC_USB0_PHY_CFG_AHB_CLK,	0x2C05C, 0x00000001),
+	GATE_CLK(GCC_QPIC_CLK,			0x32028, 0x00000001),
+	GATE_CLK(GCC_QPIC_AHB_CLK,		0x32010, 0x00000001),
+	GATE_CLK(GCC_QPIC_IO_MACRO_CLK,		0x3200C, 0x00000001),
 };
 
 static int ipq5200_enable(struct clk *clk)

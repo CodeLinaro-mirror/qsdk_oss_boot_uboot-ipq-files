@@ -729,7 +729,13 @@ config TARGET_IPQ5200
 	imply QCOM_GENI_SE
 	imply IPQ_MULTI_DTB_SUPPORT
 	imply NOR_BLK
+	select CMD_CACHE
+	imply DMA
+	imply DMA_CHANNELS
+	select BAM_DMA if DMA
 	imply IPQ_USB
+	imply GPT_UPDATE_PARAMS
+
 	help
 	  Support for IPQ5200 SoC.
 	  - Board Open Platform Specifications.

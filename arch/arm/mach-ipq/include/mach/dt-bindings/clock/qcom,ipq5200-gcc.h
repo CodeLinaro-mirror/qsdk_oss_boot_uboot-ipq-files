@@ -19,5 +19,8 @@
 #define GCC_USB0_AUX_CLK		9
 #define GCC_USB0_SLEEP_CLK		10
 #define GCC_USB0_PHY_CFG_AHB_CLK	11
+#define GCC_QPIC_CLK			12
+#define GCC_QPIC_IO_MACRO_CLK		13
+#define GCC_QPIC_AHB_CLK		14
 
 #endif
