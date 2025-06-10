@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * IPQ9574 RDP449 board device tree source
+ *
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
 /dts-v1/;
 
-#include "ipq9574-rdp-common.dtsi"
+#include "ipq9574-rdp449.dts"
+#include "ipq9574-rdp-common-ub.dtsi"
 
 / {
-	model = "Qualcomm Technologies, Inc. IPQ9574/RDP433";
-	compatible = "qcom,ipq9574-rdp433", "qcom,ipq9574";
+	model = "Qualcomm Technologies, Inc. IPQ9574/RDP449";
+	compatible = "qcom,ipq9574-rdp449", "qcom,ipq9574";
 
 	soc@0 {
 		qmp_ssphy_0: ssphy@7D000 {
@@ -30,7 +33,7 @@
 			};
 		};
 
-		mdio@90000 {
+		mdio: mdio@90000 {
 			pinctrl-names = "default";
 			pinctrl-0 = <&mdio_pinmux>;
 			status = "okay";
@@ -90,7 +93,7 @@
 			};
 		};
 
-		nss-switch {
+		ethernet: nss-switch {
 			pinctrl-names = "default";
 			pinctrl-0 = <&phy_rst_pinmux>;
 			phy-handle0 = <&phy0>;
@@ -156,22 +159,6 @@
 		};
 	};
 
-	blsp1_i2c3_pinmux: blsp_i2c3_pins {
-		blsp3_scl {
-			pins = "gpio15";
-			function = "blsp3_i2c";
-			drive-strength = <8>;
-			bias-pull-up;
-		};
-
-		blsp3_sda {
-			pins = "gpio16";
-			function = "blsp3_i2c";
-			drive-strength = <8>;
-			bias-pull-up;
-		};
-	};
-
 	pci1_pin: pci1-default-state {
 		pins = "gpio26";
 		function = "gpio";
@@ -195,10 +182,4 @@
 		bias-pull-up;
 		output-low;
 	};
-};
-
-&blsp1_i2c3 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&blsp1_i2c3_pinmux>;
-	status = "okay";
 };
