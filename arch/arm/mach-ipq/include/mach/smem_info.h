@@ -210,6 +210,23 @@ struct __packed ipq_smem_bootconfig_info {
 };
 #endif
 
+#define IMAGE_INDEX_LENGTH			2
+#define IMAGE_SEP1_LENGTH			1
+#define IMAGE_QC_VERSION_STRING_LENGTH		72
+#define IMAGE_VARIANT_STRING_LENGTH		20
+#define IMAGE_SEP2_LENGTH			1
+#define IMAGE_OEM_VERSION_STRING_LENGTH		32
+
+struct image_version_entry
+{
+	char image_index[IMAGE_INDEX_LENGTH];
+	char image_colon_sep1[IMAGE_SEP1_LENGTH];
+	char image_qc_version_string[IMAGE_QC_VERSION_STRING_LENGTH];
+	char image_variant_string[IMAGE_VARIANT_STRING_LENGTH];
+	char image_colon_sep2[IMAGE_SEP2_LENGTH];
+	char image_oem_version_string[IMAGE_OEM_VERSION_STRING_LENGTH];
+};
+
 struct ipq_smem_flash_info {
 	uint32_t		flash_type;
 	uint32_t		flash_index;
