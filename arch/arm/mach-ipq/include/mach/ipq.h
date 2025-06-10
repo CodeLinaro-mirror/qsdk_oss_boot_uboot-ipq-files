@@ -846,4 +846,10 @@ void ipq_wdt_start(bool start);
  *
  */
 void ipq_wdt_expire(void);
+/**
+ * ipq_iscrashed() - Find out if board crashed ?
+ *
+ * Return true if crashed else false
+ */
+bool ipq_iscrashed(void);
 #endif

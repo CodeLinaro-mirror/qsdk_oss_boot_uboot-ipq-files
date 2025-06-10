@@ -506,10 +506,11 @@ static int ipq_iscrashed_crashdump_disabled(void)
 /**
  * ipq_iscrashed() - to check whether system is in crashdump path or not
  */
-int ipq_iscrashed(void)
+bool ipq_iscrashed(void)
 {
 	u32 dmagic = ipq_read_tcsr_boot_misc();
-	return ((dmagic & DLOAD_MAGIC_COOKIE) ? 1 : 0);
+
+	return ((dmagic & DLOAD_MAGIC_COOKIE) ? true : false);
 }
 
 /**
