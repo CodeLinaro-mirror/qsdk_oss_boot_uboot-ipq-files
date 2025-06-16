@@ -436,17 +436,19 @@ void ipq_fdt_fixup_smem(void *blob)
 
 int ipq_uboot_fdt_fixup_smem(void *blob)
 {
-	uint32_t reg[2];
+	uint32_t reg[4];
 	struct ipq_smem_target_info ipq_smem_target_info;
 	struct ipq_smem_target_info *smem_tinfo_ptr = &ipq_smem_target_info;
 
 	if (board_get_smem_target_info(&ipq_smem_target_info))
 		return -EFAULT;
 
-	reg[0] = cpu_to_fdt32((uint32_t)smem_tinfo_ptr->smem_base_addr);
-	reg[1] = cpu_to_fdt32(smem_tinfo_ptr->smem_size);
+	reg[0] = 0;
+	reg[1] = cpu_to_fdt32((uint32_t)smem_tinfo_ptr->smem_base_addr);
+	reg[2] = 0;
+	reg[3] = cpu_to_fdt32(smem_tinfo_ptr->smem_size);
 
-	fdt_find_and_setprop(blob, "/reserved-memory/smem_region@8A800000",
+	fdt_find_and_setprop(blob, "/reserved-memory/smem_region@8a800000",
 			"reg", reg, sizeof(reg), 0);
 	return 0;
 }
