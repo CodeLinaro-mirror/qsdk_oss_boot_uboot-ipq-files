@@ -44,7 +44,7 @@
 
 DECLARE_GLOBAL_DATA_PTR;
 
-#define SECONDARY_CORE_STACKSZ		(8 * 1024)
+#define SECONDARY_CORE_STACKSZ		(64 * 1024)
 #define CPU_POWER_DOWN			(1 << 16)
 
 #define CFG_NR_CPUS			4
@@ -1701,7 +1701,7 @@ int do_runmulticore(struct cmd_tbl *cmdtp,
 		goto exit;
 	}
 
-#if defined(CONFIG_WDT)
+#if defined(CONFIG_WDT) && !defined(CONFIG_IPQ_STOP_WDT)
 	ipq_wdt_start(false);
 #endif
 
@@ -1803,6 +1803,7 @@ int do_runmulticore(struct cmd_tbl *cmdtp,
 		if (delay > 5)
 			panic("Some cores can't be powered off\n");
 	}
+
 	/* Free up all the stack */
 	for (i = 1; i < argc; i++)
 		free(core[i - 1].stack_top_ptr);
@@ -1821,7 +1822,7 @@ exit:
 #if defined(CONFIG_WDT) && !defined(CONFIG_IPQ_STOP_WDT)
 	ipq_wdt_start(true);
 #endif
-	return ret;
+	return CMD_RET_SUCCESS;
 }
 
 U_BOOT_CMD(runmulticore, 4, 0, do_runmulticore,

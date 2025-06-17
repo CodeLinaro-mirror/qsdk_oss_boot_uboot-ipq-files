@@ -516,6 +516,10 @@ config MTDPARTS_MAXLEN
 	help
 	  This configuration helps to set maximum mtdpart string length
 
+config BASE_CPU_64BIT_BOOTUP
+	bool "Base CPU 64-bit boot up"
+	default n
+
 config IPQ_BOARD_DEFAULT
 	bool "Enable default config for all SoC"
 	default y
@@ -641,6 +645,7 @@ config TARGET_IPQ9574
 
 config TARGET_IPQ5424
 	bool "QCOM IPQ5424"
+	select BASE_CPU_64BIT_BOOTUP
 	imply NOR_BLK
 	imply BOOTCONFIG_V3
 	imply SCM_V2
