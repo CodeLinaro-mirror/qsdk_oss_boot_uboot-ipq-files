@@ -99,6 +99,14 @@ config SECONDARY_UART_INDEX
 	help
 	  This specifies the id inorder to access the secondary UART via cli.
 
+config SYS_BOOTM_LEN
+	hex "Maximum size of a decompresed OS image"
+	default 0xC800000 if ARM64
+	default 0x4000000
+	help
+	  This is the maximum size of the buffer that is used to decompress the OS
+	  image in to if attempting to boot a compressed image.
+
 config IPQ_NAND
 	bool "Enable NAND flash support in IPQ SOC"
 	select MTD
