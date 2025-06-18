@@ -10,7 +10,46 @@
 #include <linux/types.h>
 #include <linux/sizes.h>
 extern uint32_t g_board_machid;
+extern uint32_t g_load_addr;
+extern uint32_t g_env_offset;
 #endif
+
+#if defined(CONFIG_ENV_IS_IN_SPI_FLASH) && defined(CONFIG_ENV_OFFSET)
+#undef CONFIG_ENV_OFFSET
+#define CONFIG_ENV_OFFSET       g_env_offset
+#endif
+
+/*
+ * Memory layout
+ *
+   8000_0000-->	 _____________________  DRAM Base
+	        |		      |
+	        |		      |
+	        |		      |
+   8A20_0000--> |_____________________|
+	        |                     |
+	        |    STACK - 502KB    |
+	        |_____________________|
+	        |		      |
+	        |      Global Data    |
+	        |_____________________|
+	        |		      |
+	        |      Board Data     |
+   8A28_0000--> |_____________________|
+	        |		      |
+	        |    HEAP - 1024KB    |
+	        |      (inc. ENV)     |
+   8A38_0000--> |_____________________|
+	        |		      |
+                |    TEXT - 1536KB    |
+   8A50_0000--> |_____________________|
+	        |		      |
+	        | NONCACHED MEM - 1MB |
+   8A60_0000--> |_____________________|
+	        |                     |
+	        |                     |
+   C000_0000--> |_____________________| DRAM End
+*/
 
 #define CONFIG_HAS_CUSTOM_SYS_INIT_SP_ADDR
 #define CONFIG_CUSTOM_SYS_INIT_SP_ADDR		\
@@ -37,5 +76,12 @@ extern uint32_t g_board_machid;
 #define NONCACHED_MEM_REGION_SIZE		SZ_1M
 
 #endif /* ifnot defined CONFIG_ETH_LOW_MEM */
+
+#define CFG_NR_CPUS	4
+
+#ifdef CONFIG_NET_RETRY_COUNT
+#undef CONFIG_NET_RETRY_COUNT
+#define CONFIG_NET_RETRY_COUNT			500
+#endif
 
 #endif /* _IPQ5424_H_ */

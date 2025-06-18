@@ -10,7 +10,40 @@
 #include <linux/types.h>
 #include <linux/sizes.h>
 extern uint32_t g_board_machid;
+extern uint32_t g_load_addr;
 #endif
+
+/*
+ * Memory layout
+ *
+   4000_0000-->	 _____________________  DRAM Base
+	        |		      |
+	        |		      |
+	        |		      |
+   4A00_0000--> |_____________________|
+	        |                     |
+	        |    STACK - 502KB    |
+	        |_____________________|
+	        |		      |
+	        |      Global Data    |
+	        |_____________________|
+	        |		      |
+	        |      Board Data     |
+   4A08_0000--> |_____________________|
+	        |		      |
+	        |    HEAP - 1792KB    |
+	        |      (inc. ENV)     |
+   4A24_0000--> |_____________________|
+	        |		      |
+                |    TEXT - 1792KB    |
+   4A40_0000--> |_____________________|
+	        |		      |
+	        | NONCACHED MEM - 1MB |
+   4A50_0000--> |_____________________|
+	        |                     |
+	        |                     |
+   8000_0000--> |_____________________| DRAM End
+*/
 
 #define CONFIG_HAS_CUSTOM_SYS_INIT_SP_ADDR
 #define CONFIG_CUSTOM_SYS_INIT_SP_ADDR		\
@@ -30,5 +63,14 @@ extern uint32_t g_board_machid;
 #define NONCACHED_MEM_REGION_ADDR		((IPQ9574_UBOOT_END_ADDRESS + \
 						SZ_1M - 1) & ~(SZ_1M - 1))
 #define NONCACHED_MEM_REGION_SIZE		SZ_1M
+
+#define CFG_NC_RESERVATION			1
+
+#define CFG_NR_CPUS				4
+
+#ifdef CONFIG_NET_RETRY_COUNT
+#undef CONFIG_NET_RETRY_COUNT
+#define CONFIG_NET_RETRY_COUNT			500
+#endif
 
 #endif /* _IPQ9574_H_ */
