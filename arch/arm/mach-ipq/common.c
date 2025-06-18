@@ -3,6 +3,7 @@
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
+#include <version.h>
 #include <mach/ipq.h>
 #include <env.h>
 #include <net.h>
@@ -318,6 +319,20 @@ void ipq_smem_get_item(void *ptr, int type, int def, size_t size)
 		ipq_socinfo->machid = CONFIG_MACH_TYPE;
 		break;
 		}
+
+	case SMEM_IMAGE_VERSION_TABLE:
+		struct image_version_entry *img_version =
+				(struct image_version_entry*)temp + 9;
+		/*
+		 * APPSBL version details have to be stored at the 10th index
+		 * of the array of struct image_version_entry
+		 */
+		memcpy(img_version->image_index, "09", 2);
+		memcpy(img_version->image_colon_sep1, ":", 1);
+		memcpy(img_version->image_qc_version_string, U_BOOT_VERSION,
+			IMAGE_QC_VERSION_STRING_LENGTH);
+		break;
+
 	case SMEM_BOOT_FLASH_TYPE:
 		if (!error) {
 			if (*(int *)temp == SMEM_BOOT_NO_FLASH)
@@ -339,6 +354,10 @@ void ipq_board_read_smem_info(struct ipq_board_info *pbdinfo)
 		return;
 
 	smem_info = &pbdinfo->smem_info;
+
+	ipq_smem_get_item(NULL, SMEM_IMAGE_VERSION_TABLE,
+				0,
+				sizeof(struct image_version_entry));
 
 	ipq_smem_get_item((void *)&smem_info->flash_type,
 				SMEM_BOOT_FLASH_TYPE,
