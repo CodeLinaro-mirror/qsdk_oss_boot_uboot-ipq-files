@@ -370,17 +370,23 @@ int set_bootargs(void)
 				IPQ_NAND_BOOTARGS_PRI);
 #endif
 #endif
-	if (ret)
-		return ret;
+		if (ret)
+			return ret;
+	else
+		printf("Using fsbootargs from env\n");
 
 	if (!strings) {
-		printf("%s: bootargs not available\n", __func__);
+		printf("bootargs not available\n");
+		printf("Please set bootargs or try env default -fa ");
+		printf("to set default bootargs\n");
+
 		return -ENXIO;
 	}
 
 	cmd_line = malloc(CONFIG_SYS_CBSIZE);
 	if (!cmd_line) {
 		printf("%s: Memory allocation failed\n", __func__);
+
 		return -ENOMEM;
 	}
 
@@ -415,7 +421,7 @@ static int parse_elf_image_phdr(struct ipq_image_info *img_info, unsigned int ad
 	phdr = (Elf32_Phdr *)(uintptr_t)(addr + ehdr->e_phoff);
 
 	if (!IS_ELF(*ehdr)) {
-		printf("It is not a elf image\n");
+		printf("It is not a elf image, support only 32-bit ELF\n");
 		return -EINVAL;
 	}
 
@@ -687,18 +693,19 @@ get_img_config:
 
 			printf("Cross Arch Kernel jump is not supported!!!\n");
 			printf("Please use %d-bit kernel image.\n",
-				((IH_ARCH_DEFAULT == IH_ARCH_ARM64)?64:32));
+				((IH_ARCH_DEFAULT == IH_ARCH_ARM64) ? 64 : 32));
 
 			return CMD_RET_FAILURE;
 
 		}
 	} else {
-		printf("Unknown Image format\n");
+		printf("Unknown Image format- support only FIT & Legacy fmt\n");
+
 		return CMD_RET_FAILURE;
 	}
 
 	if (config) {
-		printf("Manual device tree config selected!\n");
+		printf("Manual device tree config %s selected!\n", config);
 		if (fit_conf_get_node((void *)request, config) >= 0)
 			goto exit;
 	} else {
@@ -742,7 +749,10 @@ get_img_config:
 		}
 	}
 
-	printf("Config not available\n");
+	printf("%s Configuration not available in image\n", config);
+
+	printf("Please upgrade the image with %s supported device tree\n",
+		config);
 
 	return -1;
 exit:
@@ -1157,6 +1167,8 @@ int read_kernel(void)
 #endif
 	default:
 		printf("Unsupported BOOT flash type\n");
+		printf("Booting not support in recovery mode\n");
+
 		return -1;
 	}
 
@@ -1195,7 +1207,9 @@ int check_bootconfig(void)
 	struct ipq_smem_bootconfig_info *binfo;
 
 	if (active_part < 0) {
-		printf("INVALID BOOTCONFIG DATA\n");
+		printf("INVALID BOOTCONFIG DATA %d!!!\n", -EINVAL);
+		printf("Bootconfig will be restored on the next boot\n");
+
 		return CMD_RET_FAILURE;
 	}
 
@@ -1204,6 +1218,8 @@ int check_bootconfig(void)
 	if ((binfo != NULL) &&
 		(binfo->image_set_status == DONT_USE_SET_AB)) {
 		printf("Invalid Kernel image on SET A & B\n");
+		printf("Please Recover the setup or flash valid kernel\n");
+
 		return CMD_RET_FAILURE;
 	}
 #endif
@@ -1260,8 +1276,16 @@ static int do_bootipq(struct cmd_tbl *cmdtp, int flag, int argc,
 	}
 
 	if (ret) {
-		printf("Failed at state %d : %s\n",
+		switch (boot_info.stage) {
+		case BOOT_STAGE_READ:
+			printf("Failed to read from flash device %d\n", -EIO);
+			printf("Please Check Flash device status\n");
+			fallthrough;
+		default:
+			printf("Failed at state %d : %s\n",
 				state, stages[boot_info.stage]);
+			break;
+		}
 	}
 
 #ifndef CONFIG_FAILSAFE
@@ -1271,7 +1295,7 @@ static int do_bootipq(struct cmd_tbl *cmdtp, int flag, int argc,
 
 #ifdef CONFIG_WDT
 	if (ret) {
-		printf("Invoke Wdt now !!!\n");
+		printf("Invoking watchdog!!!\n");
 		ipq_wdt_expire();
 	}
 #endif
