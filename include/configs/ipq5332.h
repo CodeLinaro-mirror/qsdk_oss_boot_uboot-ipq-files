@@ -86,6 +86,15 @@ extern uint32_t g_load_addr;
 
 #define CONFIG_MACH_TYPE                        (g_board_machid)
 
+/* override the counter frequency incase of emulation platform */
+#ifdef CFG_EMULATION
+#define CFG_EMUL_FREQUENCY_DIVIDER		150
+#define CFG_SYS_HZ_CLOCK			(CONFIG_COUNTER_FREQUENCY / \
+						CFG_EMUL_FREQUENCY_DIVIDER)
+#else
+#define CFG_SYS_HZ_CLOCK			CONFIG_COUNTER_FREQUENCY
+#endif
+
 #define CFG_SYS_SDRAM_BASE0_ADDR		0x40000000
 #define CFG_SYS_SDRAM_BASE0_SIZE		0xC0000000
 #define CFG_SYS_SDRAM_BASE			CFG_SYS_SDRAM_BASE0_ADDR
