@@ -54,7 +54,7 @@ DECLARE_GLOBAL_DATA_PTR;
 #endif
 
 uint32_t g_load_addr;
-uint8_t g_recovery_path __section(".data");
+uint32_t g_recovery_path __section(".data");
 
 #ifdef CONFIG_MMC
 extern int mmc_send_status(struct mmc *mmc, unsigned int *status);
@@ -1219,9 +1219,17 @@ static void update_board_type(void)
 {
 	uint32_t board_type;
 
+	if(g_recovery_path == 1) {
+		gd->board_type |= RECOVERY_MODE;
+	} else {
+		g_recovery_path = readl(CRASH_DUMP_ADDR_IMEM) & 0xffffffff;
+		gd->board_type |= (g_recovery_path == MAGIC_RECOVERY_PATH) ?
+				   RECOVERY_MODE : 0;
+	}
+
 	board_type = gd->board_type;
 
-	if (board_type == SMEM_BOOT_NO_FLASH)
+	if ((board_type & FLASH_TYPE_MASK) == SMEM_BOOT_NO_FLASH)
 		return;
 
 	if (is_secure_boot())
@@ -1822,7 +1830,7 @@ int write_tcsr_boot_misc_reg(uint32_t mask, uint32_t value)
 
 	cookie = (cookie & ~mask) | (value & mask);
 
-	if (g_recovery_path)
+	if (gd->board_type & RECOVERY_MODE)
 		writel(cookie, TCSR_BOOT_MISC_REG);
 #if defined(CONFIG_SCM)
 	else {

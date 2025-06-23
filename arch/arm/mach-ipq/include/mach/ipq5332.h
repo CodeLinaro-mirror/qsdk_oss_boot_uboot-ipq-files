@@ -46,4 +46,5 @@ struct fuse_payload {
 #define TME_OEM_ID_MSK				0xFFFF0000
 #define TME_PRODUCT_ID_MSK			0x0000FFFF
 
+#define CRASH_DUMP_ADDR_IMEM			0x8600658
 #endif
