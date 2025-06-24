@@ -407,6 +407,7 @@ config DPR_VERSION
 	default 1 if DPR_VER_1_0
 	default 2 if DPR_VER_2_0
 	default 3 if DPR_VER_3_0
+	default 0
 	help
 	  This gives the current DPR version.
 	  It helps in executing dpr_execute in u-boot.

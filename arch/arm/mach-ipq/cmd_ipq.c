@@ -1550,7 +1550,7 @@ U_BOOT_CMD(tzt, 4, 0, do_tzt,
 	   "tzt load address size - To load tzt image\n"
 	   "tzt xpu - To run xpu config test\n");
 
-#if defined(CONFIG_DPR_VERSION)
+#if CONFIG_DPR_VERSION != 0
 int do_dpr(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 {
 
