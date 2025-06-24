@@ -61,6 +61,8 @@
 #define TME_OEM_ID_MSK				0xFFFF0000
 #define TME_PRODUCT_ID_MSK			0x0000FFFF
 
+#define CRASH_DUMP_ADDR_IMEM			0x8600658
+
 struct fuse_payload {
 	u32 fuse_addr;
 	u32 lsb_val;
