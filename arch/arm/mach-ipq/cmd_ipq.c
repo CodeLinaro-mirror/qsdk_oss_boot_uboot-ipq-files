@@ -483,6 +483,7 @@ struct load_seg_info *parse_n_extract_ld_segment(void *img_addr,
 	return load_seg_info;
 }
 
+#ifdef CONFIG_IPQ_SECURE
 static int do_secure(struct cmd_tbl *cmdtp, int flag, int argc,
 				char *const argv[])
 {
@@ -649,6 +650,7 @@ U_BOOT_CMD(secure_authenticate, 4, 0, do_secure,
 		"secure_authenticate <sw_id> <img_addr> [meta_data_size]\n"
 #endif
 		"       - authenticate the signed image\n");
+#endif
 
 #ifdef CONFIG_FUSE_IPQ
 
