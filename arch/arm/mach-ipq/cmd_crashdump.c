@@ -485,15 +485,6 @@ static int wdt_extract_dump(crashdump_config_t *dump_config, int dump_idx,
 #endif /* CONFIG_IPQ_MINIDUMP */
 
 /**
- * ipq_read_tcsr_boot_misc() - read boot tcsr register
- */
-__weak int ipq_read_tcsr_boot_misc(void)
-{
-	u32 *dmagic = TCSR_BOOT_MISC_REG;
-	return *dmagic;
-}
-
-/**
  * ipq_iscrashed_crashdump_disabled() - to check whether crashdump is
  * enabled or disabled
  */
