@@ -7,6 +7,8 @@
 #include <mach/ipq.h>
 #include <env.h>
 #include <net.h>
+#include <asm-generic/gpio.h>
+#include <linux/delay.h>
 #ifdef CONFIG_LMB
 #include <lmb.h>
 #endif
@@ -2205,7 +2207,56 @@ int ipq_init_ubi_part(void)
 }
 #endif
 
-#ifdef CONFIG_GPIO_CONFIG
+#ifdef CONFIG_STANDALONE_GPIO
+#ifdef CONFIG_SDX_ATTACH_SUPPORT
+void ipq_board_power_cycle_sdx(void)
+{
+	/*
+	 * sdx reset during crashdump path
+	 */
+	struct udevice *dev = NULL;
+	struct gpio_desc pwr_gpio;
+	struct gpio_desc rst_gpio;
+	struct gpio_desc e911_gpio;
+	int err;
+
+	uclass_get_device_by_driver(UCLASS_NOP, DM_DRIVER_GET(gpio), &dev);
+
+	if (dev == NULL) {
+		printf("%s: dev is NULL\n", __func__);
+		return;
+	}
+	err = gpio_request_by_name_nodev(dev_ofnode(dev), "power_gpio", 0,
+					&pwr_gpio, GPIOD_IS_OUT);
+	if (err) {
+		printf("%s: sdx power_gpio not found in DT!,\n", __func__);
+		return;
+	}
+
+	err = gpio_request_by_name_nodev(dev_ofnode(dev), "reset_gpio", 0,
+					&rst_gpio, GPIOD_IS_OUT);
+	if (err) {
+		printf("%s: sdx reset_gpio not found in DT!\n", __func__);
+		return;
+	}
+
+	err = gpio_request_by_name_nodev(dev_ofnode(dev), "e911_gpio", 0,
+					&e911_gpio, GPIOD_IS_IN);
+	if (err)
+		printf("%s: sdx e911_gpio not found in DT!\n", __func__);
+	else if (!err && dm_gpio_get_value(&e911_gpio)) {
+		printf("SDX on e911 call, skipping sdx reset\n");
+		return;
+	}
+
+	dm_gpio_set_value(&pwr_gpio, 1);
+	dm_gpio_set_value(&rst_gpio, 1);
+	mdelay(100);
+	dm_gpio_set_value(&pwr_gpio, 0);
+	dm_gpio_set_value(&rst_gpio, 0);
+}
+#endif
+
 /*
  * NOP driver: only for GPIO configuration
  */

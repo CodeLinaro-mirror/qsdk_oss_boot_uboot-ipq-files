@@ -855,4 +855,10 @@ void ipq_wdt_expire(void);
  * Return true if crashed else false
  */
 bool ipq_iscrashed(void);
+/**
+ * ipq_board_gpio_config() - Configure gpio without driver node.
+ *
+ * @type - Platform-specific implementation for SoC
+ */
+void ipq_board_gpio_config(int type);
 #endif
