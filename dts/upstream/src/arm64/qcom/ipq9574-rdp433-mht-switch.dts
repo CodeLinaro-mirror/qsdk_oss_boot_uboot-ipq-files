@@ -137,6 +137,12 @@
 	};
 };
 
+&blsp1_i2c3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&blsp1_i2c3_pinmux>;
+	status = "okay";
+};
+
 &tlmm {
 	mdio_pinmux: mdio {
 		mdc {
@@ -190,5 +196,21 @@
 		drive-strength = <8>;
 		bias-pull-up;
 		output-low;
+	};
+
+	blsp1_i2c3_pinmux: blsp_i2c3_pins {
+		blsp3_scl {
+			pins = "gpio15";
+			function = "blsp3_i2c";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+
+		blsp3_sda {
+			pins = "gpio16";
+			function = "blsp3_i2c";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
 	};
 };
