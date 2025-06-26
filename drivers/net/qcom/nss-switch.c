@@ -2992,6 +2992,12 @@ static int ipq_eth_probe(struct udevice *dev)
 				continue;
 		}
 
+#ifdef CONFIG_PHY_QCA_8033
+		if (port->phy_id == QCA8033_PHY_TYPE) {
+			ppe_uniphy_refclk_set_25M(port);
+			mdelay(10);
+               }
+#endif
 		if (port->rst_gpio.dev)
 			ipq_eth_phy_hw_reset(&port->rst_gpio);
 
