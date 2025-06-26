@@ -15,6 +15,7 @@
 / {
 	aliases {
 		serial0 = &blsp1_uart2;
+		uart2 = &blsp1_uart3;
 	};
 
 	chosen {
@@ -596,7 +597,15 @@
 };
 
 &blsp1_uart2 {
+	clock-frequency=<1843200>;
 	pinctrl-0 = <&uart2_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+};
+
+&blsp1_uart3 {
+	clock-frequency=<1843200>;
+	pinctrl-0 = <&uart3_pins>;
 	pinctrl-names = "default";
 	status = "okay";
 };
@@ -632,6 +641,13 @@
 };
 
 &tlmm {
+	uart3_pins: uart3-state {
+		pins = "gpio17", "gpio18";
+		function = "blsp3_uart";
+		drive-strength = <8>;
+		bias-disable;
+	};
+
 	spi_0_pins: spi-0-state {
 		pins = "gpio11", "gpio12", "gpio13", "gpio14";
 		function = "blsp0_spi";
