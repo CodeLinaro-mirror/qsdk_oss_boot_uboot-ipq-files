@@ -71,6 +71,13 @@ static int qti_8033_startup(struct phy_device *phydev)
 	return 0;
 }
 
+int qti_8033_probe(struct phy_device *phydev)
+{
+	phydev->flags = PHY_FLAG_BROKEN_RESET;
+
+	return 0;
+}
+
 U_BOOT_PHY_DRIVER(qti_8033_driver) = {
 	.name = "QTI 8033 PHY Driver",
 	.uid = QTI_8033_PHY_V1,
@@ -79,4 +86,5 @@ U_BOOT_PHY_DRIVER(qti_8033_driver) = {
 	.config = &qti_8033_config,
 	.startup = &qti_8033_startup,
 	.shutdown = &genphy_shutdown,
+	.probe  = &qti_8033_probe,
 };
