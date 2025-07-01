@@ -391,6 +391,9 @@ void ipq_update_board_name(int machid, struct multidtb_config *dtb);
  * ipq_board_early_init_f() - Do board specific early init f
  */
 void ipq_board_early_init_f(void);
+#if defined(CONFIG_SPL)
+void ipq_spl_board_early_init_f(void);
+#endif
 /**
  * ipq_board_read_smem_info() - read and save smem information
  *

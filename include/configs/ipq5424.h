@@ -52,9 +52,15 @@ extern uint32_t g_env_offset;
 */
 
 #define CONFIG_HAS_CUSTOM_SYS_INIT_SP_ADDR
+#if defined(CONFIG_SPL)
+#define CONFIG_CUSTOM_SYS_INIT_SP_ADDR		\
+		(CONFIG_SPL_TEXT_BASE - CONFIG_SPL_SYS_MALLOC_SIZE -\
+			GENERATED_GBL_DATA_SIZE)
+#else
 #define CONFIG_CUSTOM_SYS_INIT_SP_ADDR		\
 		(CONFIG_TEXT_BASE - CONFIG_SYS_MALLOC_LEN -\
 			CONFIG_ENV_SIZE - GENERATED_GBL_DATA_SIZE)
+#endif
 
 #define CONFIG_MACH_TYPE                        (g_board_machid)
 

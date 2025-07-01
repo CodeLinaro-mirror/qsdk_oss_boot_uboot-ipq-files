@@ -1,4 +1,5 @@
 obj-y += board.o
+obj-$(CONFIG_SPL_BUILD) += spl.o
 obj-y += common.o
 obj-y += cmd_bootipq.o
 obj-$(CONFIG_IPQ_CRASHDUMP) += cmd_crashdump.o
