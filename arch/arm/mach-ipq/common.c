@@ -600,13 +600,13 @@ static void ipq_update_env_offset(void)
 {
 	int i;
 	struct ipq_board_info *_bdinfo = ipq_get_bdinfo();
-	struct ipq_smem_flash_info *smem_info = &pbdinfo->smem_info;
+	struct ipq_smem_flash_info *smem_info = ipq_get_smem_info();
 
-	if (IS_ERR_OR_NULL(pbdinfo->ptable))
+	if (IS_ERR_OR_NULL(_bdinfo->ptable))
 		return;
 
-	for (i = 0; i < pbdinfo->ptable->len; i++) {
-		struct smem_ptn *p = &pbdinfo->ptable->parts[i];
+	for (i = 0; i < _bdinfo->ptable->len; i++) {
+		struct smem_ptn *p = &_bdinfo->ptable->parts[i];
 
 		if (IS_ERR_OR_NULL(p))
 			continue;

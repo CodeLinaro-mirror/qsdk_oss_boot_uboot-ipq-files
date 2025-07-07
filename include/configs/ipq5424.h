@@ -14,7 +14,7 @@ extern uint32_t g_load_addr;
 extern uint32_t g_env_offset;
 #endif
 
-#if defined(CONFIG_ENV_IS_IN_SPI_FLASH) && defined(CONFIG_ENV_OFFSET)
+#if defined(CONFIG_ENV_IS_IN_SPI_FLASH) && defined(CONFIG_ENV_OFFSET) && defined(CONFIG_RUNTIME_SF_ENV_UPDATE)
 #undef CONFIG_ENV_OFFSET
 #define CONFIG_ENV_OFFSET       g_env_offset
 #endif
