@@ -146,7 +146,6 @@ config IPQ_SPI_NOR
 	select SPI_FLASH_WINBOND
 	select SPI_FLASH_SPANSION
 	select SPI_FLASH_MTD if ENV_IS_IN_SPI_FLASH
-	select RUNTIME_SF_ENV_UPDATE if ENV_IS_IN_SPI_FLASH
 	help
 	  This config helps in enabling SPI NOR flash support in IPQ SOC.
 
@@ -695,6 +694,7 @@ config TARGET_IPQ5424
 	imply PHY if IPQ_USB
 	imply PHY_QCOM_QUSB2 if IPQ_USB
 	imply PHY_QCOM_QMP_USB3 if IPQ_USB
+	imply RUNTIME_SF_ENV_UPDATE if ENV_IS_IN_SPI_FLASH
 	help
 	  Support for IPQ5424 SoC.
 	  - Board Open Platform Specifications.
