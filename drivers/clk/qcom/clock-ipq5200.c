@@ -49,6 +49,9 @@
 #define IO_MACRO_CLK_100_MHZ				(100000000)
 #define IO_MACRO_CLK_24_MHZ				(24000000)
 
+#define GCC_QUPV3_I2C0_CMD_RCGR			(0x02018)
+#define GCC_QUPV3_I2C1_CMD_RCGR			(0x02034)
+
 int msm_set_parent(struct clk *clk, struct clk *parent)
 {
 	assert(clk);
@@ -69,6 +72,16 @@ static ulong ipq5200_set_rate(struct clk *clk, ulong rate)
 	int src, div = 0;
 
 	switch (clk->id) {
+	case GCC_QUPV3_I2C0_CLK:
+		/* Default: 64MHz */
+		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_I2C0_CMD_RCGR,
+				     0x18, 0, 0, CFG_CLK_SRC_GPLL0, 16);
+		break;
+	case GCC_QUPV3_I2C1_CLK:
+		/* Default: 64MHz */
+		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_I2C1_CMD_RCGR,
+				     0x18, 0, 0, CFG_CLK_SRC_GPLL0, 16);
+		break;
 	case GCC_QUPV3_UART1_CLK:
 		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_UART1_CMD_RCGR,
 				     0x19, 0, 0, CFG_CLK_SRC_CXO, 16);
@@ -154,6 +167,8 @@ static const struct gate_clk ipq5200_clks[] = {
 	GATE_CLK(GCC_QPIC_CLK,			0x32028, 0x00000001),
 	GATE_CLK(GCC_QPIC_AHB_CLK,		0x32010, 0x00000001),
 	GATE_CLK(GCC_QPIC_IO_MACRO_CLK,		0x3200C, 0x00000001),
+	GATE_CLK(GCC_QUPV3_I2C0_CLK,		0x0202C,  0x00000001),
+	GATE_CLK(GCC_QUPV3_I2C1_CLK,		0x02048,  0x00000001),
 };
 
 static int ipq5200_enable(struct clk *clk)
