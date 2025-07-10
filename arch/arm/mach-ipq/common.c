@@ -573,9 +573,6 @@ struct spi_flash *ipq_spi_probe(void)
 	int ret;
 	struct ipq_board_info *_bdinfo = ipq_get_bdinfo();
 
-	if (_bdinfo->sf)
-		return _bdinfo->sf;
-
 	ret = spi_flash_probe_bus_cs(CONFIG_SF_DEFAULT_BUS,
 				     CONFIG_SF_DEFAULT_CS,
 				     &new);
