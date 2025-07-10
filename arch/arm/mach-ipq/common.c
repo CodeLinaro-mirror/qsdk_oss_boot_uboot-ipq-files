@@ -916,7 +916,7 @@ int ipq_get_current_board_flash_config(int flash_type)
 
 	if (flash_type == SMEM_BOOT_NORGPT_FLASH) {
 		BLK_PART_GET_INFO_S(bpart_info, "rootfs", &disk_info,
-					flash_type, true);
+					flash_type, false);
 
 		ret = ipq_part_get_info_by_name(&bpart_info);
 		if (ret) {
