@@ -139,6 +139,11 @@ int isvalid_appsbl_image(uintptr_t load_addr)
 				"spi_nor", "norplusnand", "norplusemmc",
 				"dummy", "dummy", "qspi_nand" };
 
+	if (IS_ERR_OR_NULL(sfi)) {
+		printf("%s: Failed to get flash info\n", __func__);
+		return -EINVAL;
+	}
+
 	if (((Elf32_Ehdr *)load_addr)->e_ident[EI_CLASS] == ELFCLASS64)
 		e_type = ((Elf64_Ehdr *)load_addr)->e_type;
 	else
@@ -216,7 +221,7 @@ static int write_to_flash(struct fl_info *fl)
 		printf("Invalid flash type\n");
 	}
 
-	if (run_command(runcmd, 0) != CMD_RET_SUCCESS)
+	if (run_command((const char *)runcmd, 0) != CMD_RET_SUCCESS)
 		return CMD_RET_FAILURE;
 
 	return CMD_RET_SUCCESS;
@@ -628,11 +633,18 @@ int do_flash(struct cmd_tbl *cmdtp, int flag, int argc, char * const argv[])
 	int flash_type = -1;
 	int ret = CMD_RET_FAILURE;
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
+
+	if (IS_ERR_OR_NULL(sfi)) {
+		printf("%s: smem flash info not found\n", __func__);
+		return -EINVAL;
+	}
+
 	bool is_ubi = false;
 	struct fl_info fl;
 #if defined(CONFIG_GPT_UPDATE_PARAMS)
 	struct blk_desc *blk_dev;
-	uint32_t uclass_id, default_size;
+	uint32_t uclass_id = UCLASS_INVALID;
+	uint32_t default_size = 0;
 #endif
 #if defined(CONFIG_NOR_BLK)
 	struct disk_partition disk_info = {0};
@@ -906,6 +918,11 @@ char * const argv[])
 	uint8_t flash_type;
 	struct header *mibib_hdr;
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
+
+	if (IS_ERR_OR_NULL(sfi)) {
+		printf("%s: Failed to get smem flash info\n", __func__);
+		return -EINVAL;
+	}
 
 	if (argc == 5) {
 		flash_type = simple_strtoul(argv[1], NULL, 16);

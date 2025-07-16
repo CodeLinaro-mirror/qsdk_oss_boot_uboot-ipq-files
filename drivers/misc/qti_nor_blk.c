@@ -63,7 +63,7 @@ ulong nor_bwrite(struct udevice *dev, lbaint_t start, lbaint_t blkcnt,
 	struct spi_flash *flash = spi_detect();
 	struct blk_desc *block_dev = dev_get_uclass_plat(dev);
 	int ret, blksz, lblkcnt, totalblkcnt, startoffset, erase_size;
-	uint8_t *buff;
+	uint8_t *buff = NULL;
 	const uint8_t *lsrc = src;
 
 	if ((blkcnt == 0) || !flash || !block_dev)

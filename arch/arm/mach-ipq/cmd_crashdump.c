@@ -459,10 +459,10 @@ enum minidump_crash_type get_minidump_crashed_mod(char *dmesg_start,
 
 	for (index = 0; index < QTI_MINIDUMP_NSS_MOD_COUNT; index++) {
 		match_status = strncmp(module, minidump_nss_modules[index],
-				       strlen(minidump_nss_modules[index]));
+					strlen(minidump_nss_modules[index]));
 		if (!match_status) {
 			printf("MINIDUMP: %s found in call trace, belongs to NSS\n",
-			       minidump_nss_modules[index]);
+				minidump_nss_modules[index]);
 			return MINIDUMP_CRASH_TYPE_NSS |
 				MINIDUMP_CRASH_TYPE_DEFAULT;
 		}
@@ -470,10 +470,10 @@ enum minidump_crash_type get_minidump_crashed_mod(char *dmesg_start,
 
 	for (index = 0; index < QTI_MINIDUMP_HOST_MOD_COUNT; index++) {
 		match_status = strncmp(module, minidump_host_modules[index],
-				       strlen(minidump_host_modules[index]));
+					strlen(minidump_host_modules[index]));
 		if (!match_status) {
 			printf("MINIDUMP: %s found in call trace, belongs to Host\n",
-			       minidump_host_modules[index]);
+				minidump_host_modules[index]);
 			return MINIDUMP_CRASH_TYPE_HOST |
 				MINIDUMP_CRASH_TYPE_DEFAULT;
 		}
@@ -523,7 +523,7 @@ enum minidump_crash_type check_crash_module(char *dmesg_start,
 			if (!call_trace) {
 				buflen = second_crash_ptr - dmesg_start;
 				call_trace = get_calltrace_ptr(dmesg_start,
-							       buflen);
+								buflen);
 			}
 		}
 	} else {
@@ -546,7 +546,7 @@ enum minidump_crash_type check_crash_module(char *dmesg_start,
 				buflen = dmesg_start + dmesg_read_offset -
 					 dmesg_start;
 				call_trace = get_calltrace_ptr(dmesg_start,
-							       buflen);
+								buflen);
 			}
 		}
 	}
@@ -591,7 +591,7 @@ static void checkcrashtype(char *dmesg_start, size_t dmesg_len,
 
 		if (strptr) {
 			printf("MINIDUMP: %s found in dmesg, dumping all segs\n",
-			       minidump_dump_all_sig[i]);
+				minidump_dump_all_sig[i]);
 			g_mini_seg = MINIDUMP_CRASH_TYPE_MAX;
 		}
 	}
@@ -624,7 +624,7 @@ static void checkcrashtype(char *dmesg_start, size_t dmesg_len,
 					     strlen(minidump_dump_crash_sig[i]));
 		if (crash_ptr_tmp) {
 			printf("MINIDUMP: %s found in dmesg\n",
-			       minidump_dump_crash_sig[i]);
+				minidump_dump_crash_sig[i]);
 			crash_ptr[i] = crash_ptr_tmp;
 		}
 	}
@@ -803,7 +803,7 @@ static uint64_t get_dmesg_read(void)
 			tlv_data = (st_tlv_data_t *)&buf;
 			tail_counter = *(uint64_t *)(uintptr_t)tlv_data->start;
 			return((tail_counter + STATIC_DMESG_SIZE) %
-			       STATIC_DMESG_SIZE);
+				STATIC_DMESG_SIZE);
 		}
 
 		tlv_info.cur_msg_buf +=	(cur_size +
@@ -958,9 +958,9 @@ static int wdt_extract_dump(crashdump_config_t *dump_config, int dump_idx,
 				if (g_minidump_value == 2) {
 					dmesg_read_offset = get_dmesg_read();
 					checkcrashtype((char *)(uintptr_t)
-						       dump_entry->start_addr,
-						       dump_entry->size,
-						       dmesg_read_offset);
+							dump_entry->start_addr,
+							dump_entry->size,
+							dmesg_read_offset);
 				}
 #endif /* CONFIG_IPQ_MINIDUMP_VERSION_V2 */
 				break;
@@ -1173,6 +1173,11 @@ static int verify_crashdump_config(crashdump_config_t * dump_config)
 			break;
 		}
 		struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
+
+		if (IS_ERR_OR_NULL(sfi)) {
+			printf("%s: Failed to get flash info\n", __func__);
+			return -EINVAL;
+		}
 
 		dump_config->iface_cfg.part_name = part_name;
 		dump_config->iface_cfg.flash_type =
@@ -2006,6 +2011,10 @@ int init_crashdump_spi_flash_write(void *cnxt, uint64_t offset, uint32_t size)
 	int ret;
 	struct crashdump_flash_spi_cxt *spi_flash_cnxt = cnxt;
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
+	if (IS_ERR_OR_NULL(spi_flash_cnxt) || IS_ERR_OR_NULL(sfi)) {
+		printf("%s: Failed to get flash info\n", __func__);
+		return -EINVAL;
+	}
 
 	spi_flash_cnxt->cur_crashdump_offset = offset;
 	ret = spi_flash_erase(spi_flash_cnxt->crashdump_spi_flash, offset,
@@ -2202,6 +2211,12 @@ static int crashdump_flash_get_args(uint8_t *flash_type, uint64_t *offset)
 	char *cmd, *crashdump_offset, *fltype;
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
 	int ret = 0;
+
+	if (IS_ERR_OR_NULL(sfi)) {
+		printf("%s: Failed to get flash info\n", __func__);
+		ret = -EINVAL;
+		goto exit;
+	}
 
 	cmd = env_get("dump_to_flash");
 	if (cmd == NULL) {
@@ -2472,7 +2487,7 @@ static int dump_to_dst(crashdump_config_t *dump_config,
 				ARCH_DMA_MINALIGN) >
 				iface_cfg->dump2mem_rsvd_limit) {
 			printf("Error: Not enough memory in rsvd mem" \
-				       " to save dumps\n");
+					" to save dumps\n");
 			return CMD_RET_FAILURE;
 		}
 
@@ -2731,7 +2746,7 @@ void ipq_do_dump_data(crashdump_config_t *dump_config)
 		if ((iface_cfg->dump2mem_curr_addr + hdr->total_dump_sz)
 				> iface_cfg->dump2mem_rsvd_limit) {
 			printf("Error: Not enough memory in rsvd mem" \
-				       " to save dumps\n");
+					" to save dumps\n");
 			break;
 		}
 
@@ -2775,7 +2790,7 @@ void ipq_do_dump_data(crashdump_config_t *dump_config)
 
 		if (nvhdr->total_dump_sz > iface_cfg->part_size) {
 			printf("Error: Not enough memory in %s partition" \
-				       " to save dumps", iface_cfg->part_name);
+					" to save dumps", iface_cfg->part_name);
 			return;
 		}
 
@@ -2834,7 +2849,7 @@ static void ipq_dump_func(crashdump_config_t *dump_config, uint8_t debug)
 	if (!dump_config->force_collect_dump) {
 		etime = get_timer(0) + (10 * CONFIG_SYS_HZ);
 		printf("\nHit any key within 10s to stop dump activity...");
-		while (!tstc()) {       /* while no incoming data */
+		while (!tstc()) {	/* while no incoming data */
 			if (get_timer(0) >= etime) {
 				skip_crashdump = 0;
 				printf("\n");
