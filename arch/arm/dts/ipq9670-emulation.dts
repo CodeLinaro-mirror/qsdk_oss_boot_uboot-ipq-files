@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+
+#include "ipq9670-u-boot.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. IPQ9670-EMULATION";
+	compatible = "qcom,ipq9670-emulation", "qcom,ipq9670";
+};
