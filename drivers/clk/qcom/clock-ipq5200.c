@@ -52,6 +52,19 @@
 #define GCC_QUPV3_I2C0_CMD_RCGR			(0x02018)
 #define GCC_QUPV3_I2C1_CMD_RCGR			(0x02034)
 
+/* PCIE clock control registers */
+#define GCC_PCIE_AUX_CMD_RCGR				0x28004
+#define GCC_PCIE0_AXI_M_CMD_RCGR 			0x28018
+#define GCC_PCIE1_AXI_M_CMD_RCGR 			0x29018
+#define GCC_PCIE0_AXI_S_CMD_RCGR			0x28020
+#define GCC_PCIE1_AXI_S_CMD_RCGR			0x29020
+#define GCC_PCIE0_RCHNG_CMD_RCGR			0x28028
+#define GCC_PCIE1_RCHNG_CMD_RCGR			0x29028
+#define PCIE_GPLL0_OUT_AUX				(2 << 8)
+#define PCIE_GPLL4_OUT_MAIN				(2 << 8)
+#define PCIE_GPLL0_OUT_MAIN				(1 << 8)
+
+
 int msm_set_parent(struct clk *clk, struct clk *parent)
 {
 	assert(clk);
@@ -146,6 +159,43 @@ static ulong ipq5200_set_rate(struct clk *clk, ulong rate)
 		clk_rcg_set_rate_v2(priv->base, GCC_QPIC_IO_MACRO_CMD_RCGR,
 				    0, div, 0, src);
 		break;
+	case GCC_PCIE0_AUX_CLK:
+		fallthrough;
+	case GCC_PCIE1_AUX_CLK:
+		/* GCC_PCIE_AUX_CLK: 20 MHz */
+		clk_rcg_set_rate_mnd(priv->base, GCC_PCIE_AUX_CMD_RCGR,
+					0x1F, 2, 5, PCIE_GPLL0_OUT_AUX, 16);
+		break;
+	case GCC_PCIE0_AXI_M_CLK:
+		/* GCC_PCIE0_AXI_M_CLK: 240 MHz */
+		clk_rcg_set_rate(priv->base, GCC_PCIE0_AXI_M_CMD_RCGR,
+					5, PCIE_GPLL4_OUT_MAIN);
+		break;
+	case GCC_PCIE1_AXI_M_CLK:
+		/* GCC_PCIE1_AXI_M_CLK: 240 MHz */
+		clk_rcg_set_rate(priv->base, GCC_PCIE1_AXI_M_CMD_RCGR,
+					5, PCIE_GPLL4_OUT_MAIN);
+		break;
+	case GCC_PCIE0_AXI_S_CLK:
+		/* GCC_PCIE0_AXI_S_CLK: 240 MHz */
+		clk_rcg_set_rate(priv->base, GCC_PCIE0_AXI_S_CMD_RCGR,
+					5, PCIE_GPLL4_OUT_MAIN);
+		break;
+	case GCC_PCIE1_AXI_S_CLK:
+		/* GCC_PCIE1_AXI_S_CLK: 240 MHz */
+		clk_rcg_set_rate(priv->base, GCC_PCIE1_AXI_S_CMD_RCGR,
+					5, PCIE_GPLL4_OUT_MAIN);
+		break;
+	case GCC_PCIE0_RCHNG_CLK:
+		/* GCC_PCIE0_RCHNG_CLK: 100 MHz */
+		clk_rcg_set_rate(priv->base, GCC_PCIE0_RCHNG_CMD_RCGR,
+					8, PCIE_GPLL0_OUT_MAIN);
+		break;
+	case GCC_PCIE1_RCHNG_CLK:
+		/* GCC_PCIE1_RCHNG_CLK: 100 MHz */
+		clk_rcg_set_rate(priv->base, GCC_PCIE1_RCHNG_CMD_RCGR,
+					8, PCIE_GPLL0_OUT_MAIN);
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -169,6 +219,20 @@ static const struct gate_clk ipq5200_clks[] = {
 	GATE_CLK(GCC_QPIC_IO_MACRO_CLK,		0x3200C, 0x00000001),
 	GATE_CLK(GCC_QUPV3_I2C0_CLK,		0x0202C,  0x00000001),
 	GATE_CLK(GCC_QUPV3_I2C1_CLK,		0x02048,  0x00000001),
+	GATE_CLK(GCC_PCIE0_AHB_CLK,		0x28030,  0x00000001),
+	GATE_CLK(GCC_PCIE0_AUX_CLK,		0x28070,  0x00000001),
+	GATE_CLK(GCC_PCIE0_AXI_M_CLK,		0x28038,  0x00000001),
+	GATE_CLK(GCC_PCIE0_AXI_S_BRIDGE_CLK,	0x28048,  0x00000001),
+	GATE_CLK(GCC_PCIE0_AXI_S_CLK,		0x28040,  0x00000001),
+	GATE_CLK(GCC_PCIE0_PIPE_CLK,		0x28068,  0x00000001),
+	GATE_CLK(GCC_PCIE1_AHB_CLK,		0x29030,  0x00000001),
+	GATE_CLK(GCC_PCIE1_AUX_CLK,		0x29074,  0x00000001),
+	GATE_CLK(GCC_PCIE1_AXI_M_CLK,		0x29038,  0x00000001),
+	GATE_CLK(GCC_PCIE1_AXI_S_BRIDGE_CLK,	0x29048,  0x00000001),
+	GATE_CLK(GCC_PCIE1_AXI_S_CLK,		0x29040,  0x00000001),
+	GATE_CLK(GCC_PCIE1_PIPE_CLK,		0x29068,  0x00000001),
+	GATE_CLK(GCC_CNOC_PCIE0_1LANE_S_CLK,	0x31088,  0x00000001),
+	GATE_CLK(GCC_CNOC_PCIE1_2LANE_S_CLK,	0x3108C,  0x00000001),
 };
 
 static int ipq5200_enable(struct clk *clk)
@@ -188,11 +252,31 @@ static int ipq5200_enable(struct clk *clk)
 }
 
 static const struct qcom_reset_map ipq5200_gcc_resets[] = {
-	[GCC_SDCC_BCR] = {0x33000, 0},
-	[GCC_USB0_PHY_BCR] = {0x2C06C, 0},
-	[GCC_USB3PHY_0_PHY_BCR] = {0x2C070, 0},
-	[GCC_QUSB2_0_PHY_BCR] = {0x2C068, 0},
-	[GCC_USB_BCR] = {0x2C000, 0},
+	[GCC_SDCC_BCR]			= {0x33000, 0},
+	[GCC_USB0_PHY_BCR]		= {0x2C06C, 0},
+	[GCC_USB3PHY_0_PHY_BCR]		= {0x2C070, 0},
+	[GCC_QUSB2_0_PHY_BCR]		= {0x2C068, 0},
+	[GCC_USB_BCR]			= {0x2C000, 0},
+	[GCC_PCIE0_PHY_BCR]		= {0x28060, 0},
+	[GCC_PCIE0PHY_PHY_BCR]		= {0x2805c, 0},
+	[GCC_PCIE1_PHY_BCR]		= {0x29060, 0},
+	[GCC_PCIE1PHY_PHY_BCR]		= {0x2905c, 0},
+	[GCC_PCIE1_PIPE_ARES]		= {0x29068, 2},
+	[GCC_PCIE1_CORE_STICKY_RESET]	= {0x29058, 1},
+	[GCC_PCIE1_AXI_M_ARES]		= {0x29038, 2},
+	[GCC_PCIE1_AXI_S_ARES]		= {0x29040, 2},
+	[GCC_PCIE1_AXI_M_STICKY_RESET]	= {0x29058, 4},
+	[GCC_PCIE1_AXI_S_STICKY_RESET]	= {0x29058, 2},
+	[GCC_PCIE1_AHB_ARES]		= {0x29030, 2},
+	[GCC_PCIE1_AUX_ARES]		= {0x29074, 2},
+	[GCC_PCIE0_PIPE_ARES]		= {0x28068, 2},
+	[GCC_PCIE0_CORE_STICKY_RESET]	= {0x28058, 1},
+	[GCC_PCIE0_AXI_M_ARES]		= {0x28038, 2},
+	[GCC_PCIE0_AXI_S_ARES]		= {0x28040, 2},
+	[GCC_PCIE0_AXI_M_STICKY_RESET]	= {0x28058, 4},
+	[GCC_PCIE0_AXI_S_STICKY_RESET]	= {0x28058, 2},
+	[GCC_PCIE0_AHB_ARES]		= {0x28030, 2},
+	[GCC_PCIE0_AUX_ARES]		= {0x28070, 2},
 };
 
 static struct msm_clk_data ipq5200_gcc_data = {

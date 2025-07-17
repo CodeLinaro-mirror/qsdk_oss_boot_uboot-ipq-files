@@ -63,6 +63,8 @@ static const msm_pin_function ipq5200_pin_functions[] = {
 	PINGROUP(3, sdc_data, qspi_data, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(4, sdc_cmd, qspi_cs, NA, NA, NA, NA, NA, NA,NA),
 	PINGROUP(5, sdc_clk, qspi_clk, NA, NA, NA, NA, NA, NA, NA),
+	PINGROUP(34, NA, NA, NA, NA, NA, NA, NA, NA, NA),
+	PINGROUP(35, NA, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(38, uart1, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(39, uart1, NA, NA, NA, NA, NA, NA, NA, NA),
 };
