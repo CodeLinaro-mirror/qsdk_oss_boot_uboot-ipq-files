@@ -86,6 +86,17 @@ void ipq_update_board_name(int machid, struct multidtb_config *dtb)
 }
 #endif /* CONFIG_DTB_RESELECT */
 
+#if defined(CONFIG_SPL)
+void ipq_spl_board_early_init_f(void)
+{
+	/*
+	 * Enable the IM_SLEEP clock
+	 * This clk require for Block control reset
+	 */
+	writel((readl(IM_SLEEP_CLK) | BIT(0)), IM_SLEEP_CLK);
+}
+#endif
+
 void ipq_board_early_init_f(void)
 {
 	/*
@@ -95,6 +106,11 @@ void ipq_board_early_init_f(void)
 	writel((readl(IM_SLEEP_CLK) | BIT(0)), IM_SLEEP_CLK);
 }
 
+#if defined(CONFIG_SPL)
+void reset_cpu(void)
+{
+}
+#else
 void reset_cpu(void)
 {
 #ifdef CONFIG_IPQ_CRASHDUMP
@@ -102,3 +118,4 @@ void reset_cpu(void)
 #endif
 	psci_sys_reset(SYSRESET_COLD);
 }
+#endif
