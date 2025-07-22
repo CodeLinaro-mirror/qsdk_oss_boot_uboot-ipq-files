@@ -1873,7 +1873,7 @@ void ipq_update_lmb_reservation(void)
 	 */
 	for (i = 0; i < lmb_rgn_lst->count; i++) {
 		if ((rgn[i].base < CONFIG_TEXT_BASE) &&
-			((rgn[i].base + rgn[i].size + 1) > CONFIG_TEXT_BASE)) {
+			((rgn[i].base + rgn[i].size - 1) > CONFIG_TEXT_BASE)) {
 
 			rgn[i].size = ((CONFIG_TEXT_BASE + CONFIG_TEXT_SIZE +
 					SZ_1M) - rgn[i].base);
