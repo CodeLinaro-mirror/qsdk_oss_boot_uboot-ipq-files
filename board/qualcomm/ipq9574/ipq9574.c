@@ -43,6 +43,13 @@
 #define MACH_TYPE_IPQ9574_DB_AL02_C3		0x1050201
 #define MACH_TYPE_IPQ9574_RDP433_SFP		0x8051101
 
+#define TIMEOUT_MS				30000
+#define CLK_SRC					32000
+#define WDT_ENABLE_REG				0xb017008
+#define WDT_RST_REG				0xb017004
+#define WDT_BARK_TIME_REG			0xb017010
+#define WDT_BITE_TIME_REG			0xb017014
+
 #define LINUX_6_x_SERIAL2_DTS_NODE		"/soc@0/serial@78b2000/"
 #define STATUS_DISABLED				"status%?disabled"
 #define LINUX_6_x_ROOTFS_AUTH_DTS_NODE		"/soc@0/qfprom"
@@ -418,6 +425,30 @@ void ipq_update_board_name(int machid, struct multidtb_config *dtb)
 
 }
 #endif /* CONFIG_DTB_RESELECT */
+
+#ifdef CONFIG_IPQ_EARLY_WDT
+void ipq_enable_non_sec_watchdog(void)
+{
+	/*
+	 * Enabling non-secure WDT for early failure recovery support
+	 */
+	ulong bark_timeout_s = ((TIMEOUT_MS - 1)  * CLK_SRC) / 1000;
+	ulong bite_timeout_s = (TIMEOUT_MS * CLK_SRC) / 1000;
+
+	writel(0, WDT_ENABLE_REG);
+	writel(BIT(0), WDT_RST_REG);
+	writel(bark_timeout_s, WDT_BARK_TIME_REG);
+	writel(bite_timeout_s, WDT_BITE_TIME_REG);
+	writel(BIT(0), WDT_ENABLE_REG);
+}
+#endif
+
+void lowlevel_init(void)
+{
+#ifdef CONFIG_IPQ_EARLY_WDT
+	ipq_enable_non_sec_watchdog();
+#endif
+}
 
 uint32_t ipq_get_soc_hw_version(void)
 {

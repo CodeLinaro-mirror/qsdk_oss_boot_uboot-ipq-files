@@ -553,6 +553,11 @@ config SDX_ATTACH_SUPPORT
 	imply STANDALONE_GPIO
 	default n
 
+config IPQ_EARLY_WDT
+	bool "Enable non-secure watchdog during low level init"
+	depends on WDT && WDT_QCOM
+	default y
+
 config IPQ_BOARD_DEFAULT
 	bool "Enable default config for all SoC"
 	default y
