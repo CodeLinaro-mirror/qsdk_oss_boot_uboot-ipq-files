@@ -31,6 +31,7 @@
 			#phy-cells = <0>;
 			resets =  <&gcc GCC_USB0_PHY_BCR>;
 			reset-names = "usb3_phy_rst";
+			qcom,phy-mux-regs = <0x01947540>;
 			status = "disabled";
 		};
 
@@ -44,7 +45,7 @@
 		};
 
 		usb0: usb@8af8800 {
-			compatible = "qcom,dwc3-ipq";
+			compatible = "qcom,dwc3";
 			reg = <0x8af8800 0x100>;
 			#address-cells = <1>;
 			#size-cells = <1>;
@@ -64,7 +65,6 @@
 			       <&gcc GCC_USB0_LFPS_CLK>;
 			resets = <&gcc GCC_USB_BCR>;
 			ranges;
-			qcom,phy-mux-regs = <0x01947540>;
 			qcom,quirk-ref-clk-per = <0x4004010>;
 			qcom,quirk-ref-clk-adj = <0x4945920>;
 			status = "disabled";

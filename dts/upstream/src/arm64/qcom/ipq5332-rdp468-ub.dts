@@ -23,6 +23,7 @@
 
 	soc@0{
 		ss_uniphy_0: ss_uniphy@4b0000 {
+			qcom,multiplexed-phy;
 			status = "okay";
 		};
 
@@ -31,7 +32,6 @@
 		};
 
 		usb0: usb@8af8800 {
-			qti,multiplexed-phy;
 			status = "okay";
 
 			dwc3@8a00000 {
