@@ -583,6 +583,14 @@ config IPQ_BOARD_DEFAULT
 	help
 	  This config enables default configuration support for all SoCs.
 
+config CB_CALIB
+	bool "Enable cold boot calibration"
+	depends on IPQ_PCIE
+	default n
+	help
+	  Enable starting of coldboot calibration for QCN9224 PCIe EP
+	  from U-boot.
+
 choice
 	prompt "IPQ board select"
 
@@ -622,6 +630,7 @@ config TARGET_IPQ5332
 	imply PHY if IPQ_USB
 	imply PHY_QCOM_USB_HS_M31 if IPQ_USB
 	imply PHY_QCOM_UNI_SSPHY if IPQ_USB
+	imply CB_CALIB
 	help
 	  Support for the IPQ53XX SoC.
 	  - Board Open Platform Specifications.
@@ -669,6 +678,7 @@ config TARGET_IPQ9574
 	imply PHY_QCOM_QUSB2 if IPQ_USB
 	imply PHY_QCOM_QMP_USB3 if IPQ_USB
 	imply SDX_ATTACH_SUPPORT
+	imply CB_CALIB
 	help
 	  Support for IPQ95xx SoC.
 	  - Board Open Platform Specifications.
@@ -716,6 +726,7 @@ config TARGET_IPQ5424
 	imply PHY_QCOM_QMP_USB3 if IPQ_USB
 	imply RUNTIME_SF_ENV_UPDATE if ENV_IS_IN_SPI_FLASH
 	imply SDX_ATTACH_SUPPORT
+	imply CB_CALIB
 	help
 	  Support for IPQ5424 SoC.
 	  - Board Open Platform Specifications.
