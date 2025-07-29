@@ -116,6 +116,17 @@
 			status = "okay";
 			perst-gpios = <&tlmm 29 GPIO_ACTIVE_LOW>;
 		};
+
+		sdx_rst: gpio{
+			compatible = "gpio, config";
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdx_rst_pinmux>;
+			status = "okay";
+			power_gpio = <&tlmm 40 GPIO_ACTIVE_LOW>;
+			reset_gpio = <&tlmm 47 GPIO_ACTIVE_LOW>;
+			e911_gpio = <&tlmm 43 GPIO_ACTIVE_LOW>;
+		};
+
 	};
 };
 
@@ -153,6 +164,20 @@
 			pins = "gpio36";
 			drive-strength = <8>;
 			bias-pull-up;
+		};
+	};
+
+	sdx_rst_pinmux: sdx_pins{
+		power {
+			pins = "gpio_40";
+			drive-strength = <8>;
+			bias-pull-down;
+		};
+
+		reset {
+			pins = "gpio_47";
+			drive-strength = <8>;
+			bias-pull-down;
 		};
 	};
 
