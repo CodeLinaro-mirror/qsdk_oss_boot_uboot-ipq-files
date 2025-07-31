@@ -19,9 +19,12 @@
 
 #include "clock-qcom.h"
 
+#define APCS_CLOCK_BRANCH_ENA_VOTE			0x0B004
 #define GCC_BLSP1_AHB_CBCR				0x1008
 #define	GCC_BLSP1_UART1_APPS_CMD_RCGR			0x202C
+#define	GCC_BLSP1_UART2_APPS_CMD_RCGR			0x302C
 #define GCC_BLSP1_UART1_APPS_CBCR			0x2040
+#define GCC_BLSP1_UART2_APPS_CBCR			0x3040
 #define GCC_SDCC1_APPS_CMD_RCGR				0x33004
 #define GCC_SDCC1_APPS_CBCR				0x3302C
 #define GCC_SDCC1_AHB_CBCR				0x33034
@@ -205,7 +208,11 @@ static ulong ipq5332_set_rate(struct clk *clk, ulong rate)
 	switch (clk->id) {
 	case GCC_BLSP1_UART1_APPS_CLK:
 		clk_rcg_set_rate_mnd(priv->base, GCC_BLSP1_UART1_APPS_CMD_RCGR,
-				     0, 144, 15625, CFG_CLK_SRC_GPLL0, 16);
+				     0, 36, 15625, CFG_CLK_SRC_GPLL0, 16);
+		break;
+	case GCC_BLSP1_UART2_APPS_CLK:
+		clk_rcg_set_rate_mnd(priv->base, GCC_BLSP1_UART2_APPS_CMD_RCGR,
+				     0, 36, 15625, CFG_CLK_SRC_GPLL0, 16);
 		break;
 	case GCC_BLSP1_QUP1_SPI_APPS_CLK:
 		/* QUP1 SPI APPS CLK: 50MHz */
@@ -408,6 +415,7 @@ static const struct gate_clk ipq5332_clks[] = {
 	/*UART*/
 	GATE_CLK(GCC_BLSP1_UART1_APPS_CLK,	0x2040, 0x00000001),
 	GATE_CLK(GCC_BLSP1_AHB_CLK,		0x1008, 0x00000001),
+	GATE_CLK(GCC_BLSP1_UART2_APPS_CLK,	0x3040, 0x00000001),
 	/*SDHCI*/
 	GATE_CLK(GCC_SDCC1_AHB_CLK,		0x33034, 0x00000001),
 	GATE_CLK(GCC_SDCC1_APPS_CLK,		0x3302C, 0x00000001),

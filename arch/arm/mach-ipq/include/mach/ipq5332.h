@@ -22,8 +22,6 @@ struct fuse_payload {
 /* Crashdump minimal configs */
 #define CFG_CPU_CONTEXT_DUMP_SIZE		0x1000
 #define TME_CTXT_SIZE				(300 * 1024)
-#define TLV_BUF_OFFSET				(500 * 1024) - TME_CTXT_SIZE
-#define CFG_TLV_DUMP_SIZE			(12 * 1024)
 
 #define TME_OEM_ATE_FUSE_START			0x000A00D0
 #define TME_OEM_ATE_FUSE_CNT			0x1
@@ -47,4 +45,12 @@ struct fuse_payload {
 #define TME_PRODUCT_ID_MSK			0x0000FFFF
 
 #define CRASH_DUMP_ADDR_IMEM			0x8600658
+
+#if defined(CONFIG_IPQ_MINIDUMP_VERSION_V2)
+#define TLV_BUF_OFFSET				(489 * 1024) - TME_CTXT_SIZE
+#define CFG_TLV_DUMP_SIZE			(23 * 1024)
+#else
+#define TLV_BUF_OFFSET                          (500 * 1024) - TME_CTXT_SIZE
+#define CFG_TLV_DUMP_SIZE			(12 * 1024)
+#endif /* CONFIG_IPQ_MINIDUMP_VERSION_V2 */
 #endif

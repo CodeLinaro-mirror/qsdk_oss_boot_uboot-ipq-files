@@ -7,6 +7,8 @@
 #include <mach/ipq.h>
 #include <env.h>
 #include <net.h>
+#include <asm-generic/gpio.h>
+#include <linux/delay.h>
 #ifdef CONFIG_LMB
 #include <lmb.h>
 #endif
@@ -573,9 +575,6 @@ struct spi_flash *ipq_spi_probe(void)
 	int ret;
 	struct ipq_board_info *_bdinfo = ipq_get_bdinfo();
 
-	if (_bdinfo->sf)
-		return _bdinfo->sf;
-
 	ret = spi_flash_probe_bus_cs(CONFIG_SF_DEFAULT_BUS,
 				     CONFIG_SF_DEFAULT_CS,
 				     &new);
@@ -600,13 +599,13 @@ static void ipq_update_env_offset(void)
 {
 	int i;
 	struct ipq_board_info *_bdinfo = ipq_get_bdinfo();
-	struct ipq_smem_flash_info *smem_info = &pbdinfo->smem_info;
+	struct ipq_smem_flash_info *smem_info = ipq_get_smem_info();
 
-	if (IS_ERR_OR_NULL(pbdinfo->ptable))
+	if (IS_ERR_OR_NULL(_bdinfo->ptable))
 		return;
 
-	for (i = 0; i < pbdinfo->ptable->len; i++) {
-		struct smem_ptn *p = &pbdinfo->ptable->parts[i];
+	for (i = 0; i < _bdinfo->ptable->len; i++) {
+		struct smem_ptn *p = &_bdinfo->ptable->parts[i];
 
 		if (IS_ERR_OR_NULL(p))
 			continue;
@@ -919,7 +918,7 @@ int ipq_get_current_board_flash_config(int flash_type)
 
 	if (flash_type == SMEM_BOOT_NORGPT_FLASH) {
 		BLK_PART_GET_INFO_S(bpart_info, "rootfs", &disk_info,
-					flash_type, true);
+					flash_type, false);
 
 		ret = ipq_part_get_info_by_name(&bpart_info);
 		if (ret) {
@@ -1876,7 +1875,7 @@ void ipq_update_lmb_reservation(void)
 	 */
 	for (i = 0; i < lmb_rgn_lst->count; i++) {
 		if ((rgn[i].base < CONFIG_TEXT_BASE) &&
-			((rgn[i].base + rgn[i].size + 1) > CONFIG_TEXT_BASE)) {
+			((rgn[i].base + rgn[i].size - 1) > CONFIG_TEXT_BASE)) {
 
 			rgn[i].size = ((CONFIG_TEXT_BASE + CONFIG_TEXT_SIZE +
 					SZ_1M) - rgn[i].base);
@@ -2208,7 +2207,56 @@ int ipq_init_ubi_part(void)
 }
 #endif
 
-#ifdef CONFIG_GPIO_CONFIG
+#ifdef CONFIG_STANDALONE_GPIO
+#ifdef CONFIG_SDX_ATTACH_SUPPORT
+void ipq_board_power_cycle_sdx(void)
+{
+	/*
+	 * sdx reset during crashdump path
+	 */
+	struct udevice *dev = NULL;
+	struct gpio_desc pwr_gpio;
+	struct gpio_desc rst_gpio;
+	struct gpio_desc e911_gpio;
+	int err;
+
+	uclass_get_device_by_driver(UCLASS_NOP, DM_DRIVER_GET(gpio), &dev);
+
+	if (dev == NULL) {
+		printf("%s: dev is NULL\n", __func__);
+		return;
+	}
+	err = gpio_request_by_name_nodev(dev_ofnode(dev), "power_gpio", 0,
+					&pwr_gpio, GPIOD_IS_OUT);
+	if (err) {
+		printf("%s: sdx power_gpio not found in DT!,\n", __func__);
+		return;
+	}
+
+	err = gpio_request_by_name_nodev(dev_ofnode(dev), "reset_gpio", 0,
+					&rst_gpio, GPIOD_IS_OUT);
+	if (err) {
+		printf("%s: sdx reset_gpio not found in DT!\n", __func__);
+		return;
+	}
+
+	err = gpio_request_by_name_nodev(dev_ofnode(dev), "e911_gpio", 0,
+					&e911_gpio, GPIOD_IS_IN);
+	if (err)
+		printf("%s: sdx e911_gpio not found in DT!\n", __func__);
+	else if (!err && dm_gpio_get_value(&e911_gpio)) {
+		printf("SDX on e911 call, skipping sdx reset\n");
+		return;
+	}
+
+	dm_gpio_set_value(&pwr_gpio, 1);
+	dm_gpio_set_value(&rst_gpio, 1);
+	mdelay(100);
+	dm_gpio_set_value(&pwr_gpio, 0);
+	dm_gpio_set_value(&rst_gpio, 0);
+}
+#endif
+
 /*
  * NOP driver: only for GPIO configuration
  */

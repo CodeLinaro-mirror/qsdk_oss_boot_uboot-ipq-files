@@ -460,16 +460,18 @@ int board_fit_config_name_match(const char *name)
 {
 	struct multidtb_config *dtb = g_board_dtb_info;
 	char *suffix = strstr(name, DTS_SUFFIX);
-	size_t len;
+	size_t len, base_len = strlen(dtb->dts_base);
 
 	if (suffix)
 		len = suffix - name;
 	else
 		len = strlen(name);
 
-	if (!strncmp(name, dtb->dts_base, len)) {
-		printf("Booting %s\n", dtb->dts_name);
-		return 0;
+	if (len == base_len) {
+		if (!strncmp(name, dtb->dts_base, len)) {
+			printf("Booting %s\n", dtb->dts_name);
+			return 0;
+		}
 	}
 
 	return -1;

@@ -749,10 +749,11 @@ get_img_config:
 		}
 	}
 
-	printf("%s Configuration not available in image\n", config);
+	printf("%s Configuration not available in image\n",
+		config ? config : g_config);
 
 	printf("Please upgrade the image with %s supported device tree\n",
-		config);
+		config ? config : g_config);
 
 	return -1;
 exit:

@@ -21,9 +21,20 @@
 
 #include "clock-qcom.h"
 
+#define APCS_CLOCK_BRANCH_ENA_VOTE		0x0B004
 #define GCC_BLSP1_AHB_CBCR			0x1004
+#define	GCC_BLSP1_UART1_APPS_CMD_RCGR		0x202C
+#define	GCC_BLSP1_UART2_APPS_CMD_RCGR		0x302C
 #define	GCC_BLSP1_UART3_APPS_CMD_RCGR		0x402C
+#define	GCC_BLSP1_UART4_APPS_CMD_RCGR		0x502C
+#define	GCC_BLSP1_UART5_APPS_CMD_RCGR		0x602C
+#define	GCC_BLSP1_UART6_APPS_CMD_RCGR		0x702C
+#define GCC_BLSP1_UART1_APPS_CBCR		0x2054
+#define GCC_BLSP1_UART2_APPS_CBCR		0x3054
 #define GCC_BLSP1_UART3_APPS_CBCR		0x4054
+#define GCC_BLSP1_UART4_APPS_CBCR		0x5054
+#define GCC_BLSP1_UART5_APPS_CBCR		0x6054
+#define GCC_BLSP1_UART6_APPS_CBCR		0x7054
 #define GCC_SDCC1_APPS_CMD_RCGR			0x33004
 #define GCC_SDCC1_APPS_CBCR			0x3302C
 #define GCC_SDCC1_AHB_CBCR			0x33034
@@ -256,9 +267,35 @@ static ulong ipq9574_set_rate(struct clk *clk, ulong rate)
 	struct clk *pclk = NULL;
 
 	switch (clk->id) {
+	case GCC_BLSP1_UART1_APPS_CLK:
+		/* UART: 115200 */
+		clk_rcg_set_rate_mnd(priv->base, GCC_BLSP1_UART1_APPS_CMD_RCGR,
+				     0, 36, 15625, CFG_CLK_SRC_GPLL0, 16);
+		break;
+	case GCC_BLSP1_UART2_APPS_CLK:
+		/* UART: 115200 */
+		clk_rcg_set_rate_mnd(priv->base, GCC_BLSP1_UART2_APPS_CMD_RCGR,
+				     0, 36, 15625, CFG_CLK_SRC_GPLL0, 16);
+		break;
 	case GCC_BLSP1_UART3_APPS_CLK:
+		/* UART: 115200 */
 		clk_rcg_set_rate_mnd(priv->base, GCC_BLSP1_UART3_APPS_CMD_RCGR,
-				     0, 144, 15625, CFG_CLK_SRC_GPLL0, 16);
+				     0, 36, 15625, CFG_CLK_SRC_GPLL0, 16);
+		break;
+	case GCC_BLSP1_UART4_APPS_CLK:
+		/* UART: 115200 */
+		clk_rcg_set_rate_mnd(priv->base, GCC_BLSP1_UART4_APPS_CMD_RCGR,
+				     0, 36, 15625, CFG_CLK_SRC_GPLL0, 16);
+		break;
+	case GCC_BLSP1_UART5_APPS_CLK:
+		/* UART: 115200 */
+		clk_rcg_set_rate_mnd(priv->base, GCC_BLSP1_UART5_APPS_CMD_RCGR,
+				     0, 36, 15625, CFG_CLK_SRC_GPLL0, 16);
+		break;
+	case GCC_BLSP1_UART6_APPS_CLK:
+		/* UART: 115200 */
+		clk_rcg_set_rate_mnd(priv->base, GCC_BLSP1_UART6_APPS_CMD_RCGR,
+				     0, 36, 15625, CFG_CLK_SRC_GPLL0, 16);
 		break;
 	case GCC_SDCC1_APPS_CLK:
 		clk_rcg_set_rate_mnd(priv->base, GCC_SDCC1_APPS_CMD_RCGR,
@@ -630,7 +667,12 @@ static ulong ipq9574_set_rate(struct clk *clk, ulong rate)
 
 static const struct gate_clk ipq9574_clks[] = {
 	/*UART*/
+	GATE_CLK(GCC_BLSP1_UART1_APPS_CLK,	0x02040, 0x00000001),
+	GATE_CLK(GCC_BLSP1_UART2_APPS_CLK,	0x03040, 0x00000001),
 	GATE_CLK(GCC_BLSP1_UART3_APPS_CLK,	0x04054, 0x00000001),
+	GATE_CLK(GCC_BLSP1_UART4_APPS_CLK,	0x05040, 0x00000001),
+	GATE_CLK(GCC_BLSP1_UART5_APPS_CLK,	0x06040, 0x00000001),
+	GATE_CLK(GCC_BLSP1_UART6_APPS_CLK,	0x07040, 0x00000001),
 	GATE_CLK(GCC_BLSP1_AHB_CLK,		0x01004, 0x00000001),
 	/*MMC*/
 	GATE_CLK(GCC_SDCC1_AHB_CLK,		0x33034, 0x00000001),

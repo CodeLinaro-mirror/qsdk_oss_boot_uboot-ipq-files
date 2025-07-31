@@ -107,14 +107,14 @@
 		mdc {
 			pins = "gpio27";
 			function = "mdc1";
-			drive-strength = <8>;
+			drive-strength = <2>;
 			bias-disable;
 		};
 
 		mdio {
 			pins = "gpio28";
 			function = "mdio1";
-			drive-strength = <8>;
+			drive-strength = <2>;
 			bias-pull-up;
 		};
 	};
@@ -141,11 +141,32 @@
 		output-low;
 	};
 
+	blsp1_i2c1_pinmux: blsp1_i2c1_pins {
+		blsp1_scl {
+			pins = "gpio29";
+			function = "blsp1_i2c0";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+
+		blsp1_sda {
+			pins = "gpio30";
+			function = "blsp1_i2c0";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+	};
 };
 
 &pcie1 {
 	pinctrl-0 = <&pcie1_default_state>;
 	pinctrl-names = "default";
 	perst-gpios = <&tlmm 47 GPIO_ACTIVE_LOW>;
+	status = "okay";
+};
+
+&blsp1_i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&blsp1_i2c1_pinmux>;
 	status = "okay";
 };

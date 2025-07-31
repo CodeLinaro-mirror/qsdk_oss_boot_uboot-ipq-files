@@ -668,18 +668,15 @@ static void ipq_fdt_fixup_qti_nand(void *blob)
 	}
 
 	training_offset = (loff_t)offset;
-#ifdef LINUX_6_x_NAND_DTS_NODE
-	if (fdt_path_offset(blob, LINUX_6_x_NAND_DTS_NODE) > 0)
+
+	if (fdt_path_offset(blob, "/soc@0/nand@79b0000/") > 0)
 		snprintf(fixup_cfg, sizeof(fixup_cfg), "%s%s%lld",
-				LINUX_6_x_NAND_DTS_NODE,
+				"/soc@0/nand@79b0000/",
 				"%qcom,training_offset%", training_offset);
-#endif
-#ifdef LINUX_5_4_NAND_DTS_NODE
-	if (fdt_path_offset(blob, LINUX_5_4_NAND_DTS_NODE) > 0)
+	else if (fdt_path_offset(blob, "/soc/nand@79b0000/") > 0)
 		snprintf(fixup_cfg, sizeof(fixup_cfg), "%s%s%lld",
-				LINUX_5_4_NAND_DTS_NODE,
+				"/soc/nand@79b0000/",
 				"%qcom,training_offset%", training_offset);
-#endif
 
 	if (fixup_cfg[0] != 0)
 		parse_fdt_fixup(fixup_cfg, blob);

@@ -107,6 +107,12 @@ config SYS_BOOTM_LEN
 	  This is the maximum size of the buffer that is used to decompress the OS
 	  image in to if attempting to boot a compressed image.
 
+config RUNTIME_SF_ENV_UPDATE
+	bool "ENV update in GPT based nor flash"
+	default n
+	help
+	  This config helps to override the env offset given in defconfig
+
 config IPQ_NAND
 	bool "Enable NAND flash support in IPQ SOC"
 	select MTD
@@ -469,6 +475,14 @@ config IPQ_CRASHDUMP_TO_EMMC
 	imply CMD_EXT4_WRITE
 	default n
 
+config IPQ_MINIDUMP_VERSION_V2
+	bool "Enable Minidump Version 2 with Crash-Type-Based Dumping"
+	depends on IPQ_CRASHDUMP && IPQ_MINIDUMP
+	default n
+	help
+	   Enable support for Minidump Version 2, which allows selective
+	   dumping of segments based on the crash type
+
 config IPQ_PCIE
 	bool "Enable PCIE support in IPQ SOC"
 	select PCI
@@ -529,6 +543,15 @@ config BASE_CPU_64BIT_BOOTUP
 	bool "Base CPU 64-bit boot up"
 	default n
 
+config STANDALONE_GPIO
+	bool "NOP driver for pincntrl configuration"
+	default n
+
+config SDX_ATTACH_SUPPORT
+	bool "enable SDX support"
+	imply STANDALONE_GPIO
+	default n
+
 config IPQ_BOARD_DEFAULT
 	bool "Enable default config for all SoC"
 	default y
@@ -552,6 +575,7 @@ config IPQ_BOARD_DEFAULT
 	imply IPQ_CRASHDUMP_TO_NVMEMORY
 	imply IPQ_CRASHDUMP_TO_FLASH
 	imply IPQ_CRASHDUMP_TO_EMMC
+	imply IPQ_MINIDUMP_VERSION_V2
 	imply LZMA
 	imply WDT
 	imply WDT_QCOM
@@ -643,6 +667,7 @@ config TARGET_IPQ9574
 	imply PHY if IPQ_USB
 	imply PHY_QCOM_QUSB2 if IPQ_USB
 	imply PHY_QCOM_QMP_USB3 if IPQ_USB
+	imply SDX_ATTACH_SUPPORT
 	help
 	  Support for IPQ95xx SoC.
 	  - Board Open Platform Specifications.
@@ -688,6 +713,8 @@ config TARGET_IPQ5424
 	imply PHY if IPQ_USB
 	imply PHY_QCOM_QUSB2 if IPQ_USB
 	imply PHY_QCOM_QMP_USB3 if IPQ_USB
+	imply RUNTIME_SF_ENV_UPDATE if ENV_IS_IN_SPI_FLASH
+	imply SDX_ATTACH_SUPPORT
 	help
 	  Support for IPQ5424 SoC.
 	  - Board Open Platform Specifications.
