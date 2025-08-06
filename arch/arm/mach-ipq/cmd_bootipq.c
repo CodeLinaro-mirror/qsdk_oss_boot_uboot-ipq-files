@@ -30,6 +30,10 @@
 #ifdef CONFIG_MMC
 #include <mmc.h>
 #endif
+#ifdef CONFIG_IPQ_TMEL_IPC_SUPPORT
+#include <mailbox.h>
+#include <linux/tmelcom-qmp.h>
+#endif
 
 /******************************************************************
  * Globals constant & typedef
@@ -1024,13 +1028,28 @@ int ipq_check_rootfs_authentication(void)
 int image_authentication(void)
 {
 	int ret;
-	struct scm_param param;
 	struct kernel_img_info kernel_img_info = {0, 0, 0};
 #ifdef CONFIG_VERSION_ROLLBACK_PARTITION_INFO
 	int active_part = (boot_info.active_bank == 1) ?
 				SECONDARY_PARTITION : PRIMARY_PARTITION;
 #endif
 	int secure_boot = is_board_support_image_auth();
+#ifndef CONFIG_IPQ_TMEL_IPC_SUPPORT
+	struct scm_param param;
+#else
+	struct tmelcom *tmelcom_priv;
+	struct udevice *tmelcom_udev;
+	struct tmel_qmp_msg tmsg;
+	struct tmel_sec_auth smsg;
+
+	ret = uclass_get_device_by_name(UCLASS_MISC, "qcom,tmelcom",
+					&tmelcom_udev);
+	if (ret) {
+		printf("Failed to find TMELCOM node %d\n", ret);
+		return CMD_RET_FAILURE;
+	}
+	tmelcom_priv = dev_get_priv(tmelcom_udev);
+#endif
 
 	boot_info.stage = BOOT_STAGE_AUTH;
 
@@ -1072,12 +1091,22 @@ int image_authentication(void)
 
 	do {
 		ret = -ENOTSUPP;
+#ifdef CONFIG_IPQ_TMEL_IPC_SUPPORT
+		smsg.pas_id = KERNEL_SEC_AUTH_SW_ID;
+		smsg.data = (void *)(uintptr_t)kernel_img_info.kernel_load_addr;
+		smsg.size = kernel_img_info.kernel_meta_data_size;
+
+		tmsg.msg_id = TMEL_MSG_UID_SECBOOT_SEC_AUTH;
+		tmsg.msg = &smsg;
+
+		ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
+#else
 		IPQ_SCM_AUTHENTICATE_KERNEL(param,
 					kernel_img_info.kernel_load_addr,
 					kernel_img_info.kernel_meta_data_size,
 					KERNEL_SEC_AUTH_SW_ID, 0, 0);
-
 		ret = ipq_scm_call(&param);
+#endif
 	} while (0);
 
 #ifdef CONFIG_VERSION_ROLLBACK_PARTITION_INFO

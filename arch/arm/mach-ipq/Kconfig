@@ -255,6 +255,14 @@ config SOC_HW_VERSION_REG
 	help
 	  This config defines the SoC HW version register.
 
+config SHARED_IPC_INTERRUPT_REG
+	hex "Shared IPC interrupt register"
+	default 0xF40000C if TARGET_IPQ5424
+	default 0xB111008 if TARGET_IPQ5200
+	default 0
+	help
+	  This config defines the Shared IPC interrupt register.
+
 config ETH_MAX_MAC
 	hex "Define Maximum MAC support in SoC"
 	default 2 if TARGET_IPQ5332
@@ -573,6 +581,13 @@ config IPQ_EARLY_WDT
 	depends on WDT && WDT_QCOM
 	default y
 
+config IPQ_TMEL_IPC_SUPPORT
+	bool "Enable TMEL IPC Support"
+	select DM_MAILBOX
+	select QCOM_TMEL_QMP
+	select QCOM_TMELCOM
+	default n
+
 config IPQ_BOARD_DEFAULT
 	bool "Enable default config for all SoC"
 	default y
@@ -769,6 +784,9 @@ config TARGET_IPQ5200
 	imply IPQ_I2C
 	imply IPQ_PCIE
 	imply ARMV8_SWITCH_TO_EL1
+	imply LIST_FUSE
+	imply IPQ_TMEL_IPC_SUPPORT
+	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
 
 	help
 	  Support for IPQ5200 SoC.

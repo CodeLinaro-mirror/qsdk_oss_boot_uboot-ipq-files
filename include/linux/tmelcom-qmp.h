@@ -1,0 +1,128 @@
+/* SPDX-License-Identifier: GPL-2.0+ */
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+#ifndef _LINUX_TMELCOM_QMP_H
+#define _LINUX_TMELCOM_QMP_H
+#include <linux/bitfield.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/*
+ * Macro used to define unique TMEL Message Identifier based on
+ * message type and action identifier.
+ */
+#define MSGTYPE_MASK GENMASK(15, 8)
+#define ACTIONID_MASK GENMASK(7, 0)
+
+#define TMEL_MSG_UID_CREATE(m, a) ((u32)((((m) & 0xff) << 8) | ((a) & 0xff)))
+
+#define TMEL_ACTION_LOOPBACK_TEST_MBOX_ADD_VAL                  0x01
+#define TMEL_MSG_LOOPBACK_TEST           0xFF
+/*
+ * Helper macro to extract the messageType from TMEL_MSG_UID
+ */
+#define TMEL_MSG_UID_MSG_TYPE(v)	FIELD_GET(MSGTYPE_MASK, v)
+
+/*
+ * Helper macro to extract the actionID from TMEL_MSG_UID
+ */
+#define TMEL_MSG_UID_ACTION_ID(v)	FIELD_GET(ACTIONID_MASK, v)
+
+/*
+ * All definitions of supported messageTypes.
+ */
+#define TMEL_MSG_SECBOOT	0x00
+#define TMEL_MSG_FUSE           0x03
+
+/*
+ * Action IDs for TMEL_MSG_SECBOOT
+ */
+#define TMEL_ACTION_SECBOOT_SEC_AUTH		0x04
+#define TMEL_ACTION_SECBOOT_SS_TEAR_DOWN	0x0a
+
+/*
+ *   Action ID's for TMEL_MSG_FUSE
+ */
+#define TMEL_ACTION_FUSE_READ_SINGLE                     0x00    /* Deprecated */
+#define TMEL_ACTION_FUSE_READ_MULTIPLE                   0x01    /* Deprecated */
+#define TMEL_ACTION_FUSE_WRITE_SINGLE                    0x02    /* Deprecated */
+#define TMEL_ACTION_FUSE_WRITE_MULTIPLE                  0x03    /* Deprecated */
+#define TMEL_ACTION_FUSE_WRITE_SECURE                    0x04    /* Deprecated */
+#define TMEL_ACTION_FUSE_READ_SINGLE_ROW                 0x05
+#define TMEL_ACTION_FUSE_READ_MULTIPLE_ROW               0x06
+#define TMEL_ACTION_FUSE_WRITE_SINGLE_ROW                0x07
+#define TMEL_ACTION_FUSE_WRITE_MULTIPLE_ROW              0x08
+#define TMEL_ACTION_FUSE_ROM_PATCH_REQ                   0x09
+
+/*
+ * UIDs for TMEL_MSG_SECBOOT
+ */
+#define TMEL_MSG_UID_SECBOOT_SEC_AUTH	TMEL_MSG_UID_CREATE(TMEL_MSG_SECBOOT,\
+					TMEL_ACTION_SECBOOT_SEC_AUTH)
+
+#define TMEL_MSG_UID_SECBOOT_SS_TEAR_DOWN	TMEL_MSG_UID_CREATE(TMEL_MSG_SECBOOT,\
+						TMEL_ACTION_SECBOOT_SS_TEAR_DOWN)
+
+#define TMEL_MSG_UID_LOOPBACK_TEST_MBOX_ADD_VAL	TMEL_MSG_UID_CREATE(TMEL_MSG_LOOPBACK_TEST,\
+						TMEL_ACTION_LOOPBACK_TEST_MBOX_ADD_VAL)
+
+/*
+ * Read multiple fuses
+ */
+#define TMEL_MSG_UID_FUSE_READ_MULTIPLE_ROW	TMEL_MSG_UID_CREATE(TMEL_MSG_FUSE,\
+						TMEL_ACTION_FUSE_READ_MULTIPLE_ROW)
+
+#define TMEL_MAX_FUSE_ADDR_SIZE 8
+
+struct tmel_qmp_msg {
+	void *msg;
+	u32 msg_id;
+	size_t size;
+};
+
+struct tmel_sec_auth {
+	void *data;
+	u32 size;
+	u32 pas_id;
+};
+
+struct tmel_add_val {
+	u32 val1;
+	u32 val2;
+};
+
+struct tmel_msg_param_type_buf_in {
+	u32 buf;
+	u32 buf_len;
+};
+
+struct tmel_msg_param_type_buf_out {
+	u32 buf;
+	u32 buf_len;
+	u32 out_buf_len;
+};
+
+struct tmel_msg_param_type_buf_in_out {
+	u32 buf;
+	u32 buf_len;
+	u32 out_buf_len;
+};
+
+struct tmel_fuse_payload {
+	u32 fuse_addr;
+	u32 lsb_val;
+	u32 msb_val;
+} __packed;
+
+struct tmel_fuse_read_multiple_msg {
+	u32 status;
+	struct tmel_msg_param_type_buf_in_out fuse_read_data;
+} __packed;
+
+struct tmelcom {
+	struct mbox_chan mbox;
+};
+
+void tmel_secboot_sec_free(void *ptr);
+
+#endif  /* _LINUX_TMELCOM_QMP_H */

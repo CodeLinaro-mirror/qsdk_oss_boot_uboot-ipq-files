@@ -33,6 +33,10 @@
 #include <ubi_uboot.h>
 #include <ubifs_uboot.h>
 #endif
+#ifdef CONFIG_IPQ_TMEL_IPC_SUPPORT
+#include <mailbox.h>
+#include <linux/tmelcom-qmp.h>
+#endif
 
 #ifdef CONFIG_MMC
 #include <mmc.h>
@@ -810,10 +814,25 @@ static int do_list_fuse(struct cmd_tbl *cmdtp, int flag, int argc,
 	int ret;
 	int index = 0;
 	struct fuse_payload *fuse = NULL;
-	struct scm_param param;
 	uint8_t fuse_read_cnt = TME_OEM_ATE_FUSE_CNT +
 				TME_OEM_MRC_HASH_FUSE_CNT;
 	size_t size = sizeof(struct fuse_payload) * fuse_read_cnt;
+
+#ifdef CONFIG_SCM
+	struct scm_param param;
+#elif CONFIG_IPQ_TMEL_IPC_SUPPORT
+	struct tmelcom *tmelcom_priv;
+	struct udevice *tmelcom_udev;
+	struct tmel_qmp_msg tmsg;
+
+	ret = uclass_get_device_by_name(UCLASS_MISC, "qcom,tmelcom",
+					&tmelcom_udev);
+	if (ret) {
+		printf("Failed to find TMELCOM node %d\n", ret);
+		return CMD_RET_FAILURE;
+	}
+	tmelcom_priv = dev_get_priv(tmelcom_udev);
+#endif
 
 	size = roundup(size, CONFIG_SYS_CACHELINE_SIZE);
 
@@ -838,6 +857,16 @@ static int do_list_fuse(struct cmd_tbl *cmdtp, int flag, int argc,
 	/* invalidate cache to update latest value in buff */
 	do {
 		ret = -ENOTSUPP;
+#ifdef CONFIG_IPQ_TMEL_IPC_SUPPORT
+		tmsg.msg = (void *)fuse;
+		tmsg.size = sizeof(struct fuse_payload) * fuse_read_cnt;
+		tmsg.msg_id = TMEL_MSG_UID_FUSE_READ_MULTIPLE_ROW;
+
+		flush_dcache_range((unsigned long)fuse,
+				   (unsigned long)fuse +
+					size);
+		ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
+#elif CONFIG_SCM
 		IPQ_SCM_READ_FUSE(param, (unsigned long)fuse,
 			sizeof(struct fuse_payload) * fuse_read_cnt);
 
@@ -845,7 +874,7 @@ static int do_list_fuse(struct cmd_tbl *cmdtp, int flag, int argc,
 					(unsigned long)fuse +
 					size);
 		ret = ipq_scm_call(&param);
-
+#endif
 		if (ret) {
 			printf("Error (%d) failed to read fuse\n", ret);
 			ret = CMD_RET_FAILURE;

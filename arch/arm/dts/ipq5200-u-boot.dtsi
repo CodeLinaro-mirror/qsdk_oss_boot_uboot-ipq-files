@@ -10,6 +10,7 @@
 / {
 	#address-cells = <2>;
 	#size-cells = <2>;
+	interrupt-parent = <&intc>;
 
 	chosen {
 		stdout-path = "serial0:115200n8";
@@ -58,6 +59,61 @@
 				drive-strength = <8>;
 				bias-pull-up;
 			};
+		};
+
+		intc: interrupt-controller@b000000 {
+			compatible = "qcom,msm-qgic2";
+			interrupt-controller;
+			#interrupt-cells = <3>;
+			reg = <0 0xb000000 0 0x1000>,  /*GICD*/
+				<0 0xb002000 0 0x1000>,  /*GICC*/
+				<0 0xb001000 0 0x1000>,  /*GICH*/
+				<0 0xb004000 0 0x1000>;  /*GICV*/
+			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges = <0 0x0b00c000 0x3000>;
+
+			v2m0: v2m@0 {
+				compatible = "arm,gic-v2m-frame";
+				reg = <0x00000000 0xffd>;
+				msi-controller;
+			};
+
+			v2m1: v2m@1000 {
+				compatible = "arm,gic-v2m-frame";
+				reg = <0x00001000 0xffd>;
+				msi-controller;
+			};
+
+			v2m2: v2m@2000 {
+				compatible = "arm,gic-v2m-frame";
+				reg = <0x00002000 0xffd>;
+				msi-controller;
+			};
+		};
+
+		tmel_qmp: tmel-qmp@32090000 {
+			compatible = "qcom,tmel-qmp-mbox";
+			reg = <0x0 0x32090000 0x0 0x20>,
+			      <0x0 0x32091000 0x0 0x20>;
+			reg-names = "mcore", "ucore";
+
+			interrupts = <GIC_SPI 73 IRQ_TYPE_EDGE_RISING>;
+			max_pkt_size = <0x18>;
+
+			#mbox-cells = <0>;
+			status = "disabled";
+		};
+
+		tmelcom: qcom,tmelcom {
+			compatible = "qcom,tmelcom";
+			mboxes = <&tmel_qmp>;
+			mbox-names = "tmel-qmp-mbox";
+			#clock-cells = <1>;
+			#power-domain-cells = <1>;
+			#reset-cells = <1>;
+			status = "disabled";
 		};
 
 		gcc: clock-controller@1800000 {

@@ -26,6 +26,11 @@
 #include <gzip.h>
 #endif
 
+#ifdef CONFIG_IPQ_TMEL_IPC_SUPPORT
+#include <mailbox.h>
+#include <linux/tmelcom-qmp.h>
+#endif
+
 /***********************************************************************
  * Global and constant
  **********************************************************************/
@@ -1167,7 +1172,6 @@ static bool is_secure_boot_v1(void)
 #elif CONFIG_SCM_V2
 static bool is_secure_boot_v2(void)
 {
-	struct scm_param param;
 	int ret = -1;
 	struct fuse_payload {
 		u32 fuse_addr;
@@ -1177,6 +1181,21 @@ static bool is_secure_boot_v2(void)
 	struct fuse_payload *fuse = NULL;
 	size_t size = sizeof(struct fuse_payload);
 	bool status = false;
+#ifdef CONFIG_SCM
+	struct scm_param param;
+#elif CONFIG_IPQ_TMEL_IPC_SUPPORT
+	struct tmelcom *tmelcom_priv;
+	struct udevice *tmelcom_udev;
+	struct tmel_qmp_msg tmsg;
+
+	ret = uclass_get_device_by_name(UCLASS_MISC, "qcom,tmelcom",
+					&tmelcom_udev);
+	if (ret) {
+		printf("Failed to find TMELCOM node %d\n", ret);
+		return CMD_RET_FAILURE;
+	}
+	tmelcom_priv = dev_get_priv(tmelcom_udev);
+#endif
 
 	size = roundup(size, CONFIG_SYS_CACHELINE_SIZE);
 
@@ -1190,13 +1209,22 @@ static bool is_secure_boot_v2(void)
 
 	do {
 		ret = -ENOTSUPP;
+#ifdef CONFIG_IPQ_TMEL_IPC_SUPPORT
+		tmsg.msg = (void *)fuse;
+		tmsg.size = sizeof(struct fuse_payload);
+		tmsg.msg_id = TMEL_MSG_UID_FUSE_READ_MULTIPLE_ROW;
+
+		flush_dcache_range((unsigned long)fuse,
+				   (unsigned long)fuse + size);
+		ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
+#elif CONFIG_SCM
 		IPQ_SCM_READ_FUSE(param, (unsigned long)fuse,
 					sizeof(struct fuse_payload));
 		/* invalidate cache to update latest value in buff */
 		flush_dcache_range((unsigned long)fuse,
 					(unsigned long)fuse + size);
 		ret = ipq_scm_call(&param);
-
+#endif
 		if (ret) {
 			ret = -1;
 			break;
