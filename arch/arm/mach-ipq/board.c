@@ -513,10 +513,17 @@ void setup_arch_cntfreq(void)
 }
 #endif
 
+#if defined(CONFIG_SPL)
+int fdtdec_board_setup(const void *fdt_blob)
+{
+	return 0;
+}
+#else
 int fdtdec_board_setup(const void *fdt_blob)
 {
 	return ipq_uboot_fdt_fixup((void*)fdt_blob, UBOOT_FIXUP_SMEM);
 }
+#endif
 
 #ifdef CONFIG_OF_BOARD_FIXUP
 int board_fix_fdt(void *rw_fdt_blob)
