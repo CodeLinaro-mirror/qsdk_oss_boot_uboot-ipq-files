@@ -10,6 +10,12 @@
 #include <linux/types.h>
 #include <linux/sizes.h>
 extern uint32_t g_board_machid;
+extern uint32_t g_env_offset;
+#endif
+
+#if defined(CONFIG_ENV_IS_IN_SPI_FLASH) && defined(CONFIG_ENV_OFFSET) && defined(CONFIG_RUNTIME_SF_ENV_UPDATE)
+#undef CONFIG_ENV_OFFSET
+#define CONFIG_ENV_OFFSET       g_env_offset
 #endif
 
 #define CONFIG_HAS_CUSTOM_SYS_INIT_SP_ADDR

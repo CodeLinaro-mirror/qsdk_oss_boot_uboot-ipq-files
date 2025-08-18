@@ -532,9 +532,9 @@
 		status = "okay";
 	};
 
-	spi0: spi@1a90000 {
+	spi0: spi@1a80000 {
 		compatible = "qcom-ipq5200-geni-spi";
-		reg = <0 0x1a90000 0 0x4000>;
+		reg = <0 0x1a80000 0 0x4000>;
 		reg-names = "se_phys";
 		clocks = <&gcc GCC_QUPV3_SPI0_CLK>;
 		clock-names = "se-spi-clk";
@@ -557,7 +557,7 @@
 
 	spi0_fw: spi_firmware@0 {
 		compatible = "qcom-ipq5424-spi-geni-fw";
-		reg = <0 0x1a90000 0 0x4000>;
+		reg = <0 0x1a80000 0 0x4000>;
 		reg-names = "se_phys";
 	};
 
