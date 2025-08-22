@@ -13,6 +13,8 @@
 #include <mtd_node.h>
 
 #define IM_SLEEP_CLK				0x1834020
+#define GCC_GPLL0_USER_CTL                      0x1820018
+#define PLLOUT_LV_AUX_EN                        (BIT(1)|BIT(2))
 #define MACH_TYPE_IPQ5424_RDP464_C2		0x8070000
 #define MACH_TYPE_IPQ5424_RDP464		0x8070001
 #define MACH_TYPE_IPQ5424_RDP466_C2		0x8070100
@@ -316,6 +318,12 @@ void ipq_board_early_init_f(void)
 	 * This clk require for Block control reset
 	 */
 	writel((readl(IM_SLEEP_CLK) | BIT(0)), IM_SLEEP_CLK);
+
+	/*
+	 * enable gpll0 aux clock
+	 */
+	writel(readl(GCC_GPLL0_USER_CTL) | PLLOUT_LV_AUX_EN,
+	       GCC_GPLL0_USER_CTL);
 }
 
 bool is_atf_enbled(void)

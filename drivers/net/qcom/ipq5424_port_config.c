@@ -5,8 +5,6 @@
 
 #include "nss-switch.h"
 
-#define GCC_GPLL0_USER_CTL                      0x1820018
-#define PLLOUT_LV_AUX_EN                        (BIT(1)|BIT(2))
 #define PLL_POWER_ON_AND_RESET                  0x9B780
 #define PLL_REFERENCE_CLOCK                     0x9B784
 #define FREQUENCY_MASK                          0xfffffdf0
@@ -242,10 +240,4 @@ void ipq_config_cmn_clock(void)
 	reg_val |= BIT(6);
 	writel(reg_val, PLL_POWER_ON_AND_RESET);
 	mdelay(1);
-
-	/*
-	 * enable gpll0 aux clock
-	 */
-	reg_val = readl(GCC_GPLL0_USER_CTL);
-	writel(reg_val | PLLOUT_LV_AUX_EN, GCC_GPLL0_USER_CTL);
 }
