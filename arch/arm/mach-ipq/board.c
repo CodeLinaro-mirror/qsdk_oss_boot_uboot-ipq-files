@@ -297,6 +297,7 @@ int dram_init(void)
 	return 0;
 }
 
+#if !defined(CONFIG_SPL)
 int dram_init_banksize(void)
 {
 	int i, j;
@@ -323,6 +324,7 @@ int dram_init_banksize(void)
 
 	return 0;
 }
+#endif /* CONFIG_SPL */
 
 int ft_board_setup(void *blob, struct bd_info __maybe_unused *bd)
 {
@@ -455,6 +457,35 @@ int embedded_dtb_select(void)
 }
 #endif /* CONFIG_DTB_RESELECT */
 
+#if defined(CONFIG_SPL)
+int board_fit_config_name_match(const char *name)
+{
+	/*
+	 * SPL loads the pre-HLOS images from bootldr FIT image
+	 * as below
+	 *
+	 * In borad_init_f() - Matches "pre-ddr" configuration node and
+	 * load the images mentioned in its <loadables>
+	 *
+	 * In borad_init_r() - Matches "post-ddr" configuration node and
+	 * load the images mentioned in its <loadables>
+	 *
+	 */
+	if (!(gd->flags & GD_FLG_SPL_INIT)) {
+		if (!strcmp(name, "pre-ddr")) {
+			printf("Selected FIT Config: %s\n", name);
+			return 0;
+		}
+	} else {
+		if (!strcmp(name, "post-ddr")) {
+			printf("Selected FIT Config: %s\n", name);
+			return 0;
+		}
+	}
+
+	return -EINVAL;
+}
+#else
 #ifdef CONFIG_MULTI_DTB_FIT
 int board_fit_config_name_match(const char *name)
 {
@@ -477,6 +508,7 @@ int board_fit_config_name_match(const char *name)
 	return -1;
 }
 #endif /* CONFIG_MULTI_DTB_FIT */
+#endif /* CONFIG_SPL */
 
 /*
  * Flush range from all levels of d-cache/unified-cache.

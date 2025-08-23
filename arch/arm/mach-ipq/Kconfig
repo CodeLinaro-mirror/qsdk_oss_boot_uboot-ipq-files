@@ -380,6 +380,15 @@ config IPQ_ELF_AUTH
 	   This configuration option enables the authentication method via
 	   elf based.
 
+config IPQ_SPL_LOAD_ELF_IMG
+	bool "IPQSOC SPL elf image load support"
+	default n
+	help
+	  The IPQ_SPL_LOAD_ELF_IMG enables support for loading ELF images during
+	  the Secondary Program Loader (SPL) stage on Qualcomm IPQ platforms.
+	  When this option is selected, the SPL is capable of parsing and
+	  loading ELF-formatted binaries, which are commonly used for bootloaders.
+
 config VERSION_ROLLBACK_PARTITION_INFO
 	bool "IPSOC Anti roll-back support"
 	default n
