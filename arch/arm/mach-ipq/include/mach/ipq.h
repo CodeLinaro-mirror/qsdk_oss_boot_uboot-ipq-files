@@ -157,6 +157,7 @@
 #define QCN9224_TCSR_SOC_HW_VERSION_MASK		GENMASK(11,8)
 #define QCN9224_TCSR_SOC_HW_VERSION_SHIFT		8
 #define PCIE_SOC_GLOBAL_RESET_VALUE			0x5
+#define PCIE_SOC_GLOBAL_RESET_FORCE_RESET_VALUE		0x1
 #define MAX_SOC_GLOBAL_RESET_WAIT_CNT			50 /* x 20msec */
 
 #define QCN9224_TCSR_PBL_LOGGING_REG			0x01B00094
@@ -194,11 +195,17 @@
 #define BHI_ERRDBG3					(0x13C)
 #define BHI_IMGTXDB					(0x118)
 #define BHI_EXECENV					(0x128)
+#define PCIE_LOCAL_RSV0					(0x3164)
 
 #define MHICTRL_RESET_MASK				(0x2)
 #define BHI_STATUS_MASK					(0xC0000000)
 #define BHI_STATUS_SHIFT				(30)
 #define BHI_STATUS_SUCCESS				(2)
+
+#define BHI_EE_PBL					0
+#define BHI_EE_SBL					1
+
+#define MAX_CALDATA_SIZE				0x30000
 
 #define NO_MASK						(0xFFFFFFFF)
 
@@ -373,6 +380,86 @@ struct crashdump_infos{
 
 extern struct crashdump_infos *board_dumpinfo;
 extern uint8_t *board_dump_entries;
+
+#ifdef CONFIG_CB_CALIB
+enum image_type {
+	CAL_FW,
+	BDF,
+	CALDATA,
+	RXGAIN,
+	REGDB,
+	FW_INI_CFG,
+	MAX_IMG_TYPE,
+};
+
+struct image {
+	u32 img_type;
+	u32 img_host_addr;
+	u32 img_sram_addr;
+	u32 img_size;
+} __packed;
+
+struct uboot_cal_tlv {
+	u32 magic;
+	u32 pci_slot;
+	u32 caldb_addr;
+	u32 caldb_size;
+	u32 hremote_addr;
+	u32 hremote_size;
+	u32 host_ddr_status;
+	u32 rddm_addr;
+	u32 rddm_size;
+	u32 num_images;
+	struct image img[MAX_IMG_TYPE];
+} __packed;
+
+struct file_info {
+	u32 type;
+	u32 sub_type;
+	u32 offset;
+	u32 size;
+} __packed;
+
+struct cal_fw_header {
+	u32 magic;
+	u32 num_files;
+	struct file_info file[];
+} __packed;
+
+struct cal_per_dev_config {
+	struct udevice *dev;
+	u32 pci_slot_id;
+	u32 board_id;
+	u32 caldata_offset;
+	u32 caldata_size;
+	u32 cal_fw_image_addr;
+	u32 hremote_addr;
+	u32 hremote_size;
+	u32 rddm_addr;
+	u32 rddm_size;
+	u32 caldb_addr;
+	u32 caldb_size;
+	u32 host_ddr_status;
+};
+
+struct cal_config {
+	struct cal_fw_header *cal_fw_header;
+	u32 ddr_base_addr;
+	u32 ddr_rmem_size;
+	u32 caldata_addr;
+	struct cal_per_dev_config dev_cfg[CONFIG_IPQ_MAX_PCIE];
+};
+
+struct cal_dt_config {
+	u32 rmem_base_addr;
+	u32 rmem_size;
+	u32 board_id;
+	u32 caldata_offset;
+	u32 pci_slot_id;
+	u32 caldb_offset;
+	struct list_head list;
+};
+#endif
 
 /*********************************************************************
  * Function declaration
@@ -867,4 +954,41 @@ bool ipq_iscrashed(void);
  * @type - Platform-specific implementation for SoC
  */
 void ipq_board_gpio_config(int type);
+
+#ifdef CONFIG_CB_CALIB
+/**
+ * cal_qcn9224() - Start calibration on QCN9224 PCIe attach
+ *
+ * @debug - Enable verbose logging
+ * Return 0 if success, error code in case of failure.
+ */
+int cal_qcn9224(int debug);
+#endif
+
+#ifdef CONFIG_IPQ_PCIE
+/**
+ * pci_select_window() - Reprogram the BAR remap control register based
+ *			 on the offset.
+ *
+ * @bar0_base - BAR address
+ * @offset - Offset to calculate the window
+ */
+void pci_select_window(uintptr_t bar0_base, uint32_t offset);
+
+/**
+ * print_error_code() - Print common BHI error code registers
+ *
+ * @bar0_base - BAR address
+ * @pbl_log - Enable/Disable printing of PBL error logs
+ */
+void print_error_code(uintptr_t bar0_base, bool pbl_log);
+
+/**
+ * qcn92xx_global_soc_reset - Trigger SOC global register on QCN9224
+ *
+ * @bar0_base - BAR address
+ * @force_reset - Write 1 if set, else write 5 to soc global reset register
+ */
+void qcn92xx_global_soc_reset(uintptr_t bar0_base, bool force_reset);
+#endif
 #endif
