@@ -131,6 +131,7 @@ static void build_mem_map(void)
 			 PTE_BLOCK_PXN | PTE_BLOCK_UXN;
 
 	for (i = 1, j = 0; i < ARRAY_SIZE(ipq_mem_map) - 2 &&
+		j < ARRAY_SIZE(gd->bd->bi_dram) &&
 		gd->bd->bi_dram[j].size; i++, j++) {
 		mem_map[i].phys = gd->bd->bi_dram[j].start;
 		mem_map[i].virt = mem_map[i].phys;

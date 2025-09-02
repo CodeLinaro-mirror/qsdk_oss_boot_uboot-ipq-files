@@ -306,10 +306,17 @@ int ipq_aquantia_load_fw(struct phy_device *phydev)
 	int ret = 0;
 	struct mbn_header *fwimg_header;
 
+	if (IS_ERR_OR_NULL(sfi)) {
+		printf("%s: Failed to get flash info\n", __func__);
+		ret = -EINVAL;
+		goto exit;
+	}
+
 	fw_load_addr = (u8 *)malloc_cache_aligned(IPQ_ETH_FW_PART_SIZE);
 	/* We only need memory equivalent to max size ETHPHYFW
 	 * which is currently assumed as 512 KB.
 	 */
+
 	if (fw_load_addr == NULL) {
 		printf("ETHPHYFW Loading failed, size = 0x%x\n",
 			IPQ_ETH_FW_PART_SIZE);

@@ -84,7 +84,7 @@ static void print_ubi_vol_info(struct ubi_device *ubi)
 static int do_smeminfo(struct cmd_tbl *cmdtp, int flag, int argc,
 			char * const argv[])
 {
-	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
+	struct ipq_smem_flash_info *sfi = NULL;
 	int i;
 	uint32_t bsize;
 	struct smem_ptable *ptable = ipq_get_part_table();
@@ -102,6 +102,12 @@ static int do_smeminfo(struct cmd_tbl *cmdtp, int flag, int argc,
 	if (ipq_init_ubi_part() == 0)
 		ubi = ubi_get_device(0);
 #endif
+	sfi = ipq_get_smem_info();
+	if (IS_ERR_OR_NULL(sfi)) {
+		printf("%s: Failed to get flash info\n", __func__);
+		return -EINVAL;
+	}
+
 	if (sfi->flash_density != 0) {
 		printf("flash_type:		0x%x\n"
 			"flash_index:		0x%x\n"
