@@ -30,6 +30,13 @@
 #define MACH_TYPE_IPQ5424_RDP487		0x8070200
 #define MACH_TYPE_IPQ5424_DB_MR01_1		0x1070000
 
+#define TIMEOUT_MS				30000
+#define CLK_SRC					32000
+#define WDT_ENABLE_REG				0xf410008
+#define WDT_RST_REG				0xf410004
+#define WDT_BARK_TIME_REG			0xf410010
+#define WDT_BITE_TIME_REG			0xf410014
+
 /* USB softsku fuse */
 #define USB_SOFTSKU_STATUS			0xA628C
 #define USB_SOFTSKU_STATUS_DISABLE		BIT(0)
@@ -310,6 +317,30 @@ void ipq_spl_board_early_init_f(void)
 	writel((readl(IM_SLEEP_CLK) | BIT(0)), IM_SLEEP_CLK);
 }
 #endif
+
+#ifdef CONFIG_IPQ_EARLY_WDT
+void ipq_enable_non_sec_watchdog(void)
+{
+	/*
+	 * Enabling non-secure WDT for early failure recovery support
+	 */
+	ulong bark_timeout_s = ((TIMEOUT_MS - 1)  * CLK_SRC) / 1000;
+	ulong bite_timeout_s = (TIMEOUT_MS * CLK_SRC) / 1000;
+
+	writel(0, WDT_ENABLE_REG);
+	writel(BIT(0), WDT_RST_REG);
+	writel(bark_timeout_s, WDT_BARK_TIME_REG);
+	writel(bite_timeout_s, WDT_BITE_TIME_REG);
+	writel(BIT(0), WDT_ENABLE_REG);
+}
+#endif
+
+void lowlevel_init(void)
+{
+#ifdef CONFIG_IPQ_EARLY_WDT
+	ipq_enable_non_sec_watchdog();
+#endif
+}
 
 void ipq_board_early_init_f(void)
 {
