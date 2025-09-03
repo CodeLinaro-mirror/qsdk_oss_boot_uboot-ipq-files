@@ -357,7 +357,8 @@
 
 &qupv3 {
 	uart1_fw: uart_firmware@0 {
-		compatible = "qcom-ipq5424-uart-geni-fw";
+		compatible = "qcom,ipq5424-geni-uart-fw-v1",
+			     "qcom,geni-uart-fw-v1";
 		reg = <0 0x01a84000 0 0x4000>;
 		status = "okay";
 	};
@@ -375,7 +376,8 @@
 	};
 
 	i2c0_fw: i2c0_firmware@0 {
-		compatible = "qcom-ipq5424-i2c-geni-fw";
+		compatible = "qcom,ipq5424-geni-i2c-fw-v1",
+			     "qcom,geni-i2c-fw-v1";
 		reg = <0x0 0x1a88000 0x0 0x4000>;
 		status = "okay";
 	};
@@ -393,7 +395,8 @@
 	};
 
 	i2c1_fw: i2c1_firmware@0 {
-		compatible = "qcom-ipq5424-i2c-geni-fw";
+		compatible = "qcom,ipq5424-geni-i2c-fw-v1",
+			     "qcom,geni-i2c-fw-v1";
 		reg = <0x0 0x1a8c000 0x0 0x4000>;
 		status = "okay";
 	};
@@ -422,7 +425,8 @@
 	};
 
 	spi_fw: spi_firmware@0 {
-		compatible = "qcom-ipq5424-spi-geni-fw";
+		compatible = "qcom,ipq5424-geni-spi-fw-v1",
+			     "qcom,geni-spi-fw-v1";
 		reg = <0 0x1a90000 0 0x4000>;
 		reg-names = "se_phys";
 	};

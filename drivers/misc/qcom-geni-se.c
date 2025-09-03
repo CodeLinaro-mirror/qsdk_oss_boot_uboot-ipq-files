@@ -34,46 +34,46 @@ typedef struct __attribute__ ((packed)) se_geni_revision
     uint8_t config_version;
 } se_geni_revision;
 
-static const se_geni_revision ipq5424_spi_se_geni_rev = {
+static const se_geni_revision spi_v1_se_geni_rev = {
 	.serial_protocol = 0x1,
 	.firmware_version = 0xB02,
 	.config_version = 0x9,
 };
 
-static const se_geni_revision ipq5424_uart_se_geni_rev = {
+static const se_geni_revision uart_v1_se_geni_rev = {
 	.serial_protocol = 0x2,
 	.firmware_version = 0x405,
 	.config_version = 0xA,
 };
 
-static const se_geni_revision ipq5424_i2c_se_geni_rev = {
+static const se_geni_revision i2c_v1_se_geni_rev = {
 	.serial_protocol = 0x3,
 	.firmware_version = 0x204,
 	.config_version = 0x9,
 };
 
-static uint32_t ipq5424_spi_se_geni_cfg_reg_0_18[] = {
+static u32 spi_v1_se_geni_cfg_reg_0_18[] = {
 	0x00000000, 0x00000400, 0x00000000, 0x00000000, 0x00240E78, 0x00011088,
 	0x00240007, 0x00000000, 0x00000000, 0x0001000A, 0x00000300, 0x00000000,
 	0x00000000, 0x00000000, 0x00154400, 0x001483A0, 0x00AA8128, 0x00641002,
 	0x00004000
 };
 
-static uint32_t ipq5424_uart_se_geni_cfg_reg_0_18[] = {
+static u32 uart_v1_se_geni_cfg_reg_0_18[] = {
 	0x00000024, 0x00000000, 0x00000024, 0x00000000, 0x00019A00, 0x00400000,
 	0x00E00000, 0x00010020, 0x00000000, 0x00000000, 0x00000300, 0x00000700,
 	0x00000400, 0x00000000, 0x00000000, 0x00C00000, 0x00000000, 0x00C00024,
 	0x00000B00
 };
 
-static uint32_t ipq5424_i2c_se_geni_cfg_reg_0_18[] = {
+static u32 i2c_v1_se_geni_cfg_reg_0_18[] = {
 	0x00000090, 0x00000000, 0x00000090, 0x00000000, 0x00038028, 0x00084080,
 	0x00000343, 0x00010000, 0x00000000, 0x00001A00, 0x00000100, 0x00000000,
 	0x00000000, 0x00000000, 0x00808008, 0x001C0020, 0x00000000, 0x00020000,
 	0x00000000
 };
 
-static uint32_t ipq5424_spi_se_geni_cfg_reg_64_113[] = {
+static u32 spi_v1_se_geni_cfg_reg_64_113[] = {
 	0x00000201, 0x0001FE05, 0x0002C2E7, 0x0A435C00, 0x0010011A, 0x08800000,
 	0x00000000, 0x100CAC00, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
 	0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x000018E4, 0x00000000,
@@ -85,7 +85,7 @@ static uint32_t ipq5424_spi_se_geni_cfg_reg_64_113[] = {
 	0x00000000, 0x00000055
 };
 
-static uint32_t ipq5424_uart_se_geni_cfg_reg_64_113[] = {
+static u32 uart_v1_se_geni_cfg_reg_64_113[] = {
 	0x00020231, 0x0000CE05, 0x000360E7, 0x0941E6A8, 0x00100510, 0x42C01E51,
 	0x00000401, 0x002E8400, 0x1694581A, 0x00000000, 0x00000000, 0x00000000,
 	0x00000000, 0x00000000, 0x00000000, 0x00000001, 0x0000031C, 0x00000000,
@@ -97,7 +97,7 @@ static uint32_t ipq5424_uart_se_geni_cfg_reg_64_113[] = {
 	0x00000000, 0x00000055
 };
 
-static uint32_t ipq5424_i2c_se_geni_cfg_reg_64_113[] = {
+static u32 i2c_v1_se_geni_cfg_reg_64_113[] = {
 	0x00000201, 0x0001FC01, 0x00036222, 0x09C01FFC, 0x00100120, 0x02C00000,
 	0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
 	0x00000001, 0x00000000, 0x00000000, 0x00000000, 0x00000409, 0x00000003,
@@ -109,7 +109,7 @@ static uint32_t ipq5424_i2c_se_geni_cfg_reg_64_113[] = {
 	0x00000000, 0x00000055
 };
 
-static uint32_t ipq5424_spi_se_geni_cfg_ram[] = {
+static u32 spi_v1_se_geni_cfg_ram[] = {
 	0x000007CE, 0x00000000, 0x00000000, 0x00000000, 0x0011A800, 0x0034C020,
 	0x003DC800, 0x00624010, 0x0067E800, 0x0083C030, 0x00000000, 0x00000000,
 	0x00000000, 0x00000000, 0x00A8E800, 0x00D74030, 0x0011E800, 0x0033C010,
@@ -186,7 +186,7 @@ static uint32_t ipq5424_spi_se_geni_cfg_ram[] = {
 	0x009A1B70, 0x007F1E00, 0x007F1C40, 0x001F4000
 };
 
-static uint32_t ipq5424_uart_se_geni_cfg_ram[] = {
+static u32 uart_v1_se_geni_cfg_ram[] = {
 	0x00000032, 0x00000000, 0x00000000, 0x00000000, 0x000F2800, 0x00780020,
 	0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00420000, 0x007FC6C8,
 	0x003F0000, 0x007FC6C8, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
@@ -265,7 +265,7 @@ static uint32_t ipq5424_uart_se_geni_cfg_ram[] = {
 	0x007F6001, 0x009F7A53
 };
 
-static uint32_t ipq5424_i2c_se_geni_cfg_ram[] = {
+static u32 i2c_v1_se_geni_cfg_ram[] = {
 	0x000000DE, 0x00000000, 0x00000000, 0x00000000, 0x000A2800, 0x00596D20,
 	0x000A4800, 0x00596D10, 0x000A6800, 0x00596D10, 0x000A0800, 0x00596D28,
 	0x00000000, 0x00000000, 0x00A48800, 0x00596D08, 0x009B0800, 0x00594208,
@@ -328,45 +328,45 @@ static uint32_t ipq5424_i2c_se_geni_cfg_ram[] = {
 
 struct geni_se_cfg {
 	const se_geni_revision *revision;
-	uint32_t *reg_0_18;
-	uint32_t reg_0_18_len;
-	uint32_t *reg_64_113;
-	uint32_t reg_64_113_len;
-	uint32_t *ram;
-	uint32_t ram_len;
+	u32 *reg_0_18;
+	u32 reg_0_18_len;
+	u32 *reg_64_113;
+	u32 reg_64_113_len;
+	u32 *ram;
+	u32 ram_len;
 	uint8_t se_mode;
 };
 
-static const struct geni_se_cfg ipq5424_spi_se_geni_cfg = {
-	.revision = &ipq5424_spi_se_geni_rev,
-	.reg_0_18 = ipq5424_spi_se_geni_cfg_reg_0_18,
-	.reg_0_18_len = ARRAY_SIZE(ipq5424_spi_se_geni_cfg_reg_0_18),
-	.reg_64_113 = ipq5424_spi_se_geni_cfg_reg_64_113,
-	.reg_64_113_len = ARRAY_SIZE(ipq5424_spi_se_geni_cfg_reg_64_113),
-	.ram = ipq5424_spi_se_geni_cfg_ram,
-	.ram_len = ARRAY_SIZE(ipq5424_spi_se_geni_cfg_ram),
+static const struct geni_se_cfg spi_v1_se_geni_cfg = {
+	.revision = &spi_v1_se_geni_rev,
+	.reg_0_18 = spi_v1_se_geni_cfg_reg_0_18,
+	.reg_0_18_len = ARRAY_SIZE(spi_v1_se_geni_cfg_reg_0_18),
+	.reg_64_113 = spi_v1_se_geni_cfg_reg_64_113,
+	.reg_64_113_len = ARRAY_SIZE(spi_v1_se_geni_cfg_reg_64_113),
+	.ram = spi_v1_se_geni_cfg_ram,
+	.ram_len = ARRAY_SIZE(spi_v1_se_geni_cfg_ram),
 	.se_mode = GENI_SE_SPI,
 };
 
-static const struct geni_se_cfg ipq5424_i2c_se_geni_cfg = {
-	.revision = &ipq5424_i2c_se_geni_rev,
-	.reg_0_18 = ipq5424_i2c_se_geni_cfg_reg_0_18,
-	.reg_0_18_len = ARRAY_SIZE(ipq5424_i2c_se_geni_cfg_reg_0_18),
-	.reg_64_113 = ipq5424_i2c_se_geni_cfg_reg_64_113,
-	.reg_64_113_len = ARRAY_SIZE(ipq5424_i2c_se_geni_cfg_reg_64_113),
-	.ram = ipq5424_i2c_se_geni_cfg_ram,
-	.ram_len = ARRAY_SIZE(ipq5424_i2c_se_geni_cfg_ram),
+static const struct geni_se_cfg i2c_v1_se_geni_cfg = {
+	.revision = &i2c_v1_se_geni_rev,
+	.reg_0_18 = i2c_v1_se_geni_cfg_reg_0_18,
+	.reg_0_18_len = ARRAY_SIZE(i2c_v1_se_geni_cfg_reg_0_18),
+	.reg_64_113 = i2c_v1_se_geni_cfg_reg_64_113,
+	.reg_64_113_len = ARRAY_SIZE(i2c_v1_se_geni_cfg_reg_64_113),
+	.ram = i2c_v1_se_geni_cfg_ram,
+	.ram_len = ARRAY_SIZE(i2c_v1_se_geni_cfg_ram),
 	.se_mode = GENI_SE_I2C,
 };
 
-static const struct geni_se_cfg ipq5424_uart_se_geni_cfg = {
-	.revision = &ipq5424_uart_se_geni_rev,
-	.reg_0_18 = ipq5424_uart_se_geni_cfg_reg_0_18,
-	.reg_0_18_len = ARRAY_SIZE(ipq5424_uart_se_geni_cfg_reg_0_18),
-	.reg_64_113 = ipq5424_uart_se_geni_cfg_reg_64_113,
-	.reg_64_113_len = ARRAY_SIZE(ipq5424_uart_se_geni_cfg_reg_64_113),
-	.ram = ipq5424_uart_se_geni_cfg_ram,
-	.ram_len = ARRAY_SIZE(ipq5424_uart_se_geni_cfg_ram),
+static const struct geni_se_cfg uart_v1_se_geni_cfg = {
+	.revision = &uart_v1_se_geni_rev,
+	.reg_0_18 = uart_v1_se_geni_cfg_reg_0_18,
+	.reg_0_18_len = ARRAY_SIZE(uart_v1_se_geni_cfg_reg_0_18),
+	.reg_64_113 = uart_v1_se_geni_cfg_reg_64_113,
+	.reg_64_113_len = ARRAY_SIZE(uart_v1_se_geni_cfg_reg_64_113),
+	.ram = uart_v1_se_geni_cfg_ram,
+	.ram_len = ARRAY_SIZE(uart_v1_se_geni_cfg_ram),
 	.se_mode = GENI_SE_UART,
 };
 
@@ -376,16 +376,16 @@ static const struct geni_se_cfg ipq5424_uart_se_geni_cfg = {
  *
  * Return: Protocol value as configured in the serial engine.
  */
-static uint32_t geni_se_read_proto(phys_addr_t se_base)
+static u32 geni_se_read_proto(phys_addr_t se_base)
 {
-	uint32_t val;
+	u32 val;
 
 	val = readl(se_base + GENI_FW_REVISION_RO);
 
 	return (val & FW_REV_PROTOCOL_MSK) >> FW_REV_PROTOCOL_SHFT;
 }
 
-void geni_se_reg_write(uint32_t *value, uint64_t offset, uint32_t len)
+void geni_se_reg_write(u32 *value, uint64_t offset, u32 len)
 {
 	int i;
 	for (i = 0; i < len; i++)
@@ -454,16 +454,16 @@ static int qcom_geni_se_probe(struct udevice *dev)
 
 static const struct udevice_id qcom_geni_se_ids[] = {
 	{
-		.compatible = "qcom-ipq5424-spi-geni-fw",
-		.data = (ulong)&ipq5424_spi_se_geni_cfg,
+		.compatible = "qcom,geni-spi-fw-v1",
+		.data = (ulong)&spi_v1_se_geni_cfg,
 	},
 	{
-		.compatible = "qcom-ipq5424-i2c-geni-fw",
-		.data = (ulong)&ipq5424_i2c_se_geni_cfg,
+		.compatible = "qcom,geni-i2c-fw-v1",
+		.data = (ulong)&i2c_v1_se_geni_cfg,
 	},
 	{
-		.compatible = "qcom-ipq5424-uart-geni-fw",
-		.data = (ulong)&ipq5424_uart_se_geni_cfg,
+		.compatible = "qcom,geni-uart-fw-v1",
+		.data = (ulong)&uart_v1_se_geni_cfg,
 	},
 	{ }
 };

@@ -329,7 +329,8 @@
 	};
 
 	i2c2_fw: i2c2_firmware@0 {
-		compatible = "qcom-ipq5424-i2c-geni-fw";
+		compatible = "qcom,ipq5424-geni-i2c-fw-v1",
+			     "qcom,geni-i2c-fw-v1";
 		reg = <0 0x1a94000 0 0x4000>;
 		status = "okay";
 	};
