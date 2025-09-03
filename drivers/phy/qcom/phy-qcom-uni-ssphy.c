@@ -27,6 +27,8 @@
 #define PCIE_USB_COMBO_PHY_CFG_RX_AFE_2		0x07C4
 #define PCIE_USB_COMBO_PHY_CFG_RX_DLF_DEMUX_2	0x07E8
 
+#define TCSR_USB_PCIE_SEL_USB			0x1
+
 #define APB_REG_UPHY_RX_RESCAL_CODE		(16 << 8)
 #define APB_REG_UPHY_RX_AFE_CAP1		(7 << 4)
 #define APB_REG_UPHY_RX_AFE_RES1		(6 << 0)
@@ -100,6 +102,7 @@ static int qti_uni_ssphy_probe(struct udevice *dev)
 {
 	struct qti_uni_ssphy_priv *priv = dev_get_priv(dev);
 	int ret;
+	u32 phy_mux_reg;
 
 	priv->base = (void *)dev_read_addr(dev);
 	if ((ulong)priv->base == FDT_ADDR_T_NONE)
@@ -113,6 +116,14 @@ static int qti_uni_ssphy_probe(struct udevice *dev)
 	if (ret) {
 		clk_release_bulk(&priv->clks);
 		return ret;
+	}
+
+	if (dev_read_bool(dev, "qcom,multiplexed-phy"))
+	{
+		if (!dev_read_u32u(dev, "qcom,phy-mux-regs", &phy_mux_reg)) {
+			writel(TCSR_USB_PCIE_SEL_USB, (uintptr_t)phy_mux_reg);
+			udelay(100);
+		}
 	}
 
 	return 0;

@@ -268,7 +268,7 @@
 		};
 
 		usb3_0: usb3_0@8af8800 {
-			compatible = "qcom,dwc3-ipq";
+			compatible = "qcom,dwc3";
 			reg = <0x0 0x8af8800 0x0 0x100>;
 			#address-cells = <2>;
 			#size-cells = <2>;
@@ -306,7 +306,7 @@
 		* to use usb 3.0 devices as usb 2.0 device
 		*/
 		usb3_1: usb3_1@8af8800 {
-			compatible = "qcom,dwc3-ipq";
+			compatible = "qcom,dwc3";
 			reg = <0x0 0x8af8800 0x0 0x100>;
 			#address-cells = <2>;
 			#size-cells = <2>;
@@ -341,7 +341,7 @@
 		};
 
 		usb2_0: usb2_0@1ef8800 {
-			compatible = "qcom,dwc3-ipq";
+			compatible = "qcom,dwc3";
 			reg = <0x0 0x1ef8800 0x0 0x100>;
 			#address-cells = <2>;
 			#size-cells = <2>;
