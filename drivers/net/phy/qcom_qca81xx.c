@@ -782,6 +782,17 @@ static int qca81xx_phy_gcc_pre_init(struct phy_device *phydev)
 	ret = qca81xx_soc_modify(phydev, EPHY_CFG, EPHY_LDO_CTRL, 0);
 	mdelay(1);
 
+	/* Set AHB clk to 50MHz */
+	ret = qca81xx_soc_modify(phydev, GCC_AHB_CFG_RCGR,
+			0xFFFFFFFF, 0);
+	if (ret < 0)
+		return ret;
+
+	ret = qca81xx_soc_modify(phydev, GCC_AHB_CMD_RCGR,
+			0x3, 0x3);
+	if (ret < 0)
+		return ret;
+
 	return ret;
 }
 
