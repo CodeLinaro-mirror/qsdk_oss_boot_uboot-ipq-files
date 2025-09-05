@@ -130,7 +130,8 @@
 
 			uart1_fw: uart_firmware@0 {
 				bootph-all;
-				compatible = "qcom-ipq5424-uart-geni-fw";
+				compatible = "qcom,ipq5200-geni-uart-fw-v1",
+					     "qcom,geni-uart-fw-v1";
 				reg = <0 0x01a84000 0 0x4000>;
 				status = "okay";
 			};
