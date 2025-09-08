@@ -315,15 +315,13 @@ __weak void ipq_fdt_fixup_socinfo(void *blob)
 	uint32_t cpu_type;
 	int nodeoff, ret;
 	struct soc_info *ipq_socinfo = ipq_get_socinfo();
+
 	nodeoff = fdt_path_offset(blob, "/");
 
 	if (nodeoff < 0) {
 		printf("ipq: fdt fixup cannot find root node\n");
 		return;
 	}
-
-	if (IS_ERR_OR_NULL(ipq_socinfo))
-		return;
 
 	ret = fdt_setprop(blob, nodeoff, "cpu_type",
 			  (void *)&ipq_socinfo->cpu_type, sizeof(cpu_type));
@@ -404,15 +402,12 @@ void ipq_smem_part_to_mtdparts(char *mtdid, int len)
 #endif
 #ifdef CONFIG_CMD_NAND
 	struct mtd_info *mtd = get_nand_dev_by_index(0);
+
 	if (!mtd) {
 		printf("%s: mtd device not found\n", __func__);
 		return;
 	}
 #endif
-	if (IS_ERR_OR_NULL(sfi) || IS_ERR_OR_NULL(ptable)) {
-		return;
-	}
-
 #if defined(CONFIG_NOR_BLK)
 	if (sfi->flash_type == SMEM_BOOT_NORGPT_FLASH) {
 		dev = blk_get_devnum_by_uclass_id(UCLASS_SPI, 0);
@@ -527,11 +522,6 @@ static int ipq_fdt_fixup_spi_nor_params(void *blob,
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
 #if defined(CONFIG_NOR_BLK)
 	struct spi_flash *flash = ipq_spi_probe();
-
-	if (IS_ERR_OR_NULL(sfi)) {
-		printf("%s: Failed to get flash info\n", __func__);
-		return -EINVAL;
-	}
 
 	if (flash == NULL && sfi->flash_type == SMEM_BOOT_NORGPT_FLASH) {
 		printf("Spi nor not found\n");
