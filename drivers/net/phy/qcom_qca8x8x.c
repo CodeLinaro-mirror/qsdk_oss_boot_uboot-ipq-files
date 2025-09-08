@@ -4088,10 +4088,8 @@ static int qti_8x8x_config(struct phy_device *phydev)
 		memset(switch_cfg, 0, sizeof(struct qti_8x8x_switch_info));
 
 		switch_cfg->port = malloc(sizeof(struct qti_8x8x_port_info) * DEV_8X8X_MAX_PORTS);
-		if (IS_ERR_OR_NULL(switch_cfg->port)) {
-			free(switch_cfg);
+		if (!switch_cfg->port)
 			return -ENOMEM;
-		}
 
 		memset(switch_cfg->port, 0,
 		       sizeof(struct qti_8x8x_port_info)
@@ -4104,8 +4102,6 @@ static int qti_8x8x_config(struct phy_device *phydev)
 			switch_node = ofnode_find_subnode(phydev->node,
 							  "ports");
 			if (!ofnode_valid(switch_node)) {
-				free(switch_cfg->port);
-				free(switch_cfg);
 				debug("%s ports node of switch not found!\n",
 				      __func__);
 				return -EINVAL;

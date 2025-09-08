@@ -3015,8 +3015,7 @@ static int ipq_eth_probe(struct udevice *dev)
 #endif
 		if (port->phy_id == SFP10G_PHY_TYPE || port->phy_id == SFP2_5G_PHY_TYPE ||
 		    port->phy_id == SFP1G_PHY_TYPE) {
-			if (port->bus)
-				port->phydev = phy_device_create(port->bus, port->phyaddr,
+			port->phydev = phy_device_create(port->bus, port->phyaddr,
 							 PHY_FIXED_ID, true);
 			if (IS_ERR_OR_NULL(port->phydev))
 				continue;
@@ -3024,9 +3023,7 @@ static int ipq_eth_probe(struct udevice *dev)
 			port->phydev->dev = dev;
 			port->phydev->interface = port->interface;
 		} else {
-			if (port->bus)
-				port->phydev = phy_connect(port->bus, port->phyaddr,
-							dev, port->interface);
+			port->phydev = phy_connect(port->bus, port->phyaddr, dev, port->interface);
 		}
 
 		if (IS_ERR_OR_NULL(port->phydev))
@@ -3087,8 +3084,6 @@ static int ipq_eth_probe(struct udevice *dev)
 		++configured;
 	}
 fail:
-	free(clk_names);
-
 	return !configured;
 }
 

@@ -335,9 +335,8 @@ int set_bootargs(void)
 	char *cmd_line, *strings = env_get("bootargs");
 	int ret = CMD_RET_SUCCESS;
 #ifdef CONFIG_IPQ_CRASHDUMP_TO_NVMEMORY
-	struct ipq_smem_flash_info *sfi = NULL;
+	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
 #endif
-
 #ifdef CONFIG_MMC
 	bool gpt_flag = true;
 	char runcmd[CONFIG_SYS_MAXARGS];
@@ -395,12 +394,6 @@ int set_bootargs(void)
 	strlcpy(cmd_line, strings, strlen(strings)+1);
 
 #ifdef CONFIG_IPQ_CRASHDUMP_TO_NVMEMORY
-	sfi = ipq_get_smem_info();
-	if (IS_ERR_OR_NULL(sfi)) {
-		printf("%s: Failed to get flash info\n", __func__);
-		return -EINVAL;
-	}
-
 	if (env_get("dump_to_nvmem")) {
 		set_crashdump_bootargs(cmd_line, sfi->flash_type,
 				sfi->flash_secondary_type);
@@ -587,11 +580,6 @@ static int read_from_nor(void)
 {
 	int ret;
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
-
-	if (IS_ERR_OR_NULL(sfi)) {
-		printf("%s: Failed to get flash info\n", __func__);
-		return -EINVAL;
-	}
 
 	if (sfi->hlos.offset == 0xBAD0FF5E) {
 		printf("bad offset\n");
@@ -790,11 +778,6 @@ static int copy_rootfs(uint32_t request, uint32_t size)
 #endif
 	uint8_t	flash_type = gd->board_type & FLASH_TYPE_MASK;
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
-
-	if (IS_ERR_OR_NULL(sfi)) {
-		printf("%s: Failed to get flash info\n", __func__);
-		return CMD_RET_FAILURE;
-	}
 
 	switch (flash_type) {
 #ifdef CONFIG_IPQ_NAND
@@ -1224,10 +1207,6 @@ int check_bootconfig(void)
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
 	struct ipq_smem_bootconfig_info *binfo;
 
-	if (IS_ERR_OR_NULL(sfi)) {
-		printf("%s: smem flash info not found\n", __func__);
-		return -EINVAL;
-	}
 	if (active_part < 0) {
 		printf("INVALID BOOTCONFIG DATA %d!!!\n", -EINVAL);
 		printf("Bootconfig will be restored on the next boot\n");
@@ -1267,7 +1246,7 @@ static const boot_stage state_sequence[] = {
 static int do_bootipq(struct cmd_tbl *cmdtp, int flag, int argc,
 			char *const argv[])
 {
-	int state = 1, ret = CMD_RET_SUCCESS;
+	int state = 1, ret;
 	const boot_stage *state_sequence_ptr = state_sequence;
 
 	if (argc == 2 && strncmp(argv[1], "debug", 5) == 0)
