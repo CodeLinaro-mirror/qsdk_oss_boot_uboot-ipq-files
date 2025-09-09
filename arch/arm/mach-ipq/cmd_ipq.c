@@ -749,7 +749,14 @@ static int do_fuseipq(struct cmd_tbl *cmdtp, int flag, int argc,
 	}
 #endif
 		param.get_ret = true;
+		/*
+		 * Disable data cache to ensure direct memory access during
+		 * fuse operation
+		 */
+		dcache_disable();
 		ret = ipq_scm_call(&param);
+		dcache_enable();
+		invalidate_dcache_all();
 
 		fuse_status = param.res.result[0];
 
