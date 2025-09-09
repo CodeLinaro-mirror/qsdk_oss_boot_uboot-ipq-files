@@ -27,5 +27,13 @@
 			perst-gpios = <&tlmm 35 GPIO_ACTIVE_LOW>;
 			status = "disabled";
 		};
+
+		usb3_1: usb3_1@8af8800 {
+			status = "okay";
+			dwc3@8a00000 {
+				phys = <>;
+				phy-names = "";
+			};
+		};
 	};
 };
