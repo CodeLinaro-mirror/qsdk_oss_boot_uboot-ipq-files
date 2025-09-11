@@ -103,7 +103,7 @@ struct machid_dts_map machid_dts[] = {
 	{
 		MACH_TYPE_IPQ9574_RDP417,
 		"ipq9574-rdp417",
-		"rdp-417",
+		"rdp417",
 		"al01-c1"
 	},
 	{
