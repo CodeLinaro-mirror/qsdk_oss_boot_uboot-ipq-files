@@ -113,6 +113,12 @@ config RUNTIME_SF_ENV_UPDATE
 	help
 	  This config helps to override the env offset given in defconfig
 
+config PHY_ANEG_TIMEOUT
+	int "PHY auto-negotiation timeout"
+	default 100
+	help
+	  Default PHY auto-negotiation timeout.
+
 config IPQ_NAND
 	bool "Enable NAND flash support in IPQ SOC"
 	select MTD
