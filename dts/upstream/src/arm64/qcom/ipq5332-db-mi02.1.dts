@@ -86,14 +86,14 @@
 			pins = "gpio15";
 			drive-strength = <8>;
 			bias-pull-up;
-			output-enable;
+			output-low;
 		};
 
 		qti_sfp1_tx_los {
 			pins = "gpio24";
 			drive-strength = <8>;
 			bias-pull-up;
-			output-enable;
+			output-low;
 		};
 	};
 
