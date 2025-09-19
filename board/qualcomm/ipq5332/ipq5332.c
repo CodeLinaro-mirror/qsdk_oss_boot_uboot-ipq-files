@@ -587,12 +587,10 @@ fail:
 
 void board_cache_init(void)
 {
-	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
-
 	icache_enable();
 #if !CONFIG_IS_ENABLED(SYS_DCACHE_OFF)
 	/* Disable L2 as TCM in recovery mode */
-	if (!sfi->flash_type)
+	if (gd->board_type & RECOVERY_MODE)
 		writel(0x08000000, 0xB110010);
 
 	dcache_enable();
