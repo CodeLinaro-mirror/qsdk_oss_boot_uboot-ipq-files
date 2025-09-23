@@ -373,6 +373,7 @@
 		clock-names = "se";
 		clock-frequency = <400000>;
 		qup-se-fw-load = <&i2c0_fw>;
+		qcom,geni-se-clk-32mhz;
 	};
 
 	i2c0_fw: i2c0_firmware@0 {
@@ -392,6 +393,7 @@
 		clock-names = "se";
 		clock-frequency = <400000>;
 		qup-se-fw-load = <&i2c1_fw>;
+		qcom,geni-se-clk-32mhz;
 	};
 
 	i2c1_fw: i2c1_firmware@0 {
