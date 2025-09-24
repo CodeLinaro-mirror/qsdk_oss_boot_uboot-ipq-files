@@ -582,7 +582,6 @@ config IPQ_BOARD_DEFAULT
 	imply CMD_MTDPARTS if MTD
 	imply CMD_WDT
 	imply DM_WARN
-	imply ENV_IS_NOWHERE
 	imply FDT_FIXUP_PARTITIONS if MTD
 	imply HUSH_PARSER
 	imply OF_BOARD_SETUP
@@ -769,6 +768,7 @@ config TARGET_IPQ5200
 	imply GPT_UPDATE_PARAMS
 	imply IPQ_I2C
 	imply IPQ_PCIE
+	imply ARMV8_SWITCH_TO_EL1
 
 	help
 	  Support for IPQ5200 SoC.

@@ -174,14 +174,14 @@
 			pins = "gpio36";
 			drive-strength = <8>;
 			bias-pull-up;
-			output-enable;
+			output-low;
 		};
 
 		qti_i2c_phy1_rst {
 			pins = "gpio37";
 			drive-strength = <8>;
 			bias-pull-up;
-			output-enable;
+			output-low;
 		};
 
 		qti_8x8x_rst {
