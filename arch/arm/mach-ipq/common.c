@@ -2184,6 +2184,7 @@ int ipq_init_ubi_part(void)
 	char env_strings[64];
 
 	if(ubi == NULL) {
+#ifdef CONFIG_BOOTCONFIG_V3
 		if (gd->board_type & ACTIVE_BOOT_SET) {
 			offset = sfi->rootfs_1.offset;
 			part_size = sfi->rootfs_1.size;
@@ -2191,6 +2192,10 @@ int ipq_init_ubi_part(void)
 			offset = sfi->rootfs.offset;
 			part_size = sfi->rootfs.size;
 		}
+#else
+		offset = sfi->rootfs.offset;
+		part_size = sfi->rootfs.size;
+#endif
 
 		if ((part_size == 0xBAD0FF5E) || (offset == 0xBAD0FF5E))
 			return -ENOENT;
