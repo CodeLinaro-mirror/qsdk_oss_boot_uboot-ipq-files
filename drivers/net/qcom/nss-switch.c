@@ -137,10 +137,10 @@ static void ppe_uniphy_reset(struct port_info *port, bool issoft, bool set)
 	int ret;
 	char name[64];
 
-	if (!port || !port->phydev || !port->phydev->dev)
+	if (!port || !port->dev)
 		return;
 
-	dev = port->phydev->dev;
+	dev = port->dev;
 
 	snprintf(name, sizeof(name), "uniphy%d_%s", port->uniphy_id,
 		 (issoft) ? "srst" : "xrst");
@@ -2492,7 +2492,8 @@ static int ipq_eth_start(struct udevice *dev)
 			}
 		}
 
-		if (port->phy_id != QCA8x8x_SWITCH_TYPE)
+		if ((port->phy_id != QCA8x8x_SWITCH_TYPE) &&
+			(port->phy_id != QCA8337_SWITCH_TYPE))
 			printf("PHY%d %s Speed : %d %s\n", port->id,
 			       (link ? "Up" : "Down"), speed,
 				duplex ? "Full duplex" : "Half duplex");
@@ -2982,6 +2983,8 @@ static int ipq_eth_probe(struct udevice *dev)
 			continue;
 		}
 
+		port->dev = dev;
+
 		port->uniphy_base = priv->uniphy_base +
 					(port->uniphy_id * priv->uniphy_size);
 
@@ -3033,14 +3036,53 @@ static int ipq_eth_probe(struct udevice *dev)
 				"%s", "SFP-DUMMY");
 		}
 
-#ifdef CONFIG_PHY_QCA_8033
-		if (port->phy_id == QCA8033_PHY_TYPE) {
-			ppe_uniphy_refclk_set_25M(port);
-			mdelay(10);
-               }
-#endif
+		/*
+		 * Create a dummy bus for the SFP module that is not connected via I2C
+		 * on legacy SoCs, to prevent it from being skipped during validation checks.
+		 */
+		if (!port->bus) {
+			port->bus = mdio_alloc();
+			if (!port->bus) {
+				pr_err("failed to allocate MDIO bus\n");
+				return -ENOMEM;
+			}
+
+			port->bus->read = NULL;
+			port->bus->write = NULL;
+			port->bus->priv = NULL;
+			snprintf(port->bus->name, sizeof(port->bus->name),
+				"%s", "SFP-DUMMY");
+		}
+
 		if (port->rst_gpio.dev)
 			ipq_eth_phy_hw_reset(&port->rst_gpio);
+
+#ifdef CONFIG_PHY_QCA_8337
+		if (port->phy_id == QCA8337_SWITCH_TYPE) {
+		/*
+		 * The below listed configure need to perform
+		 * before init switch
+		 * set UNIPHY mode as SGMII
+		 * Configure GMAC
+		 * Disable txmac
+		 * Disable GMAC
+		 * configure uniphy force mode
+		 */
+			port->uniphy_mode = PORT_WRAPPER_SGMII0_RGMII4;
+			port->cur_uniphy_mode = PORT_WRAPPER_SGMII0_RGMII4;
+			port->gmac_type = port->cur_gmac_type = GMAC;
+			ppe_uniphy_mode_set(port);
+			ppe_port_mux_set(priv->ppe.base, port);
+			ppe_port_bridge_txmac_set(priv->ppe.base, port->id, false);
+			if (port->isforce_speed)
+				ppe_uniphy_set_forcemode(port);
+		}
+#endif
+
+#if defined(CONFIG_PHY_QCA_8337) || defined(CONFIG_PHY_QCA_8033)
+		if (port->phy_25mhz)
+			ppe_uniphy_refclk_set_25M(port);
+#endif
 
 #ifdef CONFIG_PHY_QCA_8X8X
 		if (port->phy_id == QCA8x8x_PHY_TYPE || port->phy_id == QCA8x8x_SWITCH_TYPE)
@@ -3234,6 +3276,7 @@ static int ipq_eth_ofdata_to_platdata(struct udevice *dev)
 								  "max_speed", -1);
 			port->isforce_speed = ofnode_read_bool(phandle_args.node, "force-speed");
 			port->xgmac = ofnode_read_bool(phandle_args.node, "xgmac");
+			port->phy_25mhz = ofnode_read_bool(phandle_args.node, "25M");
 			port->i2c_bus = ofnode_read_u32_default(phandle_args.node, "i2c-bus", 0);
 			port->interface = ofnode_read_phy_mode(phandle_args.node);
 
