@@ -44,8 +44,8 @@ DECLARE_GLOBAL_DATA_PTR;
 					((long long int)CID1 << 8) |\
 					(CID2 >> 24))
 
-#define MMC_CMD_SET_WRITE_PROT          28
-#define MMC_CMD_CLR_WRITE_PROT          29
+#define MMC_CMD_SET_WRITE_PROT	  28
+#define MMC_CMD_CLR_WRITE_PROT	  29
 
 #define MMC_ADDR_OUT_OF_RANGE(resp)     ((resp >> 31) & 0x01)
 
@@ -342,16 +342,27 @@ void ipq_smem_get_item(void *ptr, int type, int def, size_t size)
 		}
 
 	case SMEM_IMAGE_VERSION_TABLE:
+		if (error) {
+			printf("%s temp is NULL\n", __func__);
+			return;
+		}
+
 		struct image_version_entry *img_version =
 				(struct image_version_entry*)temp + 9;
 		/*
 		 * APPSBL version details have to be stored at the 10th index
 		 * of the array of struct image_version_entry
 		 */
+
+		if (!img_version) {
+			pr_err("Failed to get SMEM item for image version\n");
+			break;
+		}
+
 		memcpy(img_version->image_index, "09", 2);
 		memcpy(img_version->image_colon_sep1, ":", 1);
-		memcpy(img_version->image_qc_version_string, U_BOOT_VERSION,
-			IMAGE_QC_VERSION_STRING_LENGTH);
+		snprintf(img_version->image_qc_version_string,
+			IMAGE_QC_VERSION_STRING_LENGTH, "%s", U_BOOT_VERSION);
 		break;
 
 	case SMEM_BOOT_FLASH_TYPE:
@@ -620,7 +631,7 @@ static void ipq_update_env_offset(void)
 	struct ipq_board_info *_bdinfo = ipq_get_bdinfo();
 	struct ipq_smem_flash_info *smem_info = ipq_get_smem_info();
 
-	if (IS_ERR_OR_NULL(_bdinfo->ptable))
+	if (!_bdinfo->ptable || !smem_info)
 		return;
 
 	for (i = 0; i < _bdinfo->ptable->len; i++) {
@@ -791,6 +802,10 @@ int ipq_smem_getpart_from_offset(uint32_t offset, uint32_t *start,
 	struct smem_ptable *ptable = ipq_get_part_table();
 	struct smem_ptn *p;
 	uint32_t bsize;
+
+	if (!sfi)
+		return -EINVAL;
+
 #ifdef CONFIG_IPQ_NAND
 	struct mtd_info *mtd = get_nand_dev_by_index(0);
 
@@ -872,6 +887,10 @@ uint32_t ipq_find_flash_by_name(char *part_name)
 void ipq_get_kernel_fs_part_details(int flash_type)
 {
 	struct ipq_smem_flash_info *smem = ipq_get_smem_info();
+
+	if (!smem)
+		return;
+
 	struct { char *name; struct ipq_part_entry *part; } entries[] = {
 		{ "0:HLOS", &smem->hlos },
 		{ "0:HLOS_1", &smem->hlos_1 },
@@ -1280,7 +1299,7 @@ void update_board_type(void) {}
 #ifdef CONFIG_EFI_PARTITION
 static void update_part_type(int flash_type)
 {
-	enum uclass_id uclass_id;
+	enum uclass_id uclass_id = UCLASS_INVALID;
 	struct blk_desc *dev;
 
 	switch(flash_type) {
@@ -1332,6 +1351,9 @@ int ipq_board_late_init(void)
 {
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
 	uint32_t board_type;
+
+	if (!sfi)
+		return -EINVAL;
 
 	switch (sfi->flash_type) {
 	case SMEM_BOOT_NORGPT_FLASH:
@@ -1473,6 +1495,12 @@ int ipq_getpart_offset_size(char *part_name, uint32_t *offset, uint32_t *size)
 	uint32_t bsize;
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
 	struct smem_ptable *ptable = ipq_get_part_table();
+
+	if (!sfi || !ptable) {
+		printf("%s: Failed to get flash info\n", __func__);
+		return CMD_RET_FAILURE;
+	}
+
 #ifdef CONFIG_IPQ_NAND
 	struct mtd_info *mtd = get_nand_dev_by_index(0);
 
@@ -1537,7 +1565,6 @@ int mibib_ptable_init(unsigned int *addr)
 	}
 
 	memcpy(ptable, addr, sizeof(struct smem_ptable));
-
 	return 0;
 }
 
@@ -1584,6 +1611,11 @@ int ipq_get_partition_data(char *part_name, uint32_t offset, uint8_t *buf,
 #endif
 
 	memset(&part, 0, sizeof(struct ipq_part_entry));
+
+	if (!sfi) {
+		printf("%s: Failed to get flash info\n", __func__);
+		return CMD_RET_FAILURE;
+	}
 
 	if ((sfi->flash_type == SMEM_BOOT_NORGPT_FLASH) &&
 		((fl_type == SMEM_BOOT_QSPI_NAND_FLASH) ||
@@ -1763,6 +1795,10 @@ static void _get_eth_mac_address_random(uint8_t *enetaddr, int ncount)
 int ipq_get_eth_mac_address(uint8_t *enetaddr, int no_of_macs)
 {
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
+	if (!sfi) {
+		printf("%s: Failed to get flash info\n", __func__);
+		return -EINVAL;
+	}
 
 	return ipq_get_partition_data("0:ART", 0, enetaddr, no_of_macs * 6,
 					sfi->flash_type);
@@ -1770,7 +1806,7 @@ int ipq_get_eth_mac_address(uint8_t *enetaddr, int no_of_macs)
 
 void ipq_set_ethmac_addr(void)
 {
-	int i, ret;
+	int i, ret = -1;
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
 	uchar enetaddr[CONFIG_ETH_MAX_MAC * 6] = { 0 };
 	uchar *mac_addr;
@@ -1778,6 +1814,11 @@ void ipq_set_ethmac_addr(void)
 	char mac[64];
 	bool israndom = false;
 	/* Get the MAC address from ART partition */
+
+	if (!sfi) {
+		printf("%s: Failed to get flash info\n", __func__);
+		return;
+	}
 
 	if (sfi->flash_type)
 		ret = ipq_get_eth_mac_address(enetaddr, CONFIG_ETH_MAX_MAC);
@@ -1821,7 +1862,7 @@ cont:
 void ipq_setup_board_default_env(void)
 {
 	uint32_t soc_hw_version;
-	struct soc_info *ipq_socinfo = ipq_get_socinfo();
+	struct soc_info *ipq_socinfo = NULL;
 
 	/*
 	 * setup machid
@@ -1841,8 +1882,11 @@ void ipq_setup_board_default_env(void)
 	if (soc_hw_version)
 		env_set_hex("soc_hw_version", soc_hw_version);
 
-	env_set_ulong("soc_version_major", ipq_socinfo->soc_version_major);
-	env_set_ulong("soc_version_minor", ipq_socinfo->soc_version_minor);
+	ipq_socinfo = ipq_get_socinfo();
+	if (ipq_socinfo) {
+		env_set_ulong("soc_version_major", ipq_socinfo->soc_version_major);
+		env_set_ulong("soc_version_minor", ipq_socinfo->soc_version_minor);
+	}
 #ifdef CFG_CUSTOM_LOAD_ADDR
 	env_set_hex("loadaddr", CFG_CUSTOM_LOAD_ADDR);
 #endif
@@ -2185,7 +2229,18 @@ void update_nand_training_partition(struct ipq_smem_flash_info *sfi)
 int ipq_get_training_part_info(uint32_t *offset, uint32_t *size)
 {
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
+
+	if (!sfi) {
+		printf("%s: Failed to get flash info\n", __func__);
+		return CMD_RET_FAILURE;
+	}
+
 	struct ipq_part_entry *part = &sfi->training;
+
+	if (!part) {
+		printf("%s: part info not found\n", __func__);
+		return -EINVAL;
+	}
 
 	if (part->offset == 0)
 		update_nand_training_partition(sfi);
@@ -2210,6 +2265,11 @@ int ipq_init_ubi_part(void)
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
 	struct ubi_device *ubi = ubi_get_device(0);
 	char env_strings[64];
+
+	if (!sfi) {
+		printf("%s: smem flash info not found\n", __func__);
+		return -EINVAL;
+	}
 
 	if(ubi == NULL) {
 #ifdef CONFIG_BOOTCONFIG_V3
@@ -2477,7 +2537,7 @@ static int do_cal_qcn9224(struct cal_config *cfg,
 			  struct cal_per_dev_config *dev_cfg, int debug)
 {
 	struct udevice *dev;
-	uintptr_t bar0_base, reg, load_addr;
+	uintptr_t bar0_base, reg, load_addr = (uintptr_t)NULL;
 	struct file_info *file;
 	int ret, i, val;
 	struct uboot_cal_tlv *tlv = NULL;
@@ -2521,6 +2581,7 @@ static int do_cal_qcn9224(struct cal_config *cfg,
 				       file->size);
 				cal_fw = (void *)(uintptr_t)dev_cfg->cal_fw_image_addr;
 				cal_fw_size = file->size;
+				load_addr = (uintptr_t)cal_fw;
 			}
 			break;
 		case BDF:
@@ -2546,8 +2607,10 @@ static int do_cal_qcn9224(struct cal_config *cfg,
 			break;
 		}
 	}
-
-	load_addr = (uintptr_t)cal_fw;
+	if(!load_addr){
+		printf("Load address is NULL");
+		return -EINVAL;
+	}
 
 	/* FILL TLV */
 	tlv = (struct uboot_cal_tlv *)memalign(SZ_4K, sizeof(struct uboot_cal_tlv));
@@ -2908,6 +2971,10 @@ int cal_qcn9224(int debug)
 		goto out;
 	}
 
+	if (!cfg->cal_fw_header) {
+		ret = -EINVAL;
+		goto out;
+	}
 	if (cfg->cal_fw_header->magic != 0xCAFECACE) {
 		printf("Magic mismatch\n");
 		ret = -EINVAL;

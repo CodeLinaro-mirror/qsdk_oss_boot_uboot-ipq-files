@@ -93,8 +93,8 @@ void parse_fdt_fixup(char *buf, void *blob)
 	int nodeoff, value, num_values, i;
 	char *node, *property, *node_value, *sliced_string;
 	bool if_string = true, bit32 = true;
-	u32 *values32;
-	u64 *values64;
+	u32 *values32 = NULL;
+	u64 *values64 = NULL;
 	int ret = 0;
 
 	/* env is split into <node>%<property>%<node_value>. '%' is separator*/
@@ -195,7 +195,7 @@ void parse_fdt_fixup(char *buf, void *blob)
 								" prop %s\n",
 								__func__,
 								property);
-						return;
+						goto cleanup;
 					}
 				} else {
 					values64 = malloc(num_values *
@@ -230,7 +230,7 @@ void parse_fdt_fixup(char *buf, void *blob)
 							" set prop %s\n",
 							__func__,
 							property);
-						return;
+						goto cleanup;
 					}
 				}
 			} else {
@@ -266,6 +266,12 @@ void parse_fdt_fixup(char *buf, void *blob)
 arg_err:
 	if (ret == EINVAL)
 		printf("%s: invalid string\n", __func__);
+cleanup:
+	if (values32)
+		free(values32);
+	if (values64)
+		free(values64);
+	return;
 }
 
 /* check parse_fdt_fixup for detailed explanation */
@@ -319,13 +325,15 @@ __weak void ipq_fdt_fixup_socinfo(void *blob)
 	uint32_t cpu_type;
 	int nodeoff, ret;
 	struct soc_info *ipq_socinfo = ipq_get_socinfo();
-
 	nodeoff = fdt_path_offset(blob, "/");
 
 	if (nodeoff < 0) {
 		printf("ipq: fdt fixup cannot find root node\n");
 		return;
 	}
+
+	if (!ipq_socinfo)
+		return;
 
 	ret = fdt_setprop(blob, nodeoff, "cpu_type",
 			  (void *)&ipq_socinfo->cpu_type, sizeof(cpu_type));
@@ -406,12 +414,15 @@ void ipq_smem_part_to_mtdparts(char *mtdid, int len)
 #endif
 #ifdef CONFIG_CMD_NAND
 	struct mtd_info *mtd = get_nand_dev_by_index(0);
-
 	if (!mtd) {
 		printf("%s: mtd device not found\n", __func__);
 		return;
 	}
 #endif
+	if (!sfi) {
+		return;
+	}
+
 #if defined(CONFIG_NOR_BLK)
 	if (sfi->flash_type == SMEM_BOOT_NORGPT_FLASH) {
 		dev = blk_get_devnum_by_uclass_id(UCLASS_SPI, 0);
@@ -438,8 +449,12 @@ void ipq_smem_part_to_mtdparts(char *mtdid, int len)
 	part += ret;
 	len -= ret;
 
-	if (sfi->flash_type != SMEM_BOOT_NORGPT_FLASH)
+	if (sfi->flash_type != SMEM_BOOT_NORGPT_FLASH) {
+		if (!ptable) {
+			return;
+		}
 		ncount = ptable->len;
+	}
 
 	for (i = 0; i < ncount && len > 0; i++) {
 #if defined(CONFIG_NOR_BLK)
@@ -526,6 +541,11 @@ static int ipq_fdt_fixup_spi_nor_params(void *blob,
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
 #if defined(CONFIG_NOR_BLK)
 	struct spi_flash *flash = ipq_spi_probe();
+
+	if (!sfi) {
+		printf("%s: Failed to get flash info\n", __func__);
+		return CMD_RET_FAILURE;
+	}
 
 	if (flash == NULL && sfi->flash_type == SMEM_BOOT_NORGPT_FLASH) {
 		printf("Spi nor not found\n");
@@ -773,7 +793,7 @@ static void ipq_fdt_fixup_dload_disable(void *blob)
 #ifdef CONFIG_CB_CALIB
 static int ipq_fdt_create_cal_config(void *blob, int node)
 {
-	int ret, len, ep_node, rc_node;
+	int ret = 0, len, ep_node, rc_node;
 	const u32 *pval;
 	const char *name;
 	struct cal_dt_config *config;
@@ -787,7 +807,8 @@ static int ipq_fdt_create_cal_config(void *blob, int node)
 	config = malloc_cache_aligned(sizeof(*config));
 	if (!config) {
 		printf("failed to allocate memory for wifi config\n");
-		return -ENOMEM;
+		ret = -ENOMEM;
+		goto cleanup;
 	}
 
 	memset(config, 0, sizeof(*config));
@@ -795,13 +816,14 @@ static int ipq_fdt_create_cal_config(void *blob, int node)
 	ret = fdt_get_path(blob, node, path, sizeof(path));
 	if (ret < 0) {
 		printf("failed to get node path from blob\n");
-		return -EINVAL;
+		ret = -EINVAL;
+		goto cleanup;
 	}
 	ret = fdtdec_get_carveout(blob, (const char *)path, "memory-region", 0, &carveout, &name,
 				  &compatibles, &num_compatibles, &flags);
 	if (ret < 0) {
 		printf("failed to get carveout for %s: %d\n", path, ret);
-		return ret;
+		goto cleanup;
 	}
 
 	config->rmem_base_addr = (uint32_t)carveout.start;
@@ -823,13 +845,15 @@ static int ipq_fdt_create_cal_config(void *blob, int node)
 	ep_node = fdt_parent_offset(blob, node);
 	if (ep_node <= 0) {
 		printf("Failed to get ep node\n");
-		return -EINVAL;
+		ret = -EINVAL;
+		goto cleanup;
 	}
 
 	rc_node = fdt_parent_offset(blob, ep_node);
 	if (rc_node <= 0) {
 		printf("Failed to get rc node\n");
-		return -EINVAL;
+		ret = -EINVAL;
+		goto cleanup;
 	}
 
 	pval = fdt_getprop(blob, rc_node, "linux,pci-domain", &len);
@@ -840,12 +864,18 @@ static int ipq_fdt_create_cal_config(void *blob, int node)
 			  (void *)&cal_status_offset, sizeof(cal_status_offset));
 	if (ret) {
 		printf("Failed to update cal-status-offset %d\n", ret);
-		return ret;
+		goto cleanup;
 	}
 
 	list_add_tail(&config->list, cal_list_head);
-
 	return 0;
+
+cleanup:
+	if (config)
+		free(config);
+	if (compatibles)
+		free(compatibles);
+	return ret;
 }
 
 void ipq_fdt_fixup_start_cal(void *blob)

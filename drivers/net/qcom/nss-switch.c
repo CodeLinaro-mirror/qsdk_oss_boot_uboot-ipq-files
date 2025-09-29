@@ -113,7 +113,7 @@ static int ppe_uniphy_calibration(struct port_info *port)
 		mdelay(1);
 		if (retries-- == 0) {
 			printf("uniphy calibration time out!\n");
-			return -1;
+			return -ETIMEDOUT;
 		}
 		reg_value = readl(reg);
 		calibration_done = (reg_value >> 0x7) & 0x1;
@@ -132,10 +132,15 @@ void ipq_port_reset(struct reset_ctl *rst, bool set)
 
 static void ppe_uniphy_reset(struct port_info *port, bool issoft, bool set)
 {
-	struct udevice *dev = port->phydev->dev;
+	struct udevice *dev;
 	struct reset_ctl rst;
 	int ret;
 	char name[64];
+
+	if (!port || !port->phydev || !port->phydev->dev)
+		return;
+
+	dev = port->phydev->dev;
 
 	snprintf(name, sizeof(name), "uniphy%d_%s", port->uniphy_id,
 		 (issoft) ? "srst" : "xrst");
@@ -269,7 +274,7 @@ static int ppe_uniphy_10g_r_linkup(u32 uniphy_index)
 	while (linkup != UNIPHY_10GR_LINKUP) {
 		mdelay(1);
 		if (retries-- == 0)
-			return -1;
+			return -ETIMEDOUT;
 		reg_value = csr1_read(uniphy_index, SR_XS_PCS_KR_STS1_ADDRESS);
 		linkup = (reg_value >> 12) & UNIPHY_10GR_LINKUP;
 	}
@@ -1024,6 +1029,9 @@ void ipq_port_mac_clock_setclear(struct udevice *dev, struct port_info *port,
 	struct reset_ctl rst;
 	int ret;
 	char name[64];
+
+	if (!dev || !port)
+		return;
 
 	snprintf(name, sizeof(name), "nss_cc_port%d_mac", port->id);
 
@@ -3007,6 +3015,23 @@ static int ipq_eth_probe(struct udevice *dev)
 			if (!port->bus)
 				continue;
 		}
+		/*
+		 * Create a dummy bus for the SFP module that is not connected via I2C
+		 * on legacy SoCs, to prevent it from being skipped during validation checks.
+		 */
+		if (!port->bus) {
+			port->bus = mdio_alloc();
+			if (!port->bus) {
+				pr_err("failed to allocate MDIO bus\n");
+				return -ENOMEM;
+			}
+
+			port->bus->read = NULL;
+			port->bus->write = NULL;
+			port->bus->priv = NULL;
+			snprintf(port->bus->name, sizeof(port->bus->name),
+				"%s", "SFP-DUMMY");
+		}
 
 #ifdef CONFIG_PHY_QCA_8033
 		if (port->phy_id == QCA8033_PHY_TYPE) {
@@ -3092,6 +3117,8 @@ static int ipq_eth_probe(struct udevice *dev)
 		++configured;
 	}
 fail:
+	free(clk_names);
+
 	return !configured;
 }
 
