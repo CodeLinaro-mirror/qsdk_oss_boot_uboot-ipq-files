@@ -2336,7 +2336,7 @@ void ipq_board_power_cycle_sdx(void)
  * NOP driver: only for GPIO configuration
  */
 static const struct udevice_id gpio_ids[] = {
-	{ .compatible = "gpio, config", },
+	{ .compatible = "gpio,config", },
 	{ }
 };
 

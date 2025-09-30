@@ -136,6 +136,7 @@
 		};
 
 		sdx_rst: gpio{
+			compatible = "gpio,config";
 			pinctrl-names = "default";
 			pinctrl-0 = <&sdx_rst_pinmux>;
 			status = "okay";
