@@ -17,7 +17,6 @@
 #define PLLOUT_LV_AUX_EN                        (BIT(1)|BIT(2))
 #define MACH_TYPE_IPQ5424_RDP464_C2		0x8070000
 #define MACH_TYPE_IPQ5424_RDP464		0x8070001
-#define MACH_TYPE_IPQ5424_RDP464_C3		0x8070002
 #define MACH_TYPE_IPQ5424_RDP508		0x8070003
 #define MACH_TYPE_IPQ5424_RDP466_C2		0x8070100
 #define MACH_TYPE_IPQ5424_RDP466_C3		0x8070102
@@ -92,12 +91,6 @@ struct machid_dts_map machid_dts[] = {
 		MACH_TYPE_IPQ5424_RDP464_C2,
 		"ipq5424-rdp464-c2",
 		"rdp464-c2",
-		NULL
-	},
-	{
-		MACH_TYPE_IPQ5424_RDP464_C3,
-		"ipq5424-rdp464-c3",
-		"rdp464-c3",
 		NULL
 	},
 	{
