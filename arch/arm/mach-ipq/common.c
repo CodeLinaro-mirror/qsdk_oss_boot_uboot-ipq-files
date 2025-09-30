@@ -2796,8 +2796,6 @@ int cal_qcn9224(int debug)
 	list_for_each_entry(dt_cfg, cal_list_head, list) {
 		ret = populate_cfg(dt_cfg, cfg);
 		if (ret) {
-			if (ret == -ENODEV)
-				continue;
 			printf("Failed to populate cal config %d\n", ret);
 			goto out;
 		}
