@@ -97,7 +97,6 @@ static int do_smeminfo(struct cmd_tbl *cmdtp, int flag, int argc,
 #ifdef CONFIG_CMD_UBI
 	bool print_ubi = false;
 	struct ubi_device *ubi = NULL;
-	bool active_bank = ipq_get_valid_bank();
 
 	if (ipq_init_ubi_part() == 0)
 		ubi = ubi_get_device(0);
@@ -166,7 +165,11 @@ static int do_smeminfo(struct cmd_tbl *cmdtp, int flag, int argc,
 		       i, p->name, p->attr, ((loff_t)p->start) * bsize, psize);
 #ifdef CONFIG_CMD_UBI
 		if ((!strncmp(p->name,
-			active_bank ? ROOT_FS_ATL_PART_NAME : ROOT_FS_PART_NAME,
+#ifdef CONFIG_BOOTCONFIG_V3
+			ipq_get_valid_bank() ? ROOT_FS_ATL_PART_NAME : ROOT_FS_PART_NAME,
+#else
+			ROOT_FS_PART_NAME,
+#endif
 			SMEM_PTN_NAME_MAX)) && ubi) {
 			print_ubi_vol_info(ubi);
 			print_ubi = true;
