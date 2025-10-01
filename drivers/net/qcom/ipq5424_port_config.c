@@ -147,6 +147,23 @@ static struct ipq_eth_port_config ipq5424_port_config[] = {
 			PORT_WRAPPER_SGMII_PLUS
 		},
 	}, {
+			QCA8337_SWITCH_TYPE,
+		{
+			CLK_125_MHZ,
+			CLK_125_MHZ,
+			CLK_125_MHZ
+		},
+		{
+			GMAC,
+			GMAC,
+			GMAC
+		},
+		{
+			PORT_WRAPPER_SGMII0_RGMII4,
+			PORT_WRAPPER_SGMII0_RGMII4,
+			PORT_WRAPPER_SGMII0_RGMII4
+		},
+	}, {
 		UNUSED_PHY_TYPE,
 	},
 };
