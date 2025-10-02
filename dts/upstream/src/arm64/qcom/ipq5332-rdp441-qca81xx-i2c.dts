@@ -179,6 +179,7 @@
 	pinctrl-0 = <&pcie1_default_state>;
 	pinctrl-names = "default";
 	perst-gpios = <&tlmm 47 GPIO_ACTIVE_LOW>;
+	status = "okay";
 };
 
 &blsp1_i2c1 {
