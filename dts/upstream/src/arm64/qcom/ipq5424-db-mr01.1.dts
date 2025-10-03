@@ -292,6 +292,7 @@
 		clocks = <&gcc GCC_QUPV3_SPI1_CLK>;
 		clock-names = "se";
 		clock-frequency = <400000>;
+		qcom,geni-se-clk-32mhz;
 		qup-se-fw-load = <&i2c2_fw>;
 		pinctrl-0 = <&i2c2_pinmux>;
 		pinctrl-names = "default";

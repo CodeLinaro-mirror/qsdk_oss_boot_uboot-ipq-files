@@ -323,6 +323,7 @@
 		clock-names = "se";
 		clock-frequency = <400000>;
 		qup-se-fw-load = <&i2c2_fw>;
+		qcom,geni-se-clk-32mhz;
 		pinctrl-0 = <&i2c2_pinmux>;
 		pinctrl-names = "default";
 		status = "okay";
