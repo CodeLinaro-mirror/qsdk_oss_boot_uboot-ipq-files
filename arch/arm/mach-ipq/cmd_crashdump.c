@@ -726,10 +726,6 @@ static void delete_crashdump_table(void)
 	list_for_each_entry_safe(dump_entry, tmp_entry,
 			&actual_dumps_list, list) {
 		list_del(&dump_entry->list);
-		/* Free allocated buffer if it exists */
-		if (dump_entry->start_addr) {
-			free((void*)(uintptr_t)dump_entry->start_addr);
-		}
 		free(dump_entry);
 	}
 }
