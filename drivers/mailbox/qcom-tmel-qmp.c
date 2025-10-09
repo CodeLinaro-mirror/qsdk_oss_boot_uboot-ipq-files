@@ -875,7 +875,7 @@ static int tmel_qmp_parse_dt(struct udevice *dev)
 	else
 		addr = fdt32_to_cpu(reg[0]);
 
-	tdev->irq_base = (void __iomem *)addr;
+	tdev->irq_base = (void __iomem *)(uintptr_t)addr;
 	list = dev_read_prop(dev, "interrupts", &size);
 	if (!list) {
 		printf("\ninterrupts property not found ...\n");
