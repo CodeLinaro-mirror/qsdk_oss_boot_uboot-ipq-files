@@ -103,6 +103,13 @@
 			status = "okay";
 		};
 
+		pcie0: pci@28000000 {
+			pinctrl-names = "default";
+			pinctrl-0 = <&pci0_pin>;
+			status = "okay";
+			perst-gpios = <&tlmm 23 GPIO_ACTIVE_LOW>;
+		};
+
 		pcie1: pci@10000000 {
 			pinctrl-names = "default";
 			pinctrl-0 = <&pci1_pin>;
@@ -163,6 +170,14 @@
 		};
 	};
 
+	pci0_pin: pci0-default-state {
+		pins = "gpio23";
+		function = "gpio";
+		drive-strength = <8>;
+		bias-pull-up;
+		output-low;
+	};
+
 	pci1_pin: pci1-default-state {
 		pins = "gpio26";
 		function = "gpio";
@@ -175,7 +190,7 @@
 		pins = "gpio29";
 		function = "gpio";
 		drive-strength = <8>;
-		bias-pull-down;
+		bias-pull-up;
 		output-low;
 	};
 
