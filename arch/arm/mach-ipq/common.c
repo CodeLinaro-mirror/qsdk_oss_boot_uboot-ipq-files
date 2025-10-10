@@ -60,7 +60,6 @@ DECLARE_GLOBAL_DATA_PTR;
 #endif
 
 uint32_t g_load_addr;
-uint32_t g_recovery_path __section(".data");
 
 #ifdef CONFIG_MMC
 extern int mmc_send_status(struct mmc *mmc, unsigned int *status);
@@ -1252,17 +1251,9 @@ static void update_board_type(void)
 {
 	uint32_t board_type;
 
-	if(g_recovery_path == 1) {
-		gd->board_type |= RECOVERY_MODE;
-	} else {
-		g_recovery_path = readl(CRASH_DUMP_ADDR_IMEM) & 0xffffffff;
-		gd->board_type |= (g_recovery_path == MAGIC_RECOVERY_PATH) ?
-				   RECOVERY_MODE : 0;
-	}
-
 	board_type = gd->board_type;
 
-	if ((board_type & FLASH_TYPE_MASK) == SMEM_BOOT_NO_FLASH)
+	if (board_type & RECOVERY_MODE)
 		return;
 
 	if (is_secure_boot())
@@ -1271,7 +1262,7 @@ static void update_board_type(void)
 	if (is_atf_enbled())
 		board_type |= ATF_ENABLED;
 
-	gd->board_type = board_type;
+	gd->board_type |= board_type;
 }
 #else
 void update_board_type(void) {}
@@ -1367,7 +1358,7 @@ int ipq_board_late_init(void)
 		sfi->flash_secondary_type = 0;
 	}
 #ifdef CONFIG_BOARD_TYPES
-	gd->board_type = board_type;
+	gd->board_type |= board_type;
 #endif
 
 	update_board_type();

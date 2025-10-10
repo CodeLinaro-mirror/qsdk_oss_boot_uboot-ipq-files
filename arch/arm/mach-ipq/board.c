@@ -35,6 +35,7 @@ DECLARE_GLOBAL_DATA_PTR;
 #endif
 uint32_t g_board_machid;
 struct ipq_board_info *ipq_bdinfo;
+uint32_t g_recovery_path __section(".data");
 #if defined(CONFIG_ENV_IS_IN_SPI_FLASH)
 uint32_t g_env_offset __section(".data") = 0;
 #endif
@@ -196,8 +197,16 @@ void enable_caches(void)
 	gd->arch.tlb_addr = tlb_addr;
 	gd->arch.tlb_size = tlb_size;
 
-	icache_enable();
-	dcache_enable();
+	if (g_recovery_path == 1)
+		gd->board_type |= RECOVERY_MODE;
+#if defined(CRASH_DUMP_ADDR_IMEM)
+	else {
+		g_recovery_path = readl(CRASH_DUMP_ADDR_IMEM) & 0xffffffff;
+		gd->board_type |= (g_recovery_path == MAGIC_RECOVERY_PATH) ?
+				   RECOVERY_MODE : 0;
+	}
+#endif
+	board_cache_init();
 }
 
 #else /* CONFIG_ARMV7 */
@@ -269,8 +278,7 @@ void dram_bank_mmu_setup(int bank)
 
 void enable_caches(void)
 {
-	icache_enable();
-	dcache_enable();
+	board_cache_init();
 }
 #endif
 
