@@ -26,47 +26,63 @@ static int ipq_bb_mdio_active(struct bb_miiphy_bus *bus)
 {
 	struct ipq_bb_mdio_gpios *priv = bus->priv;
 
-	dm_gpio_clrset_flags(&priv->mdio, GPIOD_MASK_DIR, GPIOD_IS_OUT);
-	dm_gpio_set_value(&priv->mdio, 1);
-	return 0;
+	if (!priv)
+		return -EINVAL;
+
+	return dm_gpio_clrset_flags(&priv->mdio, GPIOD_MASK_DIR,
+					GPIOD_IS_OUT_ACTIVE);
 }
 
 static int ipq_bb_mdio_tristate(struct bb_miiphy_bus *bus)
 {
 	struct ipq_bb_mdio_gpios *priv = bus->priv;
 
-	dm_gpio_clrset_flags(&priv->mdio, GPIOD_MASK_DIR, GPIOD_IS_IN);
-	dm_gpio_set_value(&priv->mdio, 0);
-	return 0;
+	if (!priv)
+		return -EINVAL;
+
+	return dm_gpio_clrset_flags(&priv->mdio,
+					GPIOD_MASK_DIR | GPIOD_MASK_PULL,
+					GPIOD_IS_IN | GPIOD_PULL_DOWN);
 }
 
 static int ipq_bb_set_mdio(struct bb_miiphy_bus *bus, int v)
 {
 	struct ipq_bb_mdio_gpios *priv = bus->priv;
+	int flags = (v == 1)? GPIOD_IS_OUT_ACTIVE : GPIOD_IS_OUT;
 
-	dm_gpio_set_value(&priv->mdio, v);
-	return 0;
+	if (!priv)
+		return -EINVAL;
+
+	return dm_gpio_clrset_flags(&priv->mdio, GPIOD_MASK_DIR, flags);
 }
 
 static int ipq_bb_get_mdio(struct bb_miiphy_bus *bus, int *v)
 {
 	struct ipq_bb_mdio_gpios *priv  = bus->priv;
 
+	if (!priv)
+		return -EINVAL;
+
 	*v = dm_gpio_get_value(&priv->mdio);
+
 	return 0;
 }
 
 static int ipq_bb_set_mdc(struct bb_miiphy_bus *bus, int v)
 {
 	struct ipq_bb_mdio_gpios *priv = bus->priv;
+	int flags = (v == 1)? GPIOD_IS_OUT_ACTIVE : GPIOD_IS_OUT;
 
-	dm_gpio_set_value(&priv->mdc, v);
-	return 0;
+	if (!priv)
+		return -EINVAL;
+
+	return dm_gpio_clrset_flags(&priv->mdc, GPIOD_MASK_DIR, flags);
 }
 
 static int ipq_bb_delay(struct bb_miiphy_bus *bus)
 {
 	udelay(1);
+
 	return 0;
 }
 
@@ -135,6 +151,7 @@ static int ipq_bb_mdio_probe(struct udevice *dev)
 	device_set_name(dev, bb_miiphy_buses[dev_idx].name);
 
 	dev_idx++;
+
 	return 0;
 }
 
