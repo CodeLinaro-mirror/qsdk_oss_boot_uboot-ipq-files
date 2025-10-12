@@ -1564,10 +1564,9 @@ static int split_bin_dump(crashdump_config_t *dump_config,
 	uint8_t file_no = (dump_sz / split_size) + file_no_start -
 				((dump_sz % split_size) ? 0 : 1);
 
-	while (dump_sz > 0 && file_no > 0) {
+	while (dump_sz > 0) {
 		snprintf(dump_entry->name, sizeof(dump_entry->name),
-				"%s%d.BIN", dump_name_prefix, file_no);
-		file_no--;
+				"%s%d.BIN", dump_name_prefix, file_no--);
 		if (dump_sz > split_size)
 			dump_entry->size = split_size;
 		else
