@@ -110,6 +110,19 @@ struct smem_ptable *ipq_get_part_table(void)
 }
 #endif
 
+static void check_recovery_mode(void)
+{
+	if (g_recovery_path == 1)
+		gd->board_type |= RECOVERY_MODE;
+#if defined(CRASH_DUMP_ADDR_IMEM)
+	else {
+		g_recovery_path = readl(CRASH_DUMP_ADDR_IMEM) & 0xffffffff;
+		gd->board_type |= (g_recovery_path == MAGIC_RECOVERY_PATH) ?
+		RECOVERY_MODE : 0;
+	}
+#endif
+}
+
 #ifdef CONFIG_ARM64
 static struct mm_region ipq_mem_map[CONFIG_NR_DRAM_BANKS + 3] = { { 0 } };
 struct mm_region *mem_map = ipq_mem_map;
@@ -197,15 +210,7 @@ void enable_caches(void)
 	gd->arch.tlb_addr = tlb_addr;
 	gd->arch.tlb_size = tlb_size;
 
-	if (g_recovery_path == 1)
-		gd->board_type |= RECOVERY_MODE;
-#if defined(CRASH_DUMP_ADDR_IMEM)
-	else {
-		g_recovery_path = readl(CRASH_DUMP_ADDR_IMEM) & 0xffffffff;
-		gd->board_type |= (g_recovery_path == MAGIC_RECOVERY_PATH) ?
-				   RECOVERY_MODE : 0;
-	}
-#endif
+	check_recovery_mode();
 	board_cache_init();
 }
 
@@ -278,6 +283,7 @@ void dram_bank_mmu_setup(int bank)
 
 void enable_caches(void)
 {
+	check_recovery_mode();
 	board_cache_init();
 }
 #endif
