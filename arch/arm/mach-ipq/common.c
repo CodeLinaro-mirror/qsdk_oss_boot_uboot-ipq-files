@@ -1521,6 +1521,10 @@ int mibib_ptable_init(unsigned int *addr)
 {
 	struct smem_ptable *mib_ptable;
 	struct smem_ptable *ptable = ipq_get_part_table();
+	struct ipq_board_info *bdinfo = ipq_get_bdinfo();
+
+	if (!bdinfo)
+		return -ENXIO;
 
 	mib_ptable = (struct smem_ptable *) addr;
 	if (mib_ptable->magic[0] != _SMEM_PTABLE_MAGIC_1 ||
@@ -1534,6 +1538,7 @@ int mibib_ptable_init(unsigned int *addr)
 		ptable = malloc(sizeof(struct smem_ptable));
 		if (!ptable)
 			return -ENOMEM;
+		bdinfo->ptable = ptable;
 	}
 
 	memcpy(ptable, addr, sizeof(struct smem_ptable));
