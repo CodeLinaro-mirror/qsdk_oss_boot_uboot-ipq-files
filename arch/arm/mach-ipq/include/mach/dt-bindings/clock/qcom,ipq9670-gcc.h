@@ -13,5 +13,8 @@
 #define GCC_SDCC1_AHB_CLK	3
 #define GCC_SDCC1_APPS_CLK	4
 #define GCC_QUPV3_SPI0_CLK	5
+#define GCC_QPIC_CLK		6
+#define GCC_QPIC_IO_MACRO_CLK	7
+#define GCC_QPIC_AHB_CLK	8
 
 #endif
