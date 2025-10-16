@@ -31,6 +31,7 @@
 #define MACH_TYPE_IPQ5424_RDP485_RFFE_C2	0x8071111
 #define MACH_TYPE_IPQ5424_RDP485_RFFE		0x8070111
 #define MACH_TYPE_IPQ5424_RDP487		0x8070200
+#define MACH_TYPE_IPQ5424_RDP487_C2		0x8070201
 #define MACH_TYPE_IPQ5424_RDP487_C3		0x8070202
 #define MACH_TYPE_IPQ5424_DB_MR01_1		0x1070000
 
@@ -153,6 +154,12 @@ struct machid_dts_map machid_dts[] = {
 		MACH_TYPE_IPQ5424_RDP487,
 		"ipq5424-rdp487",
 		"rdp487",
+		NULL
+	},
+	{
+		MACH_TYPE_IPQ5424_RDP487_C2,
+		"ipq5424-rdp487",
+		"rdp487-c2",
 		NULL
 	},
 	{
@@ -330,6 +337,10 @@ void ipq_update_board_name(int machid, struct multidtb_config *dtb)
 	break;
 	case MACH_TYPE_IPQ5424_RDP485_RFFE_C2:
 		strlcpy(dtb->dts_name, "ipq5424-rdp485-rffe-c2",
+			BOARD_DTS_MAX_NAMELEN);
+	break;
+	case MACH_TYPE_IPQ5424_RDP487_C2:
+		strlcpy(dtb->dts_name, "ipq5424-rdp487-c2",
 			BOARD_DTS_MAX_NAMELEN);
 	break;
 	default:
