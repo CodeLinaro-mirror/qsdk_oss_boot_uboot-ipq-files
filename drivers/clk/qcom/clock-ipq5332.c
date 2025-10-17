@@ -165,7 +165,9 @@ int msm_set_parent(struct clk *clk, struct clk *parent)
 ulong msm_get_rate(struct clk *clk)
 {
 	switch (clk->id) {
+	case GCC_BLSP1_QUP1_I2C_APPS_CLK:
 	case GCC_BLSP1_QUP2_I2C_APPS_CLK:
+	case GCC_BLSP1_QUP3_I2C_APPS_CLK:
 		clk->rate = CLK_50_MHZ;
 		break;
 	};
@@ -194,8 +196,8 @@ ulong msm_get_rate(struct clk *clk)
 					(BLSP1_QUP1_I2C_BCR) : \
 					(BLSP1_QUP1_I2C_BCR + (0x1000 * (id))))
 
-#define BLSP1_QUP_I2C_APPS_CMD_RCGR(id)	(BLSP1_QUP_I2C_BCR(id) + 0x18)
-#define BLSP1_QUP_I2C_APPS_CFG_RCGR(id)	(BLSP1_QUP_I2C_BCR(id) + 0x1C)
+#define BLSP1_QUP_I2C_APPS_CMD_RCGR(id)	(BLSP1_QUP_I2C_BCR(id) + 0x04)
+#define BLSP1_QUP_I2C_APPS_CFG_RCGR(id)	(BLSP1_QUP_I2C_BCR(id) + 0x08)
 #define BLSP1_QUP_I2C_APPS_CBCR(id)	(BLSP1_QUP_I2C_BCR(id) + 0x24)
 
 #define BLSP1_QUP_I2C_50M_DIV_VAL	(0x1F << 0)
@@ -232,10 +234,22 @@ static ulong ipq5332_set_rate(struct clk *clk, ulong rate)
 				     BLSP1_QUP_SPI_APPS_CMD_RCGR(2), 16, 0, 0,
 				     CFG_CLK_SRC_GPLL0, 16);
 		break;
-	case GCC_BLSP1_QUP2_I2C_APPS_CLK:
+	case GCC_BLSP1_QUP1_I2C_APPS_CLK:
 		/* QUP1 I2C APPS CLK: 50MHz */
-		clk_rcg_set_rate(priv->base, BLSP1_QUP_I2C_APPS_CMD_RCGR(1),
-				 BLSP1_QUP_I2C_50M_DIV_VAL,
+		clk_rcg_set_rate_v2(priv->base, BLSP1_QUP_I2C_APPS_CMD_RCGR(0),
+				 0, BLSP1_QUP_I2C_50M_DIV_VAL, 0,
+				 CFG_CLK_SRC_GPLL0);
+		break;
+	case GCC_BLSP1_QUP2_I2C_APPS_CLK:
+		/* QUP2 I2C APPS CLK: 50MHz */
+		clk_rcg_set_rate_v2(priv->base, BLSP1_QUP_I2C_APPS_CMD_RCGR(1),
+				 0, BLSP1_QUP_I2C_50M_DIV_VAL, 0,
+				 CFG_CLK_SRC_GPLL0);
+		break;
+	case GCC_BLSP1_QUP3_I2C_APPS_CLK:
+		/* QUP3 I2C APPS CLK: 50MHz */
+		clk_rcg_set_rate_v2(priv->base, BLSP1_QUP_I2C_APPS_CMD_RCGR(2),
+				 0, BLSP1_QUP_I2C_50M_DIV_VAL, 0,
 				 CFG_CLK_SRC_GPLL0);
 		break;
 	case GCC_SDCC1_APPS_CLK:
@@ -456,7 +470,9 @@ static const struct gate_clk ipq5332_clks[] = {
 	GATE_CLK(NSS_CC_UNIPHY_PORT2_RX_CLK,	0x004BC, 0x00000001),
 	GATE_CLK(NSS_CC_UNIPHY_PORT2_TX_CLK,	0x004C0, 0x00000001),
 	GATE_CLK(GCC_MDIO_MASTER_AHB_CLK,	0x12004, 0x00000001),
+	GATE_CLK(GCC_BLSP1_QUP1_I2C_APPS_CLK,	BLSP1_QUP_I2C_APPS_CBCR(0), 0x00000001),
 	GATE_CLK(GCC_BLSP1_QUP2_I2C_APPS_CLK,	BLSP1_QUP_I2C_APPS_CBCR(1), 0x00000001),
+	GATE_CLK(GCC_BLSP1_QUP3_I2C_APPS_CLK,	BLSP1_QUP_I2C_APPS_CBCR(2), 0x00000001),
 	GATE_CLK(GCC_PCIE3X1_0_AHB_CLK,		0x29030, 0x00000001),
 	GATE_CLK(GCC_PCIE3X1_0_AXI_M_CLK,	0x29038, 0x00000001),
 	GATE_CLK(GCC_PCIE3X1_0_AXI_S_CLK,	0x29040, 0x00000001),
