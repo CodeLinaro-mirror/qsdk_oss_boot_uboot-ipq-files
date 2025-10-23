@@ -297,7 +297,6 @@ enum comm_type_id {
 	COMM_TYPE_MAX
 };
 
-#ifdef CONFIG_DTB_RESELECT
 struct machid_dts_map {
 	int machid;
 	char *dts;
@@ -312,7 +311,6 @@ struct multidtb_config {
 	char dts_base[BOARD_DTS_MAX_NAMELEN];
 	char dts_name[BOARD_DTS_MAX_NAMELEN];
 };
-#endif /* CONFIG_DTB_RESELECT */
 
 #if defined(CONFIG_MMC) || defined(CONFIG_NOR_BLK)
 struct gpt_pte_info {

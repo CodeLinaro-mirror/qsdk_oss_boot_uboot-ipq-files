@@ -738,7 +738,6 @@ get_img_config:
 		if (fit_conf_get_node((void *)request, config) >= 0)
 			goto exit;
 	} else {
-#ifdef CONFIG_DTB_RESELECT
 		/*
 		 * In upstream dts config_name entry not available
 		 * so referring  statically declared config from table
@@ -766,7 +765,7 @@ get_img_config:
 				}
 			}
 		}
-#endif
+
 		for (i = 0;
 			(config = fdt_stringlist_get(gd->fdt_blob, 0,
 					"config_name", i, &len)); ++i) {
