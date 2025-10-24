@@ -378,12 +378,14 @@ void ipq_enable_non_sec_watchdog(void)
 }
 #endif
 
+#if !defined(CONFIG_SPL)
 void lowlevel_init(void)
 {
 #ifdef CONFIG_IPQ_EARLY_WDT
 	ipq_enable_non_sec_watchdog();
 #endif
 }
+#endif /* !CONFIG_SPL */
 
 void ipq_board_early_init_f(void)
 {

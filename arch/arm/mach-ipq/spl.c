@@ -53,6 +53,14 @@
 #define IPQ_SPL_BOOTCFG_DEV_MASK	GENMASK(3, 1)
 #define IPQ_SPL_BOOTCFG_DEV_SHFT	0x1
 
+#define IPQ_SPL_TCSR_REG_ADDR		0x195C100
+#define IPQ_SPL_DLOAD_MASK		GENMASK(4, 4)
+#define IPQ_SPL_DLOAD_SHFT		0x4
+
+#define IPQ_SPL_IS_DLOAD_BIT_SET	((readl(IPQ_SPL_TCSR_REG_ADDR) & \
+					IPQ_SPL_DLOAD_MASK) >> \
+					IPQ_SPL_DLOAD_SHFT)
+
 #define IPQ_SPL_FIT_IMG_PARTITION	"0:BOOTLDR"
 #define IPQ_SPL_IMG_CNT_MAX		32
 #define IPQ_SPL_ELF_HASH_SEG_SZ		(10 * SZ_1K)
@@ -78,6 +86,7 @@
 #define MAX_ENTRIES			0xF
 #define IF_TABLE_VERSION		0x1
 #define QCCONFIG			"qc_config"
+#define QCSDI				"qcsdi"
 
 /*******************************************************************************
  * Structure enum and static
@@ -246,7 +255,16 @@ struct ipq_spl_ctx {
 	u64 bl33_entry;
 };
 
-static struct ipq_spl_ctx g_ipq_spl_ctx;
+#define U_BOOT_IPQ_SPL_CTX(__name) \
+ll_entry_declare(struct ipq_spl_ctx, __name, ipq_spl_ctx)
+
+#define U_BOOT_GET_IPQ_SPL_CTX(__name) \
+llsym(struct ipq_spl_ctx, __name, ipq_spl_ctx)
+
+/*
+ * Declare IPQ SPL default context
+ */
+U_BOOT_IPQ_SPL_CTX(ipq_default_ctx);
 
 static int ipq_spl_loader_post_ddr(struct spl_image_info *spl_image,
 				   struct spl_boot_device *bootdev);
@@ -651,6 +669,8 @@ static ulong ipq_spl_ram_open(struct spl_load_info *load, char *part_name)
 static ulong ipq_spl_ram_read(struct spl_load_info *load, ulong sector,
 			      ulong count, void *buf)
 {
+	struct ipq_spl_ctx *ctx = U_BOOT_GET_IPQ_SPL_CTX(ipq_default_ctx);
+
 	if (!buf) {
 		pr_err("Read buffer is NULL\n");
 		return 0;
@@ -659,8 +679,10 @@ static ulong ipq_spl_ram_read(struct spl_load_info *load, ulong sector,
 	/*
 	 * Check if the image offset is shifted from the partition start
 	 */
-	if (g_ipq_spl_ctx.img_tbl)
-		sector = g_ipq_spl_ctx.img_tbl->img_off + sector;
+	if (ctx) {
+		if (ctx->img_tbl)
+			sector = ctx->img_tbl->img_off + sector;
+	}
 
 	memcpy(buf, (void *)sector, count);
 
@@ -849,6 +871,7 @@ static ulong ipq_spl_mmc_read(struct spl_load_info *load, ulong sector,
 	u32 byte_offset;
 	u32 byte_cnt;
 	struct blkpart_info *bpart_info;
+	struct ipq_spl_ctx *ctx = U_BOOT_GET_IPQ_SPL_CTX(ipq_default_ctx);
 
 	if (!buf) {
 		pr_err("Read buffer is NULL\n");
@@ -870,8 +893,10 @@ static ulong ipq_spl_mmc_read(struct spl_load_info *load, ulong sector,
 	/*
 	 * Check the image offset from the partition start
 	 */
-	if (g_ipq_spl_ctx.img_tbl)
-		sector = g_ipq_spl_ctx.img_tbl->img_off + sector;
+	if (ctx) {
+		if (ctx->img_tbl)
+			sector = ctx->img_tbl->img_off + sector;
+	}
 
 	/*
 	 * Populate block read variables
@@ -1818,6 +1843,53 @@ static int ipq_spl_populate_smem(void *ctx)
 }
 
 /**
+ * ipq_spl_get_iftbl_entry_by_name() - Get an interface table entry by name.
+ * @if_tbl:	Pointer to the QCLIB interface table.
+ * @name:	Name of the entry to find.
+ * @entry:	Pointer to a buffer where the found entry will be copied.
+ *
+ * This function searches the provided interface table for an entry
+ * matching the given name and copies it to the output buffer if found.
+ *
+ * Return: 0 on success, or a negative error code on failure.
+ */
+static int ipq_spl_get_iftbl_entry_by_name(struct interface_table *if_tbl,
+					   char *name,
+					   struct interface_table_entry *entry)
+{
+	u8 uc_index;
+
+	if (!if_tbl) {
+		pr_err("Invalid interface table\n");
+		return -EINVAL;
+	}
+	if (!name) {
+		pr_err("Invalid name\n");
+		return -EINVAL;
+	}
+	if (!entry) {
+		pr_err("Invalid entry pointer\n");
+		return -EINVAL;
+	}
+
+	for (uc_index = 0; uc_index < MAX_ENTRIES; uc_index++) {
+		/*
+		 * Find the entry with the matching name
+		 */
+		if (strcmp(if_tbl->if_table_entries[uc_index].entry_name,
+			   name) == 0) {
+			memcpy(entry,
+			       &if_tbl->if_table_entries[uc_index],
+			       sizeof(struct interface_table_entry));
+			return 0;
+		}
+	}
+	pr_err("Interface table entry '%s' not found\n", name);
+
+	return -ENOENT;
+}
+
+/**
  * ipq_spl_xcfg_fixup() - Perform fixups for qcconfig-meta image.
  * @ctx:	Pointer to the global SPL context.
  *
@@ -1828,6 +1900,7 @@ static int ipq_spl_populate_smem(void *ctx)
 static int ipq_spl_xcfg_fixup(void *ctx)
 {
 	int ret;
+	int entry_idx;
 	struct ipq_spl_ctx *pctx = ctx;
 
 	if (!pctx) {
@@ -1835,26 +1908,45 @@ static int ipq_spl_xcfg_fixup(void *ctx)
 		return -EINVAL;
 	}
 
+	/*
+	 * Initialize the interface table
+	 */
 	memset(&pctx->if_tbl, 0, sizeof(struct interface_table));
-
 	memcpy(pctx->if_tbl.magic_key, MAGIC_KEY, strlen(MAGIC_KEY));
 
 	pctx->if_tbl.version = IF_TABLE_VERSION;
-	pctx->if_tbl.num_entries = 0x1;
+	pctx->if_tbl.num_entries = 0;
 	pctx->if_tbl.max_entries = MAX_ENTRIES;
-	pctx->if_tbl.if_table_entries[0].attributes = 0;
 
-	memcpy(pctx->if_tbl.if_table_entries[0].entry_name,
+	/*
+	 * Add QCCONFIG entry to the interface table
+	 */
+	entry_idx = 0;
+	memcpy(pctx->if_tbl.if_table_entries[entry_idx].entry_name,
 		QCCONFIG,
 		strlen(QCCONFIG));
 
 	ret = ipq_spl_get_img_entry_point(pctx,
-			&pctx->if_tbl.if_table_entries[0].address);
+			&pctx->if_tbl.if_table_entries[entry_idx].address);
 	if (ret) {
 		pr_err("Failed to get qcconfig-meta entry point (ret=%d)\n",
 			ret);
 		return ret;
 	}
+	pctx->if_tbl.if_table_entries[entry_idx].attributes = 0;
+	pctx->if_tbl.num_entries = entry_idx + 1;
+
+	/*
+	 * Add QCSDI entry to the interface table
+	 */
+	entry_idx++;
+	memcpy(pctx->if_tbl.if_table_entries[entry_idx].entry_name,
+		QCSDI,
+		strlen(QCSDI));
+
+	pctx->if_tbl.if_table_entries[entry_idx].address = 0;
+	pctx->if_tbl.if_table_entries[entry_idx].attributes = 0;
+	pctx->if_tbl.num_entries = entry_idx + 1;
 
 	return 0;
 }
@@ -1922,10 +2014,16 @@ static int ipq_spl_tfa_fixup(void *ctx)
 		return ret;
 	}
 
-	ret = ipq_spl_populate_smem(pctx);
-	if (ret) {
-		pr_err("Failed to populate SMEM (ret=%d)\n", ret);
-		return ret;
+	/*
+	 * Populate SMEM in coldboot (Dload bit not set)
+	 */
+	if (!IPQ_SPL_IS_DLOAD_BIT_SET) {
+		printf("Populating SMEM\n");
+		ret = ipq_spl_populate_smem(pctx);
+		if (ret) {
+			pr_err("Failed to populate SMEM (ret=%d)\n", ret);
+			return ret;
+		}
 	}
 
 	return 0;
@@ -2013,30 +2111,36 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 					size_t *p_size)
 {
 	int ret;
+	u8 uc_index;
 	u8 uc_size;
 	const char *img_name = fit_get_name(fit, node, NULL);
+	struct ipq_spl_ctx *ctx = U_BOOT_GET_IPQ_SPL_CTX(ipq_default_ctx);
 
 	printf("Loading FIT Image: %s\n", img_name);
+
+	if (!ctx) {
+		pr_err("Unable to get SPL context\n");
+		return;
+	}
 
 	/*
 	 * Traverse through the SPL image table
 	 */
 	uc_size = ARRAY_SIZE(img_tbl_fit);
-	for (u8 uc_index = 0; uc_index < uc_size; uc_index++) {
+	for (uc_index = 0; uc_index < uc_size; uc_index++) {
 		if (strcmp(img_name, img_tbl_fit[uc_index].img_name) == 0) {
 			/*
 			 * Populate the context
 			 */
-			g_ipq_spl_ctx.img_tbl = &img_tbl_fit[uc_index];
-			g_ipq_spl_ctx.fit = (void *)fit;
+			ctx->img_tbl = &img_tbl_fit[uc_index];
+			ctx->fit = (void *)fit;
 			img_tbl_fit[uc_index].fit_node = node;
 
 			/*
 			 * Do the image fixups if available
 			 */
 			if (img_tbl_fit[uc_index].fixup) {
-				ret = img_tbl_fit[uc_index].fixup(
-					&g_ipq_spl_ctx);
+				ret = img_tbl_fit[uc_index].fixup(ctx);
 				if (ret) {
 					pr_err(
 					"Failed to fixup %s image (ret=%d)\n",
@@ -2049,6 +2153,73 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 	}
 }
 #endif /* CONFIG_SPL_FIT_IMAGE_POST_PROCESS */
+
+/**
+ * bl2_plat_get_bl31_params_v2() - Retrieve and fixup BL31 parameters.
+ * @bl32_entry:	Entry point for BL32 (OP-TEE).
+ * @bl33_entry:	Entry point for BL33 (U-Boot/kernel).
+ * @fdt_addr:	Address of the Device Tree Blob (FDT).
+ *
+ * This function retrieves the default BL31 parameters and then performs
+ * platform-specific fixups, such as populating ATF BL31's arg0 with
+ * the address of the QCSDI interface table entry if available.
+ *
+ * Return: Pointer to the populated BL31 parameters structure.
+ */
+struct bl_params *bl2_plat_get_bl31_params_v2(uintptr_t bl32_entry,
+					     uintptr_t bl33_entry,
+					     uintptr_t fdt_addr)
+{
+	struct bl_params *bl_params;
+	struct bl_params_node *node;
+	struct interface_table_entry if_tbl_entry;
+	int ret;
+	struct ipq_spl_ctx *ctx = U_BOOT_GET_IPQ_SPL_CTX(ipq_default_ctx);
+
+	/*
+	 * Populate the bl31 params with default values.
+	 */
+	bl_params = bl2_plat_get_bl31_params_v2_default(bl32_entry,
+							 bl33_entry,
+							 fdt_addr);
+
+	/*
+	 * Fixup the bl31 params based on platform requirements.
+	 */
+	for_each_bl_params_node(bl_params, node) {
+		if (node->image_id == ATF_BL31_IMAGE_ID) {
+			if (!ctx) {
+				pr_err("Unable to get SPL context\n");
+				break;
+			}
+
+			/*
+			 * Attempt to get the QCSDI entry from the global
+			 * interface table.
+			 */
+			ret = ipq_spl_get_iftbl_entry_by_name(
+						&ctx->if_tbl,
+						QCSDI,
+						&if_tbl_entry);
+			if (ret) {
+				/*
+				 * Log the error but continue, as QCSDI might
+				 * not be critical or could be handled later.
+				 */
+				pr_err("Unable to get QCSDI entry (ret=%d)\n",
+					ret);
+				break;
+			}
+
+			/*
+			 * If found, populate arg0 with the QCSDI address.
+			 */
+			node->ep_info->args.arg0 = if_tbl_entry.address;
+		}
+	}
+
+	return bl_params;
+}
 
 /**
  * ipq_spl_load_fit_image() - Load a FIT image from the boot device.
@@ -2132,18 +2303,24 @@ static int ipq_spl_loader_pre_ddr(u8 boot_device)
 {
 	int ret;
 	u8 uc_size;
+	struct ipq_spl_ctx *ctx = U_BOOT_GET_IPQ_SPL_CTX(ipq_default_ctx);
 
-	memset(&g_ipq_spl_ctx, 0, sizeof(struct ipq_spl_ctx));
+	if (!ctx) {
+		pr_err("Unable to get SPL context\n");
+		return -EINVAL;
+	}
 
-	g_ipq_spl_ctx.spl_image = calloc(1, sizeof(struct spl_image_info));
-	if (!g_ipq_spl_ctx.spl_image) {
+	memset(ctx, 0, sizeof(struct ipq_spl_ctx));
+
+	ctx->spl_image = calloc(1, sizeof(struct spl_image_info));
+	if (!ctx->spl_image) {
 		pr_err("Failed to allocate spl_image\n");
 		ret = -ENOMEM;
 		goto fail_alloc_spl_image;
 	}
 
-	g_ipq_spl_ctx.bootdev = calloc(1, sizeof(struct spl_boot_device));
-	if (!g_ipq_spl_ctx.bootdev) {
+	ctx->bootdev = calloc(1, sizeof(struct spl_boot_device));
+	if (!ctx->bootdev) {
 		pr_err("Failed to allocate bootdev\n");
 		ret = -ENOMEM;
 		goto fail_alloc_bootdev;
@@ -2152,16 +2329,16 @@ static int ipq_spl_loader_pre_ddr(u8 boot_device)
 	/*
 	 * Populate context
 	 */
-	g_ipq_spl_ctx.bootdev->boot_device = boot_device;
-	g_ipq_spl_ctx.fl_ctx.type = boot_device;
+	ctx->bootdev->boot_device = boot_device;
+	ctx->fl_ctx.type = boot_device;
 
-	ret = ipq_spl_flash_init(&g_ipq_spl_ctx.fl_ctx);
+	ret = ipq_spl_flash_init(&ctx->fl_ctx);
 	if (ret) {
 		pr_err("Failed to initialize flash (ret=%d)\n", ret);
 		goto fail_flash_init;
 	}
 
-	ret = ipq_spl_flash_get_ops(&g_ipq_spl_ctx.fl_ctx);
+	ret = ipq_spl_flash_get_ops(&ctx->fl_ctx);
 	if (ret) {
 		pr_err("Failed to get flash ops (ret=%d)\n", ret);
 		goto fail_flash_init;
@@ -2172,8 +2349,8 @@ static int ipq_spl_loader_pre_ddr(u8 boot_device)
 	 */
 	uc_size = ARRAY_SIZE(img_tbl_fit);
 	if (uc_size) {
-		g_ipq_spl_ctx.img_tbl = NULL;
-		ret = ipq_spl_load_fit_image(&g_ipq_spl_ctx);
+		ctx->img_tbl = NULL;
+		ret = ipq_spl_load_fit_image(ctx);
 		if (ret) {
 			pr_err("Failed to load FIT image (ret=%d)\n", ret);
 			goto fail_load_fit;
@@ -2187,11 +2364,11 @@ static int ipq_spl_loader_pre_ddr(u8 boot_device)
 
 fail_load_fit:
 fail_flash_init:
-	if (g_ipq_spl_ctx.bootdev)
-		free(g_ipq_spl_ctx.bootdev);
+	if (ctx->bootdev)
+		free(ctx->bootdev);
 fail_alloc_bootdev:
-	if (g_ipq_spl_ctx.spl_image)
-		free(g_ipq_spl_ctx.spl_image);
+	if (ctx->spl_image)
+		free(ctx->spl_image);
 fail_alloc_spl_image:
 	return ret;
 }
@@ -2211,6 +2388,7 @@ static int ipq_spl_loader_post_ddr(struct spl_image_info *spl_image,
 {
 	int ret;
 	u8 uc_size;
+	struct ipq_spl_ctx *ctx = U_BOOT_GET_IPQ_SPL_CTX(ipq_default_ctx);
 
 	if (!spl_image) {
 		pr_err("Invalid SPL image info\n");
@@ -2221,16 +2399,14 @@ static int ipq_spl_loader_post_ddr(struct spl_image_info *spl_image,
 		return -EINVAL;
 	}
 
-	memset(&g_ipq_spl_ctx, 0, sizeof(struct ipq_spl_ctx));
-
 	/*
 	 * Populate context
 	 */
-	g_ipq_spl_ctx.fl_ctx.type = bootdev->boot_device;
-	g_ipq_spl_ctx.spl_image = spl_image;
-	g_ipq_spl_ctx.bootdev = bootdev;
+	ctx->fl_ctx.type = bootdev->boot_device;
+	ctx->spl_image = spl_image;
+	ctx->bootdev = bootdev;
 
-	ret = ipq_spl_flash_get_ops(&g_ipq_spl_ctx.fl_ctx);
+	ret = ipq_spl_flash_get_ops(&ctx->fl_ctx);
 	if (ret) {
 		pr_err("Failed to get flash ops (ret=%d)\n", ret);
 		return ret;
@@ -2241,8 +2417,8 @@ static int ipq_spl_loader_post_ddr(struct spl_image_info *spl_image,
 	 */
 	uc_size = ARRAY_SIZE(img_tbl_fit);
 	if (uc_size) {
-		g_ipq_spl_ctx.img_tbl = NULL;
-		ret = ipq_spl_load_fit_image(&g_ipq_spl_ctx);
+		ctx->img_tbl = NULL;
+		ret = ipq_spl_load_fit_image(ctx);
 		if (ret) {
 			pr_err("Failed to load FIT image (ret=%d)\n", ret);
 			return ret;
