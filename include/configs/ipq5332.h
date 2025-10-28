@@ -85,6 +85,7 @@ extern uint32_t g_load_addr;
 			CONFIG_ENV_SIZE - GENERATED_GBL_DATA_SIZE)
 
 #define CONFIG_MACH_TYPE                        (g_board_machid)
+#define CFG_CUSTOM_LOAD_ADDR			(g_load_addr)
 
 /* override the counter frequency incase of emulation platform */
 #ifdef CFG_EMULATION

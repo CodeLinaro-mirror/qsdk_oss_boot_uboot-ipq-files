@@ -61,6 +61,7 @@ extern uint32_t g_env_offset;
 #endif
 
 #define CONFIG_MACH_TYPE                        (g_board_machid)
+#define CFG_CUSTOM_LOAD_ADDR			(g_load_addr)
 
 /* override the counter frequency incase of emulation platform */
 #ifdef CFG_EMULATION
