@@ -60,6 +60,7 @@ extern uint32_t g_load_addr;
 #endif
 
 #define CONFIG_MACH_TYPE			(g_board_machid)
+#define CFG_CUSTOM_LOAD_ADDR			(g_load_addr)
 #define CFG_SYS_SDRAM_BASE0_ADDR		0x40000000
 #define CFG_SYS_SDRAM_BASE0_SIZE		0xC0000000
 
