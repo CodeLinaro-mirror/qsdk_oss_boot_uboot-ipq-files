@@ -806,6 +806,8 @@ config TARGET_IPQ9670
 	imply IPQ_BOARD_DEFAULT
 	select ARMV8_SWITCH_TO_EL1
 	imply GPT_UPDATE_PARAMS
+	imply DMA
+	imply DMA_CHANNELS
 	help
 	  Support for IPQ9670 SoC.
 	  - Board Open Platform Specifications.

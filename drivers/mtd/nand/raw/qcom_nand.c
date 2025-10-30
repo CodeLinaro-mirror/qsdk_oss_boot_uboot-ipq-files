@@ -11,6 +11,7 @@
 #include <asm/io.h>
 #include <errno.h>
 #include <nand.h>
+#include <linux/sizes.h>
 #include <linux/mtd/nand.h>
 #include <linux/mtd/rawnand.h>
 #include <mach/bam.h>
@@ -3794,7 +3795,7 @@ static int qti_serial_training(struct mtd_info *mtd)
 	int index = 4, ret, phase_failed=0;
 	loff_t training_offset;
 
-	max_freaqueny = dev_read_u32_default(mtd->dev, "max_clk_feaquency",
+	max_freaqueny = dev_read_u32_default(mtd->dev, "max_clk_frequency",
 						320000000);
 
 	for(int cnt =  sizeof(io_macro_freq_tbl)/ sizeof(unsigned int) - 1;
