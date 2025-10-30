@@ -11,3 +11,11 @@
 	model = "Qualcomm Technologies, Inc. IPQ9670-EMULATION";
 	compatible = "qcom,ipq9670-emulation", "qcom,ipq9670";
 };
+
+&tmel_qmp {
+	status = "okay";
+};
+
+&tmelcom {
+	status = "okay";
+};

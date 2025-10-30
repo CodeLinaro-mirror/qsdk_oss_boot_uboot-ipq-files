@@ -258,6 +258,7 @@ config SOC_HW_VERSION_REG
 config SHARED_IPC_INTERRUPT_REG
 	hex "Shared IPC interrupt register"
 	default 0xF40000C if TARGET_IPQ5424
+	default 0xF40000C if TARGET_IPQ9670
 	default 0xB111008 if TARGET_IPQ5200
 	default 0
 	help
@@ -803,11 +804,15 @@ config TARGET_IPQ9670
 	imply IPQ_MULTI_DTB_SUPPORT
 	imply NOR_BLK
 	select CMD_CACHE
+	imply MISC
 	imply IPQ_BOARD_DEFAULT
 	select ARMV8_SWITCH_TO_EL1
 	imply GPT_UPDATE_PARAMS
 	imply DMA
 	imply DMA_CHANNELS
+	imply LIST_FUSE
+	imply IPQ_TMEL_IPC_SUPPORT
+	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
 	help
 	  Support for IPQ9670 SoC.
 	  - Board Open Platform Specifications.
