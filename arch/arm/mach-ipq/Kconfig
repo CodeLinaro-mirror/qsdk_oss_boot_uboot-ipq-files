@@ -143,7 +143,7 @@ config IPQ_SPI_NOR
 	select SPI
 	select MISC
 	select SPI_QUP if TARGET_IPQ9574 || TARGET_IPQ5332
-	select MSM_GENI_SPI if TARGET_IPQ5424 || TARGET_IPQ5200
+	select MSM_GENI_SPI if TARGET_IPQ5424 || TARGET_IPQ5200 || TARGET_IPQ9670
 	select DM_SPI
 	select DM_SPI_FLASH
 	select SPI_FLASH_STMICRO
@@ -792,6 +792,25 @@ config TARGET_IPQ5200
 	  Support for IPQ5200 SoC.
 	  - Board Open Platform Specifications.
 	  - Quad Cores A53, Nom@1.2G, L1@32KB L2@512KB
+	  - DDR3L/DDR4
+	  - QSPI NAND / NOR / eMMC
+	  - USB 3.0/I2C/UART/PCIe Gen3 2Lane
+	  - 2.5G/10G Ethernet Ports
+
+config TARGET_IPQ9670
+	bool "QTI IPQ9670"
+	imply QCOM_GENI_SE
+	imply IPQ_MULTI_DTB_SUPPORT
+	imply NOR_BLK
+	select CMD_CACHE
+	imply IPQ_BOARD_DEFAULT
+	select ARMV8_SWITCH_TO_EL1
+	imply GPT_UPDATE_PARAMS
+	help
+	  Support for IPQ9670 SoC.
+	  - Board Open Platform Specifications.
+	  - Quad Cores A55, Nom@1.9G + Single core A78, Nom@2.05G
+	  - L1@32KB L2@512KB
 	  - DDR3L/DDR4
 	  - QSPI NAND / NOR / eMMC
 	  - USB 3.0/I2C/UART/PCIe Gen3 2Lane
