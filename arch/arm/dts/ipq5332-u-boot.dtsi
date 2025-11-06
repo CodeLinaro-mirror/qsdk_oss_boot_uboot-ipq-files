@@ -310,6 +310,7 @@
 	clock-names = "iface", "core";
 	assigned-clocks = <&gcc GCC_BLSP1_QUP2_I2C_APPS_CLK>;
 	assigned-clock-rates = <50000000>;
+	clock-frequency = <400000>;
 };
 
 &blsp1_spi0 {
