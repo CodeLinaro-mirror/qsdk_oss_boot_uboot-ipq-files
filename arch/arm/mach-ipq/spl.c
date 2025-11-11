@@ -61,9 +61,6 @@
 					IPQ_SPL_DLOAD_SHFT)
 
 #define IPQ_SPL_FIT_IMG_PARTITION	"0:BOOTLDR"
-#define IPQ_SPL_FLASH_RD_PRT_LMT	true
-
-#define IPQ_SPL_BDEV_MAX_SZ		SZ_4K
 
 #define MAGIC_KEY			"QCLIB_CB"
 #define MAX_ENTRIES			0xF
@@ -86,31 +83,6 @@ enum {
 	IPQ_SPL_BOOTCFG_DEV_USB		= 0x3,
 	IPQ_SPL_BOOTCFG_DEV_NOR_MIBIB	= 0x4,
 	IPQ_SPL_BOOTCFG_DEV_MAX
-};
-
-/**
- * struct ipq_spl_fl_ops - Structure for flash operations
- * @open:	Function pointer to open a flash partition.
- * @close:	Function pointer to close a flash partition.
- * @read:	Function pointer to read from a flash partition.
- */
-struct ipq_spl_fl_ops {
-	ulong (*open)(struct spl_load_info *load, char *prt_name);
-	ulong (*close)(struct spl_load_info *load);
-	ulong (*read)(struct spl_load_info *load, ulong sector,
-		      ulong count, void *buf);
-};
-
-/**
- * struct ipq_spl_fl_ctx - SPL flash context
- * @load:	SPL load info structure.
- * @ops:	Pointer to flash operations structure.
- * @type:	Type of flash device.
- */
-struct ipq_spl_fl_ctx {
-	struct spl_load_info load;
-	struct ipq_spl_fl_ops *ops;
-	u8 type;
 };
 
 /**
@@ -179,7 +151,6 @@ struct ipq_spl_img_ctx {
  * struct ipq_spl_ctx - Global SPL context structure
  * @img_tbl:	Pointer to the current image table entry.
  * @if_tbl:	QCLIB interface table.
- * @elf_ctx:	ELF context structure (if ELF loading is enabled).
  * @fl_ctx:	Flash context structure.
  * @spl_image:	SPL image info structure.
  * @bootdev:	SPL boot device structure.
@@ -191,7 +162,6 @@ struct ipq_spl_img_ctx {
 struct ipq_spl_ctx {
 	struct ipq_spl_img_ctx *img_tbl;
 	struct interface_table if_tbl;
-	struct ipq_spl_fl_ctx fl_ctx;
 	struct spl_image_info *spl_image;
 	struct spl_boot_device *bootdev;
 	void *fit;
@@ -208,92 +178,6 @@ llsym(struct ipq_spl_ctx, __name, ipq_spl_ctx)
  */
 U_BOOT_IPQ_SPL_CTX(ipq_default_ctx);
 
-static int ipq_spl_loader_post_ddr(struct spl_image_info *spl_image,
-				   struct spl_boot_device *bootdev);
-
-/**
- * Forward declarations for RAM operations
- */
-static ulong ipq_spl_ram_open(struct spl_load_info *load, char *prt_name);
-static ulong ipq_spl_ram_close(struct spl_load_info *load);
-static ulong ipq_spl_ram_read(struct spl_load_info *load, ulong sector,
-			      ulong count, void *buf);
-
-/**
- * ipq_spl_ram_ops - Flash operations structure for RAM-less mode
- */
-struct ipq_spl_fl_ops ipq_spl_ram_ops = {
-	.open = ipq_spl_ram_open,
-	.close = ipq_spl_ram_close,
-	.read = ipq_spl_ram_read,
-};
-
-#if CONFIG_IPQ_MMC
-/**
- * Forward declarations for MMC operations
- */
-static ulong ipq_spl_mmc_open(struct spl_load_info *load, char *prt_name);
-static ulong ipq_spl_mmc_close(struct spl_load_info *load);
-static ulong ipq_spl_mmc_read(struct spl_load_info *load, ulong sector,
-			      ulong count, void *buf);
-
-/**
- * ipq_spl_mmc_ops - Flash operations structure for MMC
- */
-struct ipq_spl_fl_ops ipq_spl_mmc_ops = {
-	.open = ipq_spl_mmc_open,
-	.close = ipq_spl_mmc_close,
-	.read = ipq_spl_mmc_read,
-};
-
-SPL_LOAD_IMAGE_METHOD("MMC", 0, SMEM_BOOT_MMC_FLASH,
-		      ipq_spl_loader_post_ddr);
-#endif
-
-#if CONFIG_IPQ_SPI_NOR
-/**
- * Forward declarations for NOR operations
- */
-static ulong ipq_spl_nor_open(struct spl_load_info *load, char *prt_name);
-static ulong ipq_spl_nor_close(struct spl_load_info *load);
-static ulong ipq_spl_nor_read(struct spl_load_info *load, ulong sector,
-			      ulong count, void *buf);
-
-/**
- * ipq_spl_nor_ops - Flash operations structure for SPI NOR
- */
-struct ipq_spl_fl_ops ipq_spl_nor_ops = {
-	.open = ipq_spl_nor_open,
-	.close = ipq_spl_nor_close,
-	.read = ipq_spl_nor_read,
-};
-
-SPL_LOAD_IMAGE_METHOD("NOR GPT", 0, SMEM_BOOT_NORGPT_FLASH,
-		      ipq_spl_loader_post_ddr);
-#endif
-
-#if CONFIG_IPQ_NAND
-/**
- * Forward declarations for NAND operations
- */
-static ulong ipq_spl_nand_open(struct spl_load_info *load, char *prt_name);
-static ulong ipq_spl_nand_close(struct spl_load_info *load);
-static ulong ipq_spl_nand_read(struct spl_load_info *load, ulong sector,
-			       ulong count, void *buf);
-
-/**
- * ipq_spl_nand_ops - Flash operations structure for NAND
- */
-struct ipq_spl_fl_ops ipq_spl_nand_ops = {
-	.open = ipq_spl_nand_open,
-	.close = ipq_spl_nand_close,
-	.read = ipq_spl_nand_read,
-};
-
-SPL_LOAD_IMAGE_METHOD("SPI NAND", 0, SMEM_BOOT_QSPI_NAND_FLASH,
-		      ipq_spl_loader_post_ddr);
-#endif
-
 /**
  * ipq_spl_jump_img_entry_t - Type definition for image entry point functions.
  * @arg1:	First argument passed to the entry point.
@@ -301,7 +185,9 @@ SPL_LOAD_IMAGE_METHOD("SPI NAND", 0, SMEM_BOOT_QSPI_NAND_FLASH,
  */
 typedef void (*ipq_spl_jump_img_entry_t)(void *arg1, void *arg2);
 
-/* Forward declarations for image fixup functions */
+/*
+ * Forward declarations for image fixup functions
+ */
 static int ipq_spl_xcfg_fixup(void *ctx);
 static int ipq_spl_qclib_fixup(void *ctx);
 static int ipq_spl_tfa_fixup(void *ctx);
@@ -420,649 +306,6 @@ void ipq_spl_malloc_init_f(void)
 #endif
 
 /**
- * ipq_spl_flash_init() - Initialize the flash device.
- * @fl_ctx:	Pointer to the SPL flash context.
- *
- * This function performs early initialization specific to the detected
- * flash device type (e.g., MMC).
- * Return: 0 on success, or a negative error code on failure.
- */
-int ipq_spl_flash_init(struct ipq_spl_fl_ctx *fl_ctx)
-{
-	int ret;
-
-	if (!fl_ctx) {
-		pr_err("Invalid flash context\n");
-		return -EINVAL;
-	}
-
-	switch (fl_ctx->type) {
-#if CONFIG_IPQ_MMC
-	case SMEM_BOOT_MMC_FLASH:
-		/*
-		 * Initialize MMC
-		 */
-		struct mmc *mmc;
-
-		/*
-		 * Initialize to default device
-		 */
-		int mmc_dev = 0;
-
-		ret = mmc_init_device(mmc_dev);
-		if (ret) {
-			pr_err("mmc_init_device() failed (ret=%d)\n", ret);
-			return ret;
-		}
-
-		mmc = find_mmc_device(mmc_dev);
-		if (!mmc) {
-			pr_err("find_mmc_device() failed\n");
-			return -EIO;
-		}
-
-		ret = mmc_init(mmc);
-		if (ret) {
-			pr_err("mmc_init() failed (ret=%d)\n", ret);
-			return ret;
-		}
-		break;
-#endif
-#if CONFIG_IPQ_SPI_NOR
-	case SMEM_BOOT_NORGPT_FLASH:
-		/*
-		 * Initialize SPI NOR - Placeholder for future implementation
-		 */
-		pr_debug("SPI NOR initialization placeholder\n");
-		break;
-#endif
-#if CONFIG_IPQ_NAND
-	case SMEM_BOOT_QSPI_NAND_FLASH:
-		/*
-		 * Initialize NAND - Placeholder for future implementation
-		 */
-		pr_debug("NAND initialization placeholder\n");
-		break;
-#endif
-	case IPQ_SPL_RAM_FLASHLESS:
-		pr_debug("RAM-less flash type selected\n");
-		break;
-	default:
-		pr_err("Unsupported flash type %d\n", fl_ctx->type);
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-/**
- * ipq_spl_flash_get_ops() - Get flash operations for the current flash context.
- * @fl_ctx:	Pointer to the SPL flash context.
- *
- * This function assigns the appropriate flash operations (open, close, read)
- * based on the flash device type specified in the context.
- * Return: 0 on success, or a negative error code on failure.
- */
-int ipq_spl_flash_get_ops(struct ipq_spl_fl_ctx *fl_ctx)
-{
-	if (!fl_ctx) {
-		pr_err("Invalid flash context\n");
-		return -EINVAL;
-	}
-
-	switch (fl_ctx->type) {
-#if CONFIG_IPQ_MMC
-	case SMEM_BOOT_MMC_FLASH:
-		fl_ctx->ops = &ipq_spl_mmc_ops;
-		fl_ctx->load.read = ipq_spl_mmc_ops.read;
-		fl_ctx->load.bl_len = 1;
-		break;
-#endif
-#if CONFIG_IPQ_SPI_NOR
-	case SMEM_BOOT_NORGPT_FLASH:
-		fl_ctx->ops = &ipq_spl_nor_ops;
-		fl_ctx->load.read = ipq_spl_nor_ops.read;
-		fl_ctx->load.bl_len = 1;
-		break;
-#endif
-#if CONFIG_IPQ_NAND
-	case SMEM_BOOT_QSPI_NAND_FLASH:
-		fl_ctx->ops = &ipq_spl_nand_ops;
-		fl_ctx->load.read = ipq_spl_nand_ops.read;
-		fl_ctx->load.bl_len = 1;
-		break;
-#endif
-	case IPQ_SPL_RAM_FLASHLESS:
-		fl_ctx->ops = &ipq_spl_ram_ops;
-		fl_ctx->load.read = ipq_spl_ram_ops.read;
-		fl_ctx->load.bl_len = 1;
-		break;
-	default:
-		pr_err("Unsupported flash type %d\n", fl_ctx->type);
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-/**
- * ipq_spl_verify_partition_limit() - Verify read offset against partition end.
- * @rd_offset:	Current read offset.
- * @prt_end:	End boundary of the partition.
- *
- * This function checks if the read operation would go beyond the allocated
- * partition limits, based on IPQ_SPL_FLASH_RD_PRT_LMT define.
- * Return: 0 on success, or -EOVERFLOW if limit is exceeded.
- */
-static int ipq_spl_verify_partition_limit(int rd_offset, int prt_end)
-{
-#if IPQ_SPL_FLASH_RD_PRT_LMT
-	if (prt_end < rd_offset) {
-		pr_err("Read offset %d exceeds partition end %d\n",
-			rd_offset, prt_end);
-		return -EOVERFLOW;
-	}
-#endif
-
-	return 0;
-}
-
-/**
- * ipq_spl_ram_close() - Close RAM-based flash operations.
- * @load:	Pointer to the SPL load info structure.
- *
- * This is a no-op for RAM-based operations.
- * Return: Always 0.
- */
-static ulong ipq_spl_ram_close(struct spl_load_info *load)
-{
-	return 0;
-}
-
-/**
- * ipq_spl_ram_open() - Open RAM-based flash operations.
- * @load:	Pointer to the SPL load info structure.
- * @part_name:	Name of the partition (unused for RAM).
- *
- * This is a no-op for RAM-based operations.
- * Return: Always 0.
- */
-static ulong ipq_spl_ram_open(struct spl_load_info *load, char *part_name)
-{
-	return 0;
-}
-
-/**
- * ipq_spl_ram_read() - Read data from RAM-based source.
- * @load:	Pointer to the SPL load info structure.
- * @sector:	Starting sector/offset for the read.
- * @count:	Number of bytes to read.
- * @buf:	Buffer to store the read data.
- *
- * This function copies data directly from memory, simulating a read
- * from a flash device in RAM-less mode.
- * Return: Number of bytes read on success, or zero on failure.
- */
-static ulong ipq_spl_ram_read(struct spl_load_info *load, ulong sector,
-			      ulong count, void *buf)
-{
-	struct ipq_spl_ctx *ctx = U_BOOT_GET_IPQ_SPL_CTX(ipq_default_ctx);
-
-	if (!buf) {
-		pr_err("Read buffer is NULL\n");
-		return 0;
-	}
-
-	/*
-	 * Check if the image offset is shifted from the partition start
-	 */
-	if (ctx) {
-		if (ctx->img_tbl)
-			sector = ctx->img_tbl->img_off + sector;
-	}
-
-	memcpy(buf, (void *)sector, count);
-
-	return count;
-}
-
-#if CONFIG_IPQ_MMC
-/**
- * ipq_spl_mmc_close() - Close MMC flash operations.
- * @load:	Pointer to the SPL load info structure.
- *
- * This function frees resources allocated during MMC open.
- * Return: 0 on success, or a negative error code on failure.
- */
-static ulong ipq_spl_mmc_close(struct spl_load_info *load)
-{
-	struct blkpart_info *bpart_info;
-
-	if (!load) {
-		pr_err("Invalid SPL load info\n");
-		return -EINVAL;
-	}
-
-	if (!load->priv) {
-		pr_debug("Media already closed\n");
-		/*
-		 * media already closed
-		 */
-		return 0;
-	}
-
-	bpart_info = (struct blkpart_info *)load->priv;
-
-	/*
-	 * Free the disk info
-	 */
-	if (bpart_info->info)
-		free(bpart_info->info);
-
-	/*
-	 * Free the blkpart info
-	 */
-	free(bpart_info);
-
-	/*
-	 * Initialize the media handle
-	 */
-	load->priv = NULL;
-
-	return 0;
-}
-
-/**
- * ipq_spl_mmc_open() - Open an MMC partition for reading.
- * @load:	Pointer to the SPL load info structure.
- * @prt_name:	Name of the partition to open.
- *
- * This function initializes MMC and retrieves partition information.
- * It also handles previous open media by closing it first.
- * Return: 0 on success, or a negative error code on failure.
- */
-static ulong ipq_spl_mmc_open(struct spl_load_info *load, char *prt_name)
-{
-	int ret;
-	struct disk_partition *disk_info = NULL;
-	struct blkpart_info *bpart_info = NULL;
-	struct blk_desc *bdev;
-	int part_num;
-
-	if (!load) {
-		pr_err("Invalid SPL load info\n");
-		return -EINVAL;
-	}
-
-	if (!prt_name) {
-		pr_err("Partition name is NULL\n");
-		return -EINVAL;
-	}
-
-	/*
-	 * Close any previously opened media
-	 */
-	if (load->priv) {
-		ret = ipq_spl_mmc_close(load);
-		if (ret)
-			return ret;
-	}
-
-	disk_info = calloc(1, sizeof(struct disk_partition));
-	if (!disk_info) {
-		pr_err("Failed to allocate disk_info\n");
-		ret = -ENOMEM;
-		goto fail;
-	}
-
-	bpart_info = calloc(1, sizeof(struct blkpart_info));
-	if (!bpart_info) {
-		pr_err("Failed to allocate bpart_info\n");
-		ret = -ENOMEM;
-		goto fail;
-	}
-
-	/*
-	 * Populate MMC blk info
-	 */
-	bpart_info->name = prt_name;
-	bpart_info->info = disk_info;
-	bpart_info->devnum = 0;
-	bpart_info->verbose = true;
-
-	/*
-	 * Assign the mmc block pointer to the media handle
-	 */
-	load->priv = bpart_info;
-
-	/*
-	 * Get MMC device by Class
-	 */
-	bdev = blk_get_devnum_by_uclass_id(UCLASS_MMC, bpart_info->devnum);
-	if (!bdev) {
-		pr_err("No such MMC device\n");
-		ret = -ENODEV;
-		goto fail;
-	}
-
-#ifdef CONFIG_EFI_PARTITION
-	if (bdev->part_type == PART_TYPE_UNKNOWN)
-		bdev->part_type = PART_TYPE_EFI;
-#endif
-	/*
-	 * Get MMC partition info using the partition name
-	 */
-	bpart_info->desc = bdev;
-	part_num = part_get_info_by_name(bdev,
-					 bpart_info->name,
-					 bpart_info->info);
-	if (part_num < 0) {
-		if (bpart_info->verbose)
-			pr_err("Partition '%s' not found (ret=%d)\n",
-				bpart_info->name, part_num);
-		ret = -ENODEV;
-		goto fail;
-	}
-
-	return 0;
-
-fail:
-	if (disk_info)
-		free(disk_info);
-	if (bpart_info)
-		free(bpart_info);
-	/*
-	 * Ensure load->priv is NULL on error
-	 */
-	load->priv = NULL;
-
-	return ret;
-}
-
-/**
- * ipq_spl_mmc_read() - Read data from an MMC partition.
- * @load:	Pointer to the SPL load info structure.
- * @sector:	Starting sector/offset for the read.
- * @count:	Number of bytes to read.
- * @buf:	Buffer to store the read data.
- *
- * This function handles block-aligned and partial reads from an MMC device.
- * Return: Number of bytes read on success, or zero on failure.
- */
-static ulong ipq_spl_mmc_read(struct spl_load_info *load, ulong sector,
-			      ulong count, void *buf)
-{
-	int ret;
-	/*
-	 * Common buffer to read one block
-	 */
-	u8 rd_blk_buf[IPQ_SPL_BDEV_MAX_SZ];
-	ulong rd_count = count;
-
-	/*
-	 * Variables to handle flash read in block devices
-	 */
-	u32 start_blk;
-	u32 blk_cnt;
-	u32 end_blk;
-	u32 byte_offset;
-	u32 byte_cnt;
-	struct blkpart_info *bpart_info;
-	struct ipq_spl_ctx *ctx = U_BOOT_GET_IPQ_SPL_CTX(ipq_default_ctx);
-
-	if (!buf) {
-		pr_err("Read buffer is NULL\n");
-		return 0;
-	}
-
-	if (!load) {
-		pr_err("Invalid SPL load info\n");
-		return 0;
-	}
-
-	if (!load->priv) {
-		pr_err("Invalid private data in load context\n");
-		return 0;
-	}
-
-	bpart_info = (struct blkpart_info *)load->priv;
-
-	/*
-	 * Check the image offset from the partition start
-	 */
-	if (ctx) {
-		if (ctx->img_tbl)
-			sector = ctx->img_tbl->img_off + sector;
-	}
-
-	/*
-	 * Populate block read variables
-	 */
-	start_blk = bpart_info->info->start;
-	start_blk += sector / bpart_info->info->blksz;
-
-	byte_offset = sector % bpart_info->info->blksz;
-	end_blk = bpart_info->info->start + bpart_info->info->size;
-
-	/*
-	 * Handle partial read for the first block
-	 */
-	if (byte_offset > 0) {
-		blk_cnt = 1;
-
-		ret = ipq_spl_verify_partition_limit((int)(start_blk + blk_cnt),
-						     (int)end_blk);
-		if (ret) {
-			pr_err("Partition limit check failed (ret=%d)\n", ret);
-			return 0;
-		}
-
-		memset(rd_blk_buf, 0, bpart_info->info->blksz);
-
-		ret = blk_dread(bpart_info->desc,
-					start_blk,
-					blk_cnt,
-					rd_blk_buf);
-		if (ret != blk_cnt) {
-			pr_err("MMC block read error for first block\n");
-			goto fail;
-		}
-
-		byte_cnt = bpart_info->info->blksz - byte_offset;
-		/*
-		 * Get the partial bytes in given size
-		 */
-		byte_cnt = min_t(u64, byte_cnt, rd_count);
-
-		memcpy(buf, &rd_blk_buf[byte_offset], byte_cnt);
-
-		/*
-		 * Update the offsets after read
-		 */
-		start_blk += blk_cnt;
-		buf = (u8 *)buf + byte_cnt;
-		rd_count -= byte_cnt;
-	}
-
-	/*
-	 * Handle block read for full blocks in the remaining size
-	 */
-	blk_cnt = rd_count / bpart_info->info->blksz;
-	if (blk_cnt > 0) {
-		ret = ipq_spl_verify_partition_limit((int)(start_blk + blk_cnt),
-						     (int)end_blk);
-		if (ret) {
-			pr_err("Partition limit check failed (ret=%d)\n", ret);
-			return 0;
-		}
-
-		ret = blk_dread(bpart_info->desc,
-					start_blk,
-					blk_cnt,
-					buf);
-		if (ret != blk_cnt) {
-			pr_err("MMC block read error for full blocks\n");
-			goto fail;
-		}
-
-		/*
-		 * Update the offsets after read
-		 */
-		start_blk += blk_cnt;
-		buf = (u8 *)buf + (blk_cnt * bpart_info->info->blksz);
-		rd_count -= blk_cnt * bpart_info->info->blksz;
-	}
-
-	/*
-	 * Handle partial read for the last block in the remaining size
-	 */
-	byte_cnt = rd_count;
-	if (byte_cnt > 0) {
-		blk_cnt = 1;
-
-		ret = ipq_spl_verify_partition_limit((int)(start_blk + blk_cnt),
-						     (int)end_blk);
-		if (ret) {
-			pr_err("Partition limit check failed (ret=%d)\n", ret);
-			return 0;
-		}
-
-		memset(rd_blk_buf, 0, bpart_info->info->blksz);
-
-		ret = blk_dread(bpart_info->desc,
-					start_blk,
-					blk_cnt,
-					rd_blk_buf);
-		if (ret != blk_cnt) {
-			pr_err("MMC block read error for full blocks\n");
-			goto fail;
-		}
-
-		/*
-		 * copy partial read bytes
-		 */
-		memcpy(buf, rd_blk_buf, byte_cnt);
-
-		/*
-		 * Update the offsets after read
-		 */
-		start_blk += blk_cnt;
-		buf = (u8 *)buf + byte_cnt;
-		rd_count -= byte_cnt;
-	}
-	return count;
-
-fail:
-
-	return ret;
-}
-#endif /* CONFIG_IPQ_MMC */
-
-#if CONFIG_IPQ_SPI_NOR
-/**
- * ipq_spl_nor_close() - Close SPI NOR flash operations.
- * @load:	Pointer to the SPL load info structure.
- *
- * This is a placeholder for SPI NOR close functionality.
- * Return: Always 0.
- */
-static ulong ipq_spl_nor_close(struct spl_load_info *load)
-{
-	pr_debug("SPI NOR close placeholder\n");
-
-	return 0;
-}
-
-/**
- * ipq_spl_nor_open() - Open SPI NOR flash operations.
- * @load:	Pointer to the SPL load info structure.
- * @part_name:	Name of the partition (unused for placeholder).
- *
- * This is a placeholder for SPI NOR open functionality.
- * Return: Always 0.
- */
-static ulong ipq_spl_nor_open(struct spl_load_info *load, char *part_name)
-{
-	pr_debug("SPI NOR open placeholder for partition %s\n", part_name);
-
-	return 0;
-}
-
-/**
- * ipq_spl_nor_read() - Read data from SPI NOR flash.
- * @load:	Pointer to the SPL load info structure.
- * @sector:	Starting sector/offset for the read.
- * @count:	Number of bytes to read.
- * @buf:	Buffer to store the read data.
- *
- * This is a placeholder for SPI NOR read functionality.
- * Return: Number of bytes requested (simulated success for placeholder).
- */
-static ulong ipq_spl_nor_read(struct spl_load_info *load, ulong sector,
-			      ulong count, void *buf)
-{
-	pr_debug("SPI NOR read placeholder (sector=%lu, count=%lu)\n",
-		 sector, count);
-	/*
-	 * Simulate a successful read of 'count' bytes for placeholder
-	 */
-	return count;
-}
-#endif /* CONFIG_IPQ_SPI_NOR */
-
-#if CONFIG_IPQ_NAND
-/**
- * ipq_spl_nand_close() - Close NAND flash operations.
- * @load:	Pointer to the SPL load info structure.
- *
- * This is a placeholder for NAND close functionality.
- * Return: Always 0.
- */
-static ulong ipq_spl_nand_close(struct spl_load_info *load)
-{
-	pr_debug("NAND close placeholder\n");
-
-	return 0;
-}
-
-/**
- * ipq_spl_nand_open() - Open NAND flash operations.
- * @load:	Pointer to the SPL load info structure.
- * @part_name:	Name of the partition (unused for placeholder).
- *
- * This is a placeholder for NAND open functionality.
- * Return: Always 0.
- */
-static ulong ipq_spl_nand_open(struct spl_load_info *load, char *part_name)
-{
-	pr_debug("NAND open placeholder for partition %s\n", part_name);
-
-	return 0;
-}
-
-/**
- * ipq_spl_nand_read() - Read data from NAND flash.
- * @load:	Pointer to the SPL load info structure.
- * @sector:	Starting sector/offset for the read.
- * @count:	Number of bytes to read.
- * @buf:	Buffer to store the read data.
- *
- * This is a placeholder for NAND read functionality.
- * Return: Number of bytes requested (simulated success for placeholder).
- */
-static ulong ipq_spl_nand_read(struct spl_load_info *load, ulong sector,
-			       ulong count, void *buf)
-{
-	pr_debug("NAND read placeholder (sector=%lu, count=%lu)\n",
-		 sector, count);
-	/*
-	 * Simulate a successful read of 'count' bytes for placeholder
-	 */
-	return count;
-}
-#endif /* CONFIG_IPQ_NAND */
-
-/**
  * ipq_spl_get_fit_img_entry_point() - Get entry point from FIT image node.
  * @fit:	Pointer to the FIT image blob.
  * @node:	Node ID within the FIT image.
@@ -1154,7 +397,28 @@ static int ipq_spl_populate_smem(void *ctx)
 		pr_err("Failed to get item: SMEM_BOOT_FLASH_TYPE\n");
 		return -ENOENT;
 	}
-	*fltype = pctx->fl_ctx.type;
+
+	switch (spl_boot_device()) {
+#if CONFIG_IPQ_SPI_NOR
+	case BOOT_DEVICE_SPI:
+		*fltype = SMEM_BOOT_NORGPT_FLASH;
+		break;
+#endif
+#if CONFIG_IPQ_MMC
+	case BOOT_DEVICE_MMC1:
+		*fltype = SMEM_BOOT_MMC_FLASH;
+		break;
+#endif
+#if CONFIG_IPQ_NAND
+	case BOOT_DEVICE_NAND:
+		*fltype = SMEM_BOOT_QSPI_NAND_FLASH;
+		break;
+#endif
+	default:
+		pr_err("Invalid boot device for SMEM: %d\n",
+			spl_boot_device());
+		return -EINVAL;
+	}
 
 	/*
 	 * Populate Trymode info
@@ -1446,7 +710,7 @@ static int ipq_spl_uboot_fixup(void *ctx)
  */
 struct legacy_img_hdr *spl_get_load_buffer(ssize_t offset, size_t size)
 {
-	return (struct legacy_img_hdr *)malloc_cache_aligned(size);
+	return (void *)(CONFIG_SPL_LOAD_FIT_ADDRESS);
 }
 
 #if defined(CONFIG_SPL_FIT_IMAGE_POST_PROCESS)
@@ -1576,74 +840,6 @@ struct bl_params *bl2_plat_get_bl31_params_v2(uintptr_t bl32_entry,
 }
 
 /**
- * ipq_spl_load_fit_image() - Load a FIT image from the boot device.
- * @ctx:	Pointer to the global SPL context.
- *
- * This function opens the configured FIT image partition, loads the FIT
- * image using the SPL framework, and then closes the partition.
- * Return: 0 on success, or a negative error code on failure.
- */
-int ipq_spl_load_fit_image(void *ctx)
-{
-	int ret;
-	int close_res;
-	struct ipq_spl_ctx *pctx = ctx;
-	struct spl_load_info *load;
-	struct ipq_spl_fl_ops *fl_ops;
-
-	if (!pctx) {
-		pr_err("Invalid SPL context\n");
-		return -EINVAL;
-	}
-
-	load = &pctx->fl_ctx.load;
-	fl_ops = pctx->fl_ctx.ops;
-
-	if (!fl_ops) {
-		pr_err("Flash operations not set\n");
-		ret = -EINVAL;
-		goto end_func;
-	}
-
-	if (!fl_ops->open) {
-		pr_err("Flash open operation is NULL\n");
-		ret = -EINVAL;
-		goto end_func;
-	}
-	ret = fl_ops->open(load, IPQ_SPL_FIT_IMG_PARTITION);
-	if (ret) {
-		pr_err("Failed to open FIT image partition %s (ret=%d)\n",
-			IPQ_SPL_FIT_IMG_PARTITION, ret);
-		goto end_func;
-	}
-
-	ret = spl_load(pctx->spl_image, pctx->bootdev, load, 0, 0);
-	if (ret) {
-		pr_err("Failed to load FIT img from partition %s (ret=0x%x)\n",
-			IPQ_SPL_FIT_IMG_PARTITION, ret);
-		goto close_media;
-	}
-
-close_media:
-	if (!fl_ops->close) {
-		pr_err("Flash close operation is NULL\n");
-		if (!ret)
-			/*
-			 * If previous operations were successful,
-			 * set this error
-			 */
-			ret = -EINVAL;
-	} else {
-		close_res = fl_ops->close(load);
-		if (close_res && !ret)
-			ret = close_res;
-	}
-
-end_func:
-	return ret;
-}
-
-/**
  * ipq_spl_loader_pre_ddr() - SPL loader for pre-DDR stage.
  * @boot_device:Type of boot device.
  *
@@ -1655,131 +851,67 @@ end_func:
  */
 static int ipq_spl_loader_pre_ddr(u8 boot_device)
 {
-	int ret;
-	u8 uc_size;
-	struct ipq_spl_ctx *ctx = U_BOOT_GET_IPQ_SPL_CTX(ipq_default_ctx);
+	struct spl_image_info *spl_image;
+	struct spl_boot_device *boot_dev;
+	int ret = -ENODEV;
+	struct spl_image_loader *drv =
+		ll_entry_start(struct spl_image_loader, spl_image_loader);
+	const int n_ents =
+		ll_entry_count(struct spl_image_loader, spl_image_loader);
 
-	if (!ctx) {
-		pr_err("Unable to get SPL context\n");
-		return -EINVAL;
-	}
-
-	memset(ctx, 0, sizeof(struct ipq_spl_ctx));
-
-	ctx->spl_image = calloc(1, sizeof(struct spl_image_info));
-	if (!ctx->spl_image) {
+	spl_image = calloc(1, sizeof(struct spl_image_info));
+	if (!spl_image) {
 		pr_err("Failed to allocate spl_image\n");
 		ret = -ENOMEM;
-		goto fail_alloc_spl_image;
-	}
-
-	ctx->bootdev = calloc(1, sizeof(struct spl_boot_device));
-	if (!ctx->bootdev) {
-		pr_err("Failed to allocate bootdev\n");
-		ret = -ENOMEM;
-		goto fail_alloc_bootdev;
-	}
-
-	/*
-	 * Populate context
-	 */
-	ctx->bootdev->boot_device = boot_device;
-	ctx->fl_ctx.type = boot_device;
-
-	ret = ipq_spl_flash_init(&ctx->fl_ctx);
-	if (ret) {
-		pr_err("Failed to initialize flash (ret=%d)\n", ret);
-		goto fail_flash_init;
-	}
-
-	ret = ipq_spl_flash_get_ops(&ctx->fl_ctx);
-	if (ret) {
-		pr_err("Failed to get flash ops (ret=%d)\n", ret);
-		goto fail_flash_init;
-	}
-
-	/*
-	 * Load images from FIT image table
-	 */
-	uc_size = ARRAY_SIZE(img_tbl_fit);
-	if (uc_size) {
-		ctx->img_tbl = NULL;
-		ret = ipq_spl_load_fit_image(ctx);
-		if (ret) {
-			pr_err("Failed to load FIT image (ret=%d)\n", ret);
-			goto fail_load_fit;
-		}
-	}
-
-	/*
-	 * Success path
-	 */
-	ret = 0;
-
-fail_load_fit:
-fail_flash_init:
-	if (ctx->bootdev)
-		free(ctx->bootdev);
-fail_alloc_bootdev:
-	if (ctx->spl_image)
-		free(ctx->spl_image);
-fail_alloc_spl_image:
-	return ret;
-}
-
-/**
- * ipq_spl_loader_post_ddr() - SPL loader for post-DDR stage.
- * @spl_image:	Pointer to the SPL image info structure.
- * @bootdev:	Pointer to the SPL boot device structure.
- *
- * This function is registered as a callback for the SPL framework once
- * DDR is initialized. It populates the global SPL context and loads
- * images required after DDR is ready (currently only FIT).
- * Return: 0 on success, or a negative error code on failure.
- */
-static int ipq_spl_loader_post_ddr(struct spl_image_info *spl_image,
-				   struct spl_boot_device *bootdev)
-{
-	int ret;
-	u8 uc_size;
-	struct ipq_spl_ctx *ctx = U_BOOT_GET_IPQ_SPL_CTX(ipq_default_ctx);
-
-	if (!spl_image) {
-		pr_err("Invalid SPL image info\n");
-		return -EINVAL;
-	}
-	if (!bootdev) {
-		pr_err("Invalid boot device info\n");
-		return -EINVAL;
-	}
-
-	/*
-	 * Populate context
-	 */
-	ctx->fl_ctx.type = bootdev->boot_device;
-	ctx->spl_image = spl_image;
-	ctx->bootdev = bootdev;
-
-	ret = ipq_spl_flash_get_ops(&ctx->fl_ctx);
-	if (ret) {
-		pr_err("Failed to get flash ops (ret=%d)\n", ret);
 		return ret;
 	}
 
-	/*
-	 * Load images from FIT image table
-	 */
-	uc_size = ARRAY_SIZE(img_tbl_fit);
-	if (uc_size) {
-		ctx->img_tbl = NULL;
-		ret = ipq_spl_load_fit_image(ctx);
-		if (ret) {
-			pr_err("Failed to load FIT image (ret=%d)\n", ret);
-			return ret;
+	boot_dev = calloc(1, sizeof(struct spl_boot_device));
+	if (!boot_dev) {
+		pr_err("Failed to allocate bootdev\n");
+		free(spl_image);
+		ret = -ENOMEM;
+		return ret;
+	}
+
+	boot_dev->boot_device = boot_device;
+
+	struct spl_image_loader *loader;
+	int bootdev = boot_device;
+
+	if (CONFIG_IS_ENABLED(SHOW_ERRORS))
+		ret = -ENXIO;
+	for (loader = drv; loader != drv + n_ents; loader++) {
+		if (bootdev != loader->boot_device)
+			continue;
+		if (!CONFIG_IS_ENABLED(SILENT_CONSOLE)) {
+			if (loader)
+				printf("Trying to boot from %s\n",
+					spl_loader_name(loader));
+			else if (CONFIG_IS_ENABLED(SHOW_ERRORS)) {
+				printf(PHASE_PROMPT
+					"Unsupported Boot Device %d\n",
+					bootdev);
+			} else {
+				puts(PHASE_PROMPT
+					"Unsupported Boot Device!\n");
+			}
+		}
+		if (loader) {
+			ret = loader->load_image(spl_image, boot_dev);
+			if (!ret) {
+				spl_image->boot_device = bootdev;
+				ret = 0;
+				break;
+			}
+			printf("Error: %d\n", ret);
 		}
 	}
 
-	return 0;
+	free(spl_image);
+	free(boot_dev);
+
+	return ret;
 }
 
 #if !defined(CONFIG_SPL_FRAMEWORK_BOARD_INIT_F)
@@ -1828,11 +960,131 @@ void board_init_f(ulong dummy)
 		goto fail;
 	}
 
+	board_init_r(NULL, 0);
+
 fail:
 	if (ret)
 		ipq_spl_error_handler(NULL);
 }
 #endif /* !CONFIG_SPL_FRAMEWORK_BOARD_INIT_F */
+
+
+/**
+ * spl_find_partition_info() - Find partition information by name
+ * @uclass_id: Device class ID (UCLASS_MMC, UCLASS_SPI, etc.)
+ * @device_num: Device number within the class
+ * @part_name: Name of the partition to find
+ * @info: Pointer to store partition information
+ *
+ * This function provides common partition lookup logic that can be shared
+ * between different boot device types (MMC, SPI, etc.).
+ * Return: Partition number on success, negative error code on failure
+ */
+static int spl_find_partition_info(enum uclass_id uclass_id, int device_num,
+				   const char *part_name,
+				   struct disk_partition *info)
+{
+	int ret;
+	struct blk_desc *desc;
+
+	if (!part_name || !info) {
+		printf("Invalid parameters for partition lookup\n");
+		return -EINVAL;
+	}
+
+	/*
+	 *Get block device descriptor
+	 */
+	desc = blk_get_devnum_by_uclass_id(uclass_id, device_num);
+	if (!desc) {
+		printf("Block device not found for class %d, device %d\n",
+				uclass_id, device_num);
+		return -ENODEV;
+	}
+
+	/*
+	 * Initialize partition table if needed
+	 */
+	if (desc->part_type == PART_TYPE_UNKNOWN) {
+		printf("Initializing partition table\n");
+		/*
+		 * Prefer EFI/GPT to avoid memory-intensive part_init()
+		 */
+		desc->part_type = PART_TYPE_EFI;
+	}
+
+	/*
+	 * Find partition by name
+	 */
+	ret = part_get_info_by_name(desc, part_name, info);
+	if (ret < 0) {
+		printf("Partition '%s' not found\n", part_name);
+		return -ENOENT;
+	}
+
+	printf("Found partition '%s' at partition number %d\n", part_name, ret);
+	return ret;
+}
+
+#if CONFIG_IPQ_MMC
+/**
+ * spl_mmc_boot_mode() - Determine the boot mode for MMC
+ * @mmc:	Pointer to the MMC device
+ * @boot_device:	Boot device ID
+ *
+ * This function determines the boot mode for MMC devices.
+ * It returns MMCSD_MODE_RAW to indicate that raw partition access
+ * should be used rather than filesystem access.
+ * Return: MMCSD_MODE_RAW to use raw partition access
+ */
+u32 spl_mmc_boot_mode(struct mmc *mmc, const u32 boot_device)
+{
+	return MMCSD_MODE_RAW;
+}
+
+/**
+ * spl_mmc_boot_partition() - Determine which partition to boot from
+ * @boot_device:	Boot device ID
+ *
+ * This function determines which partition to boot from for MMC devices.
+ * It attempts to find the partition specified by IPQ_SPL_FIT_IMG_PARTITION
+ * using the common partition lookup function. If not found, it falls back
+ * to the default partition defined by CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_PARTITION.
+ * Return: Partition number to boot from, or default partition on error
+ */
+int spl_mmc_boot_partition(const u32 boot_device)
+{
+	int ret;
+	struct disk_partition info;
+
+	/*
+	 * Use common partition lookup function
+	 */
+	ret = spl_find_partition_info(UCLASS_MMC, 0, IPQ_SPL_FIT_IMG_PARTITION, &info);
+	if (ret < 0) {
+		printf("Using default MMC partition %d\n",
+				CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_PARTITION);
+		return CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_PARTITION;
+	}
+
+	return ret;
+}
+
+/**
+ * spl_mmc_get_uboot_raw_sector() - Find the raw sector offset
+ * @mmc:	Pointer to the MMC device
+ * @raw_sect:	Sector
+ *
+ * This function returns the offset of the image from the starting of the partition.
+ *
+ * Return: 0 if the image is at the starting of the partition without any offset.
+ */
+unsigned long spl_mmc_get_uboot_raw_sector(struct mmc *mmc,
+					unsigned long raw_sect)
+{
+	return 0;
+}
+#endif /*CONFIG_IPQ_MMC*/
 
 /**
  * spl_boot_device() - Determine the boot device.
@@ -1857,19 +1109,19 @@ u32 spl_boot_device(void)
 	switch (boot_device_cfg) {
 #if CONFIG_IPQ_SPI_NOR
 	case IPQ_SPL_BOOTCFG_DEV_NOR_GPT:
-		boot_device_smem = SMEM_BOOT_NORGPT_FLASH;
+		boot_device_smem = BOOT_DEVICE_SPI;
 		printf("Selected boot device: SPI-NOR GPT\n");
 		break;
 #endif
 #if CONFIG_IPQ_MMC
 	case IPQ_SPL_BOOTCFG_DEV_MMC:
-		boot_device_smem = SMEM_BOOT_MMC_FLASH;
+		boot_device_smem = BOOT_DEVICE_MMC1;
 		printf("Selected boot device: MMC\n");
 		break;
 #endif
 #if CONFIG_IPQ_NAND
 	case IPQ_SPL_BOOTCFG_DEV_SPI_NAND:
-		boot_device_smem = SMEM_BOOT_QSPI_NAND_FLASH;
+		boot_device_smem = BOOT_DEVICE_NAND;
 		printf("Selected boot device: SPI-NAND\n");
 		break;
 #endif
