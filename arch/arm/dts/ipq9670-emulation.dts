@@ -19,3 +19,19 @@
 &tmelcom {
 	status = "okay";
 };
+
+&i2c2 {
+	status = "okay";
+};
+
+&i2c2_fw {
+	status = "okay";
+};
+
+&i2c3 {
+	status = "okay";
+};
+
+&i2c3_fw {
+	status = "okay";
+};

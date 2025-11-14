@@ -24,6 +24,8 @@ enum ipq9670_functions {
 	msm_mux_qspi_clk,
 	msm_mux_qspi_cs,
 	msm_mux_qspi_data,
+	msm_mux_i2c_scl,
+	msm_mux_i2c_sda,
 	msm_mux_NA,
 };
 
@@ -39,6 +41,8 @@ static const struct pinctrl_function msm_pinctrl_functions[] = {
 	MSM_PIN_FUNCTION(qspi_clk),
 	MSM_PIN_FUNCTION(qspi_cs),
 	MSM_PIN_FUNCTION(qspi_data),
+	MSM_PIN_FUNCTION(i2c_scl),
+	MSM_PIN_FUNCTION(i2c_sda),
 };
 
 typedef unsigned int msm_pin_function[10];
@@ -63,6 +67,7 @@ static const msm_pin_function ipq9670_pin_functions[] = {
 	PINGROUP(3, sdc_data, qspi_data, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(4, sdc_cmd, qspi_cs, NA, NA, NA, NA, NA, NA,NA),
 	PINGROUP(5, sdc_clk, qspi_clk, NA, NA, NA, NA, NA, NA, NA),
+	/* I2C GPIO yet to add :TODO */
 	PINGROUP(38, uart1, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(39, uart1, NA, NA, NA, NA, NA, NA, NA, NA),
 };
