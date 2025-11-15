@@ -115,7 +115,7 @@ struct machid_dts_map machid_dts[] = {
 	{
 		MACH_TYPE_IPQ5424_RDP466_C3,
 		"ipq5424-rdp466",
-		"rdp466",
+		"rdp466-c3",
 		NULL
 	},
 	{
