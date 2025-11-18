@@ -377,8 +377,25 @@ int board_early_init_f(void)
 	return 0;
 }
 
+#if defined(CONFIG_ARM64) && defined(CFG_EMUL_FREQUENCY_DIVIDER)
+void setup_arch_cntfreq(void)
+{
+	unsigned long freq = CONFIG_COUNTER_FREQUENCY /
+				CFG_EMUL_FREQUENCY_DIVIDER;
+	asm volatile("msr cntfrq_el0, %0" : : "r" (freq) : "memory");
+
+        return;
+}
+#endif
+
 int board_init(void)
 {
+#if defined(CONFIG_ARM64) && defined(CFG_EMUL_FREQUENCY_DIVIDER)
+	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
+	if ((current_el() == 3) && (sfi->flash_type != SMEM_BOOT_NO_FLASH))
+		setup_arch_cntfreq();
+#endif
+
 	/*
 	 * create device pointer
 	 */
@@ -548,17 +565,6 @@ void flush_cache(unsigned long start, unsigned long size)
 
 	flush_dcache_range(start, stop);
 }
-
-#if defined(CONFIG_ARM64) && defined(CFG_EMUL_FREQUENCY_DIVIDER)
-void setup_arch_cntfreq(void)
-{
-	unsigned long freq = CONFIG_COUNTER_FREQUENCY /
-				CFG_EMUL_FREQUENCY_DIVIDER;
-	asm volatile("msr cntfrq_el0, %0" : : "r" (freq) : "memory");
-
-        return;
-}
-#endif
 
 #if defined(CONFIG_SPL)
 int fdtdec_board_setup(const void *fdt_blob)
