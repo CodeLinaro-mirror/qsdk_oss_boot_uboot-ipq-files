@@ -892,10 +892,10 @@ void ipq_get_kernel_fs_part_details(int flash_type)
 		return;
 
 	struct { char *name; struct ipq_part_entry *part; } entries[] = {
-		{ "0:HLOS", &smem->hlos },
-		{ "0:HLOS_1", &smem->hlos_1 },
-		{ "rootfs", &smem->rootfs },
-		{ "rootfs_1", &smem->rootfs_1 },
+		{ KERNEL_ACTIVE_LABEL, &smem->hlos },
+		{ KERNEL_INACTIVE_LABEL, &smem->hlos_1 },
+		{ ROOTFS_ACTIVE_LABEL, &smem->rootfs },
+		{ ROOTFS_INACTIVE_LABEL, &smem->rootfs_1 },
 	};
 	int ret, i;
 	uint32_t start, size, bsize;
@@ -955,7 +955,7 @@ int ipq_get_current_board_flash_config(int flash_type)
 	struct blkpart_info bpart_info;
 
 	if (flash_type == SMEM_BOOT_NORGPT_FLASH) {
-		BLK_PART_GET_INFO_S(bpart_info, "rootfs", &disk_info,
+		BLK_PART_GET_INFO_S(bpart_info, ROOTFS_ACTIVE_LABEL, &disk_info,
 					flash_type, false);
 
 		ret = ipq_part_get_info_by_name(&bpart_info);
@@ -982,7 +982,7 @@ int ipq_get_current_board_flash_config(int flash_type)
 	} else
 #endif
 	{
-		ret = ipq_find_flash_by_name("rootfs");
+		ret = ipq_find_flash_by_name(ROOTFS_ACTIVE_LABEL);
 		if (ret == -1)
 			board_type = SMEM_BOOT_NORPLUSEMMC;
 		else if (ret == 1)
@@ -1099,7 +1099,7 @@ static int ipq_get_rootfs_active_partition(struct ipq_smem_flash_info *sfi)
 
 #if defined(CONFIG_BOOTCONFIG_V2)
 	for (int i = 0; i < binfo->numaltpart; i++) {
-		if (strncmp("rootfs", binfo->per_part_entry[i].name,
+		if (strncmp(ROOTFS_ACTIVE_LABEL, binfo->per_part_entry[i].name,
 			CONFIG_RAM_PART_NAME_LENGTH) == 0) {
 			ret = binfo->per_part_entry[i].primaryboot;
 			break;
