@@ -57,7 +57,7 @@ config IPQ_I2C
         bool "Enable I2C support in IPQ SOC"
         select I2C
         select DM_I2C
-        select SYS_I2C_GENI if (TARGET_IPQ5424 || TARGET_IPQ5200)
+        select SYS_I2C_GENI if (TARGET_IPQ5424 || TARGET_IPQ5200 || TARGET_IPQ9670)
 	select SYS_I2C_QUP if (TARGET_IPQ5332 || TARGET_IPQ9574)
         select CMD_I2C
 
@@ -813,6 +813,7 @@ config TARGET_IPQ9670
 	imply LIST_FUSE
 	imply IPQ_TMEL_IPC_SUPPORT
 	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
+	imply IPQ_I2C
 	help
 	  Support for IPQ9670 SoC.
 	  - Board Open Platform Specifications.
