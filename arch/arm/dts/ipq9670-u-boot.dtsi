@@ -293,6 +293,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 		qup-se-fw-load = <&spi0_fw>;
+		tx-fifo-depth=<32>;
 
 		pinctrl-0 = <&spi0_pinmux>;
 		pinctrl-names = "default";

@@ -891,6 +891,7 @@ static int qupv3_spi_probe(struct udevice *dev)
 	int ret;
 	struct ofnode_phandle_args args;
 	struct udevice *config = NULL;
+	uint32_t tx_fifo_depth_reg = 0;
 #if defined(CONFIG_NOR_BLK)
 	struct blk_desc *bdesc;
 	struct udevice *bdev;
@@ -929,8 +930,21 @@ static int qupv3_spi_probe(struct udevice *dev)
 
 	geni_set_oversampling(dev);
 
-	priv->tx_fifo_depth = geni_se_get_tx_fifo_depth(priv->base,
-							priv->geni_se_version);
+	/* Try to read TX FIFO depth from device tree first */
+	priv->tx_fifo_depth = dev_read_u32_default(dev, "tx-fifo-depth", 0);
+
+	/* Try to read TX FIFO depth from the Serial Engine Register */
+	tx_fifo_depth_reg = geni_se_get_tx_fifo_depth(priv->base,
+						     priv->geni_se_version);
+
+	if (!priv->tx_fifo_depth ||
+	    (priv->tx_fifo_depth > tx_fifo_depth_reg)) {
+		if (tx_fifo_depth_reg > 0)
+			priv->tx_fifo_depth = tx_fifo_depth_reg;
+		else
+			return -EINVAL; /* Hardware FIFO depth unavailable */
+	}
+
 	priv->fifo_width_bits = geni_se_get_tx_fifo_width(dev);
 
 	ret = qupv3_spi_hw_init(dev);
