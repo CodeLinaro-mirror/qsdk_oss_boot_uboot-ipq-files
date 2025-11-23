@@ -82,15 +82,40 @@ void ipq_update_board_name(int machid, struct multidtb_config *dtb)
 }
 #endif /* CONFIG_DTB_RESELECT */
 
-void ipq_board_early_init_f(void)
+
+static void ipq_enable_im_sleep_clk(void)
 {
-	/*
-	 * Enable the IM_SLEEP clock
-	 * This clk require for Block control reset
-	 */
-	writel((readl(IM_SLEEP_CLK) | BIT(0)), IM_SLEEP_CLK);
+    /*
+     * Enable the IM_SLEEP clock
+     * This clk require for Block control reset
+     */
+    writel((readl(IM_SLEEP_CLK) | BIT(0)), IM_SLEEP_CLK);
 }
 
+#if defined(CONFIG_SPL)
+void ipq_spl_board_early_init_f(void)
+{
+    ipq_enable_im_sleep_clk();
+}
+#endif
+
+void ipq_board_early_init_f(void)
+{
+    ipq_enable_im_sleep_clk();
+}
+
+#if defined(CONFIG_SPL)
+void reset_cpu(void) __attribute__((noreturn));
+void reset_cpu(void)
+{
+    printf("SPL reset: not implemented, hanging...\n");
+    /* SPL reset: ToDo */
+    while(1) {
+        /* Add delay to prevent CPU spinning at 100% */
+        udelay(1000000); /* 1 second delay */
+    }
+}
+#else
 void reset_cpu(void)
 {
 #ifdef CONFIG_IPQ_CRASHDUMP
@@ -98,3 +123,4 @@ void reset_cpu(void)
 #endif
 	psci_sys_reset(SYSRESET_COLD);
 }
+#endif
