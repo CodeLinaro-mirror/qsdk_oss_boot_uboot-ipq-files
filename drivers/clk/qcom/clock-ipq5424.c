@@ -26,6 +26,8 @@
 #define GCC_QUPV3_UART1_CBCR			0x3040
 #define GCC_SDCC1_APPS_CMD_RCGR			0x33004
 #define GCC_SDCC1_APPS_CBCR			0x3302C
+#define GCC_SDCC1_ICE_CORE_CMD_RCGR		0x33018
+#define GCC_SDCC1_ICE_CORE_CBCR			0x33030
 #define GCC_SDCC1_AHB_CBCR			0x33034
 #define GCC_QUPV3_SPI0_CMD_RCGR			0x04004
 #define GCC_QUPV3_SPI0_CBCR			0x04020
@@ -201,6 +203,11 @@ static ulong ipq5424_set_rate(struct clk *clk, ulong rate)
 	case GCC_SDCC1_APPS_CLK:
 		clk_rcg_set_rate_mnd(priv->base, GCC_SDCC1_APPS_CMD_RCGR,
 				     0, 6, 25, CFG_CLK_SRC_GPLL0, 16);
+		break;
+	case GCC_SDCC1_ICE_CORE_CLK:
+		/* ICE Core Clock: 300 MHz */
+		clk_rcg_set_rate_mnd(priv->base, GCC_SDCC1_ICE_CORE_CMD_RCGR,
+				     4, 0, 0, CFG_CLK_SRC_GPLL2, 16);
 		break;
 	case GCC_QUPV3_SPI0_CLK:
 		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_SPI0_CMD_RCGR,

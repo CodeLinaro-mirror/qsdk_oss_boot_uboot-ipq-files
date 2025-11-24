@@ -38,6 +38,8 @@
 #define GCC_SDCC1_APPS_CMD_RCGR			0x33004
 #define GCC_SDCC1_APPS_CBCR			0x3302C
 #define GCC_SDCC1_AHB_CBCR			0x33034
+#define GCC_SDCC1_ICE_CORE_CMD_RCGR		0x33018
+#define GCC_SDCC1_ICE_CORE_CBCR			0x33030
 
 /* BLSP QUP SPI clock register */
 #define BLSP1_QUP1_SPI_BCR		0x02000
@@ -300,6 +302,11 @@ static ulong ipq9574_set_rate(struct clk *clk, ulong rate)
 	case GCC_SDCC1_APPS_CLK:
 		clk_rcg_set_rate_mnd(priv->base, GCC_SDCC1_APPS_CMD_RCGR,
 				     23, 0, 0, CFG_CLK_SRC_GPLL2, 16);
+		break;
+	case GCC_SDCC1_ICE_CORE_CLK:
+		/* ICE Core Clock: 300 MHz */
+		clk_rcg_set_rate_mnd(priv->base, GCC_SDCC1_ICE_CORE_CMD_RCGR,
+				     4, 0, 0, CFG_CLK_SRC_GPLL2, 16);
 		break;
 	case GCC_BLSP1_QUP1_SPI_APPS_CLK:
 		/* QUP1 SPI APPS CLK: 50MHz */
