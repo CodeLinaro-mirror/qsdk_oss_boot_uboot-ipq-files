@@ -626,6 +626,18 @@ config CB_CALIB
 	  Enable starting of coldboot calibration for QCN9224 PCIe EP
 	  from U-boot.
 
+config PRPL_MMC_LABEL
+	bool "Enable PRPL MMC partition label changes"
+	depends on IPQ_MMC
+	default n
+	help
+	  Enable updated partition labels for MMC devices only.
+	  This changes partition labels from legacy format to new format:
+	  - "0:HLOS" → "kernel-active"
+	  - "0:HLOS_1" → "kernel-inactive"
+	  - "rootfs" → "rootfs-active"
+	  - "rootfs_1" → "rootfs-inactive"
+
 choice
 	prompt "IPQ board select"
 

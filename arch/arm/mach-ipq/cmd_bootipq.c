@@ -380,10 +380,10 @@ int set_bootargs(void)
 		gpt_flag = false;
 
 	if (boot_info.active_bank == 1)
-		ret  = set_mmc_bootargs(runcmd, "rootfs_1",
+		ret = set_mmc_bootargs(runcmd, ROOTFS_INACTIVE_LABEL,
 				CONFIG_SYS_MAXARGS, gpt_flag);
 	else if (!boot_info.active_bank)
-		ret  = set_mmc_bootargs(runcmd, "rootfs",
+		ret = set_mmc_bootargs(runcmd, ROOTFS_ACTIVE_LABEL,
 				CONFIG_SYS_MAXARGS, gpt_flag);
 	else
 		return -EBADFD;
@@ -497,9 +497,9 @@ static int read_from_mmc(void)
 				true);
 
 	if (boot_info.active_bank)
-		bpart_info.name = "0:HLOS_1";
+		bpart_info.name = KERNEL_INACTIVE_LABEL;
 	else
-		bpart_info.name = "0:HLOS";
+		bpart_info.name = KERNEL_ACTIVE_LABEL;
 
 	if (boot_info.debug)
 		printf("[debug]Reading %s\n", bpart_info.name);
@@ -829,13 +829,13 @@ static int copy_rootfs(uint32_t request, uint32_t size)
 	case SMEM_BOOT_NORPLUSEMMC:
 		if (sfi->binfo != NULL) {
 			if (boot_info.active_bank == 1)
-				bpart_info.name = "rootfs_1";
+				bpart_info.name = ROOTFS_INACTIVE_LABEL;
 			else if (boot_info.active_bank == 0)
-				bpart_info.name = "rootfs";
+				bpart_info.name = ROOTFS_ACTIVE_LABEL;
 			else
 				return -EBADFD;
 		} else {
-			bpart_info.name = "rootfs";
+			bpart_info.name = ROOTFS_ACTIVE_LABEL;
 		}
 
 		if (boot_info.debug)

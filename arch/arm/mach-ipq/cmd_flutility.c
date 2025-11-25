@@ -863,8 +863,8 @@ mmc:
 #endif
 
 #ifdef CONFIG_CMD_UBI
-	if (!strncmp(part_name, "rootfs", strlen("rootfs")) ||
-		!strncmp(part_name, "rootfs_1", strlen("rootfs_1")))
+	if (!strncmp(part_name, ROOTFS_ACTIVE_LABEL, strlen(ROOTFS_ACTIVE_LABEL)) ||
+		!strncmp(part_name, ROOTFS_INACTIVE_LABEL, strlen(ROOTFS_INACTIVE_LABEL)))
 		detach_ubi();
 #endif
 

@@ -957,6 +957,19 @@ bool ipq_iscrashed(void);
  * @type - Platform-specific implementation for SoC
  */
 void ipq_board_gpio_config(int type);
+// Partition label macros for consistent naming across all files
+#ifdef CONFIG_PRPL_MMC_LABEL
+#define KERNEL_ACTIVE_LABEL    "kernel-active"
+#define KERNEL_INACTIVE_LABEL  "kernel-inactive"
+#define ROOTFS_ACTIVE_LABEL    "rootfs-active"
+#define ROOTFS_INACTIVE_LABEL  "rootfs-inactive"
+#else
+#define KERNEL_ACTIVE_LABEL    "0:HLOS"
+#define KERNEL_INACTIVE_LABEL  "0:HLOS_1"
+#define ROOTFS_ACTIVE_LABEL    "rootfs"
+#define ROOTFS_INACTIVE_LABEL  "rootfs_1"
+#endif
+
 
 #ifdef CONFIG_CB_CALIB
 /**
