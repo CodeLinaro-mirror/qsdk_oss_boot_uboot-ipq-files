@@ -528,6 +528,11 @@ int ipq_get_valid_bank(void);
  * Applicable only for NOR flash
  */
 void ipq_runtime_sf_env_update(void);
+/*
+ * ipq_update_sfi_block_size() - update flash block size.
+ * Applicable only for NOR flash
+ */
+void ipq_update_sfi_block_size(void);
 #if IS_ENABLED(CONFIG_MMC) || IS_ENABLED(CONFIG_NOR_BLK)
 /**
  * ipq_part_get_info_by_name() - Get partition information from GPT
@@ -957,6 +962,14 @@ bool ipq_iscrashed(void);
  * @type - Platform-specific implementation for SoC
  */
 void ipq_board_gpio_config(int type);
+#ifdef CONFIG_IPQ_NAND
+/*
+ * get_nand_block_size() - Return  nand device erase block size
+ *
+ * dev_id - NAND device ID
+ */
+uint32_t get_nand_block_size(uint8_t dev_id);
+#endif
 // Partition label macros for consistent naming across all files
 #ifdef CONFIG_PRPL_MMC_LABEL
 #define KERNEL_ACTIVE_LABEL    "kernel-active"
