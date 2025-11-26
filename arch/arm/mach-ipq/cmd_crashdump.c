@@ -2256,7 +2256,16 @@ static int crashdump_flash_get_args(uint8_t *flash_type, uint64_t *offset)
 	}
 
 	if (*flash_type != SMEM_BOOT_MMC_FLASH) {
-		if (*offset % sfi->flash_block_size) {
+		uint32_t flash_block_size = sfi->flash_block_size;
+
+#ifdef CONFIG_IPQ_NAND
+		if ((*flash_type == SMEM_BOOT_NAND_FLASH) ||
+		    (*flash_type == SMEM_BOOT_QSPI_NAND_FLASH)) {
+			flash_block_size = get_nand_block_size(0);
+		}
+#endif
+
+		if (*offset % flash_block_size) {
 			printf("crashdump offset is not multiple of "
 				"erase size\n");
 			return -EINVAL;
