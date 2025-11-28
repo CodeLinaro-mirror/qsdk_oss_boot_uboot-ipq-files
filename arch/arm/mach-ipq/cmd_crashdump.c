@@ -1598,6 +1598,7 @@ static int prepare_crashdump_level_table(crashdump_config_t *dump_config,
 	crashdump_infos_int_t dump_entry;
 	struct crashdump_infos *dump_infos = dump_config->dump_infos;
 	char dump_name_prefix[DUMP_NAME_STR_MAX_LEN] = { 0 };
+	char *dump_dir = env_get("dumpdir");
 	uint64_t split_bin_sz = 0;
 	uint8_t file_no = 0;
 #if (CONFIG_NR_DRAM_BANKS > 1)
@@ -1619,12 +1620,48 @@ static int prepare_crashdump_level_table(crashdump_config_t *dump_config,
 
 		file_no = 0;
 		memset(&dump_entry, 0, sizeof(crashdump_infos_int_t));
-		memcpy(&dump_name_prefix, dump_infos[i].name,
-					(strlen(dump_infos[i].name) - 4));
-		dump_name_prefix[(strlen(dump_infos[i].name) - 4)] = '\0';
+		/*
+		 * add dump path to dump info table if dumpdir env exists
+		 */
+		if (dump_dir && dump_config->dump_to == DUMP_TO_USB) {
+			const char *name = dump_infos[i].name;
+			size_t name_len = strlen(name);
+			size_t dir_len = strlen(dump_dir);
 
-		strlcpy(dump_entry.name, dump_infos[i].name,
+			if(dir_len + name_len + 1 >= DUMP_NAME_STR_MAX_LEN) {
+				printf("dump path info length is exceeded maximum length allowed\n");
+				goto usb_default_dump;
+			}
+
+			if (name_len > 4 && strcmp(name + name_len - 4,
+						   ".BIN") == 0) {
+				char name_without_ext[DUMP_NAME_STR_MAX_LEN];
+
+				strlcpy(name_without_ext, name, name_len - 3);
+				name_without_ext[name_len - 3] = '\0';
+
+				snprintf(dump_name_prefix,
+					 sizeof(dump_name_prefix), "%s/%s",
+					 dump_dir, name_without_ext);
+				snprintf(dump_entry.name,
+					 sizeof(dump_entry.name), "%s/%s",
+					 dump_dir, name);
+			} else {
+				snprintf(dump_name_prefix,
+					 sizeof(dump_name_prefix),
+					 "%s/%s", dump_dir, name);
+				snprintf(dump_entry.name,
+					 sizeof(dump_entry.name),
+					 "%s/%s", dump_dir, name);
+			}
+		} else {
+usb_default_dump:
+			memcpy(&dump_name_prefix, dump_infos[i].name,
+			       (strlen(dump_infos[i].name) - 4));
+			dump_name_prefix[(strlen(dump_infos[i].name) - 4)] = '\0';
+			strlcpy(dump_entry.name, dump_infos[i].name,
 				DUMP_NAME_STR_MAX_LEN);
+		}
 		dump_entry.start_addr = dump_infos[i].start_addr;
 		dump_entry.size = dump_infos[i].size;
 		dump_entry.is_aligned_access = dump_infos[i].is_aligned_access;
@@ -2714,6 +2751,24 @@ void ipq_do_dump_data(crashdump_config_t *dump_config)
 		}
 	}
 #endif /* CONFIG_IPQ_CRASHDUMP_TO_FLASH */
+
+#ifdef CONFIG_IPQ_CRASHDUMP_TO_USB
+	char *dump_dir = env_get("dumpdir");
+
+	if (dump_dir && dump_config->dump_to == DUMP_TO_USB) {
+		char runcmd[50] = {0};
+
+		printf("Creating dir %s\n", dump_dir);
+		snprintf(runcmd, sizeof(runcmd),
+			 "fatmkdir usb %x:%x %s",
+			 iface_cfg->usb_dev_idx,
+			 iface_cfg->usb_part_idx,
+			 dump_dir);
+		if (run_command(runcmd, 0) != CMD_RET_SUCCESS) {
+			printf("Warning: Failed to create directory %s\n", dump_dir);
+		}
+	}
+#endif /* CONFIG_IPQ_CRASHDUMP_TO_USB */
 
 	list_for_each_entry(dump_entry, &actual_dumps_list, list) {
 		printf("Processing %s:\n", dump_entry->name);
