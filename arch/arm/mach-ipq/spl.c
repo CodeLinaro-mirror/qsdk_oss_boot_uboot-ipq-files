@@ -37,7 +37,6 @@
 #include <image.h>
 #include <spl.h>
 #include <spl_load.h>
-#include <elf.h>
 #include <mach/ipq.h>
 #include <mach/smem_info.h>
 #include <asm/io.h>
@@ -62,25 +61,9 @@
 					IPQ_SPL_DLOAD_SHFT)
 
 #define IPQ_SPL_FIT_IMG_PARTITION	"0:BOOTLDR"
-#define IPQ_SPL_IMG_CNT_MAX		32
-#define IPQ_SPL_ELF_HASH_SEG_SZ		(10 * SZ_1K)
-#define IPQ_SPL_ELF_PHDR_CNT_MAX	32
 #define IPQ_SPL_FLASH_RD_PRT_LMT	true
 
-#define IPQ_SPL_ELF_METADATA_SZ		(sizeof(Elf64_Ehdr) + \
-					(sizeof(Elf64_Phdr) * \
-					 IPQ_SPL_ELF_PHDR_CNT_MAX) + \
-					IPQ_SPL_ELF_HASH_SEG_SZ)
-
 #define IPQ_SPL_BDEV_MAX_SZ		SZ_4K
-
-#define MI_PBT_HASH_SEGMENT		0x2
-#define MI_PBT_FLAG_SEGMENT_TYPE_SHIFT	0x18
-#define MI_PBT_FLAG_SEGMENT_TYPE_MASK	0x7000000
-
-#define IPQ_SPL_IS_HASH_SEG(x)		(MI_PBT_HASH_SEGMENT ==\
-					((x & MI_PBT_FLAG_SEGMENT_TYPE_MASK) >>\
-					 MI_PBT_FLAG_SEGMENT_TYPE_SHIFT))
 
 #define MAGIC_KEY			"QCLIB_CB"
 #define MAX_ENTRIES			0xF
@@ -103,13 +86,6 @@ enum {
 	IPQ_SPL_BOOTCFG_DEV_USB		= 0x3,
 	IPQ_SPL_BOOTCFG_DEV_NOR_MIBIB	= 0x4,
 	IPQ_SPL_BOOTCFG_DEV_MAX
-};
-
-enum {
-	IPQ_SPL_ELF_IMG = 0x0,
-	IPQ_SPL_BIN_IMG,
-	IPQ_SPL_FIT_IMG,
-	IPQ_SPL_IMG_MAX
 };
 
 /**
@@ -136,32 +112,6 @@ struct ipq_spl_fl_ctx {
 	struct ipq_spl_fl_ops *ops;
 	u8 type;
 };
-
-#if defined(CONFIG_IPQ_SPL_LOAD_ELF_IMG)
-static u8 elf_metadata_buf[IPQ_SPL_ELF_METADATA_SZ] __aligned(SZ_4K);
-
-/**
- * struct ipq_spl_elf_ctx - SPL ELF context
- * @class:	ELF class (32-bit or 64-bit).
- * @auth:	Authentication flag.
- * @ehdr:	Pointer to ELF executable header.
- * @phdr:	Pointer to ELF program headers.
- * @hash:	Pointer to hash segment.
- * @hash_sz:	Size of hash segment.
- * @metadata_sz:Total size of ELF metadata.
- * @fl_ctx:	Pointer to flash context.
- */
-struct ipq_spl_elf_ctx {
-	u8 class;
-	u8 auth;
-	void *ehdr;
-	void *phdr;
-	void *hash;
-	u32 hash_sz;
-	u32 metadata_sz;
-	struct ipq_spl_fl_ctx *fl_ctx;
-};
-#endif
 
 /**
  * struct interface_table_entry - Meta data for blobs in QCLIB interface
@@ -201,7 +151,6 @@ struct interface_table {
 
 /**
  * struct ipq_spl_img_ctx - SPL image context
- * @img_type:	Type of image (ELF, BIN, FIT).
  * @img_name:	Name of the image.
  * @prt_name:	Partition name where the image resides.
  * @load_addr:	Load address of the image.
@@ -214,7 +163,6 @@ struct interface_table {
  * @fixup:	Function pointer for image-specific fixup operations.
  */
 struct ipq_spl_img_ctx {
-	u8 img_type;
 	char *img_name;
 	char *prt_name;
 	u64 load_addr;
@@ -243,16 +191,10 @@ struct ipq_spl_img_ctx {
 struct ipq_spl_ctx {
 	struct ipq_spl_img_ctx *img_tbl;
 	struct interface_table if_tbl;
-#if defined(CONFIG_IPQ_SPL_LOAD_ELF_IMG)
-	struct ipq_spl_elf_ctx elf_ctx;
-#endif
 	struct ipq_spl_fl_ctx fl_ctx;
 	struct spl_image_info *spl_image;
 	struct spl_boot_device *bootdev;
 	void *fit;
-	u64 bl31_entry;
-	u64 bl32_entry;
-	u64 bl33_entry;
 };
 
 #define U_BOOT_IPQ_SPL_CTX(__name) \
@@ -374,27 +316,22 @@ static int ipq_spl_uboot_fixup(void *ctx);
  */
 struct ipq_spl_img_ctx img_tbl_fit[] = {
 	{
-		.img_type = IPQ_SPL_FIT_IMG,
 		.img_name = "qcconfig-meta",
 		.auth = true,
 		.fixup = ipq_spl_xcfg_fixup,
 	}, {
-		.img_type = IPQ_SPL_FIT_IMG,
 		.img_name = "qclib-meta",
 		.auth = true,
 		.fixup = ipq_spl_qclib_fixup,
 	}, {
-		.img_type = IPQ_SPL_FIT_IMG,
 		.img_name = "tfa_bl31-meta",
 		.auth = true,
 		.fixup = ipq_spl_tfa_fixup,
 	}, {
-		.img_type = IPQ_SPL_FIT_IMG,
 		.img_name = "optee-meta",
 		.auth = true,
 		.fixup = ipq_spl_optee_fixup,
 	}, {
-		.img_type = IPQ_SPL_FIT_IMG,
 		.img_name = "uboot-meta",
 		.auth = true,
 		.fixup = ipq_spl_uboot_fixup,
@@ -1125,538 +1062,6 @@ static ulong ipq_spl_nand_read(struct spl_load_info *load, ulong sector,
 }
 #endif /* CONFIG_IPQ_NAND */
 
-#if defined(CONFIG_IPQ_SPL_LOAD_ELF_IMG)
-/**
- * ipq_spl_elf_init() - Initialize the ELF context.
- * @elf_ctx:	Pointer to the SPL ELF context.
- *
- * This function initializes the ELF context structure and clears the
- * ELF metadata buffer.
- * Return: 0 on success, or -EINVAL if context is invalid.
- */
-int ipq_spl_elf_init(struct ipq_spl_elf_ctx *elf_ctx)
-{
-	if (!elf_ctx) {
-		pr_err("Invalid ELF context\n");
-		return -EINVAL;
-	}
-
-	elf_ctx->class = ELFCLASSNONE;
-	elf_ctx->auth = false;
-	elf_ctx->ehdr = NULL;
-	elf_ctx->phdr = NULL;
-	elf_ctx->hash = NULL;
-	elf_ctx->hash_sz = 0;
-	elf_ctx->metadata_sz = 0;
-	elf_ctx->fl_ctx = NULL;
-
-	memset(elf_metadata_buf, 0x0, IPQ_SPL_ELF_METADATA_SZ);
-
-	return 0;
-}
-
-/**
- * ipq_spl_load_elf_ehdr() - Load and verify ELF executable header.
- * @elf_ctx:	Pointer to the SPL ELF context.
- *
- * This function reads the ELF executable header into the context's buffer
- * and performs basic validation.
- * Return: 0 on success, or a negative error code on failure.
- */
-int ipq_spl_load_elf_ehdr(struct ipq_spl_elf_ctx *elf_ctx)
-{
-	int ret;
-	struct spl_load_info *load;
-	Elf64_Ehdr *ehdr;
-
-	if (!elf_ctx) {
-		pr_err("Invalid ELF context\n");
-		return -EINVAL;
-	}
-
-	if (!elf_ctx->fl_ctx) {
-		pr_err("Flash context not set in ELF context\n");
-		return -EINVAL;
-	}
-
-	elf_ctx->ehdr = (void *)elf_metadata_buf;
-
-	load = &elf_ctx->fl_ctx.load;
-	if (!load->read) {
-		pr_err("Flash read operation is NULL\n");
-		return -EINVAL;
-	}
-
-	ret = load->read(load, 0, sizeof(Elf64_Ehdr), elf_ctx->ehdr);
-	if (ret != sizeof(Elf64_Ehdr)) {
-		pr_err("Failed to read ELF header (read %d, expected %zu)\n",
-			ret, sizeof(Elf64_Ehdr));
-		return -EIO;
-	}
-
-	ehdr = (Elf64_Ehdr *)elf_ctx->ehdr;
-	if (!IS_ELF(*ehdr)) {
-		pr_err("ELF image is invalid\n");
-		return -EINVAL;
-	}
-
-	elf_ctx->class = ehdr->e_ident[EI_CLASS];
-
-	return 0;
-}
-
-/**
- * ipq_spl_load_elf_phdr() - Load ELF program headers.
- * @elf_ctx:	Pointer to the SPL ELF context.
- *
- * This function reads the ELF program headers into the context's buffer,
- * based on the ELF class (32-bit or 64-bit).
- * Return: 0 on success, or a negative error code on failure.
- */
-int ipq_spl_load_elf_phdr(struct ipq_spl_elf_ctx *elf_ctx)
-{
-	int ret;
-	struct spl_load_info *load;
-	u64 phdr_offset;
-	u64 phdrs_size;
-
-	if (!elf_ctx) {
-		pr_err("Invalid ELF context\n");
-		return -EINVAL;
-	}
-
-	if (!elf_ctx->fl_ctx) {
-		pr_err("Flash context not set in ELF context\n");
-		return -EINVAL;
-	}
-
-	switch (elf_ctx->class) {
-	case ELFCLASS64:
-		phdr_offset = ((Elf64_Ehdr *)elf_ctx->ehdr)->e_phoff;
-		phdrs_size = ((Elf64_Ehdr *)elf_ctx->ehdr)->e_phnum *
-			     ((Elf64_Ehdr *)elf_ctx->ehdr)->e_phentsize;
-		break;
-	case ELFCLASS32:
-		phdr_offset = ((Elf32_Ehdr *)elf_ctx->ehdr)->e_phoff;
-		phdrs_size = ((Elf32_Ehdr *)elf_ctx->ehdr)->e_phnum *
-			     ((Elf32_Ehdr *)elf_ctx->ehdr)->e_phentsize;
-		break;
-	default:
-		pr_err("Invalid ELF class %d\n", elf_ctx->class);
-		return -EINVAL;
-	}
-
-	elf_ctx->phdr = (void *)(elf_metadata_buf + phdr_offset);
-
-	load = &elf_ctx->fl_ctx.load;
-	if (!load->read) {
-		pr_err("Flash read operation is NULL\n");
-		return -EINVAL;
-	}
-
-	ret = load->read(load, phdr_offset, phdrs_size, elf_ctx->phdr);
-	if (ret != phdrs_size) {
-		pr_err("Failed to read PHDR (read %d, expected %llu)\n",
-			ret, phdrs_size);
-		return -EIO;
-	}
-
-	return 0;
-}
-
-/**
- * ipq_spl_load_elf_seg() - Load a single ELF segment.
- * @fl_ctx:	Pointer to the SPL flash context.
- * @class:	ELF class (32-bit or 64-bit).
- * @phdr:	Pointer to the ELF program header for the segment.
- *
- * This function loads a single ELF segment into memory, handling loadable
- * segments, hash segments, and zeroing out remaining memory if necessary.
- * Return: 0 on success, or a negative error code on failure.
- */
-int ipq_spl_load_elf_seg(struct ipq_spl_fl_ctx *fl_ctx,
-			 u8 class,
-			 void *phdr)
-{
-	int ret;
-	struct spl_load_info *load;
-	u32 seg_ptype;
-	u64 seg_flags;
-	u64 seg_paddr;
-	u64 seg_offset;
-	u64 seg_filesz;
-	u64 seg_memsz;
-
-	if (!phdr) {
-		pr_err("Program header is NULL\n");
-		return -EINVAL;
-	}
-
-	if (!fl_ctx) {
-		pr_err("Flash context is NULL\n");
-		return -EINVAL;
-	}
-
-	switch (class) {
-	case ELFCLASS64:
-		seg_ptype = ((Elf64_Phdr *)phdr)->p_type;
-		seg_flags = ((Elf64_Phdr *)phdr)->p_flags;
-		seg_offset = ((Elf64_Phdr *)phdr)->p_offset;
-		seg_filesz = ((Elf64_Phdr *)phdr)->p_filesz;
-		seg_memsz = ((Elf64_Phdr *)phdr)->p_memsz;
-		seg_paddr = ((Elf64_Phdr *)phdr)->p_paddr;
-		break;
-	case ELFCLASS32:
-		seg_ptype = ((Elf32_Phdr *)phdr)->p_type;
-		seg_flags = ((Elf32_Phdr *)phdr)->p_flags;
-		seg_offset = ((Elf32_Phdr *)phdr)->p_offset;
-		seg_filesz = ((Elf32_Phdr *)phdr)->p_filesz;
-		seg_memsz = ((Elf32_Phdr *)phdr)->p_memsz;
-		seg_paddr = ((Elf32_Phdr *)phdr)->p_paddr;
-		break;
-	default:
-		pr_err("Invalid ELF class %d\n", class);
-		return -EINVAL;
-	}
-
-	if ((seg_ptype != PT_LOAD) && (!IPQ_SPL_IS_HASH_SEG(seg_flags))) {
-		/*
-		 * Not a loadable or hash segment, skip
-		 */
-		return 0;
-	} else if (!seg_paddr) {
-		/*
-		 * Segment has no physical address, skip
-		 */
-		return 0;
-	} else if (seg_filesz > seg_memsz) {
-		/*
-		 * Filesize is greater than memory size, invalid segment, skip
-		 */
-		pr_warn("Segment filesz (%llu) > memsz (%llu), skipping\n",
-			seg_filesz, seg_memsz);
-		return 0;
-	} else if (seg_filesz > 0) {
-		load = &fl_ctx->load;
-		if (!load->read) {
-			pr_err("Flash read operation is NULL\n");
-			return -EINVAL;
-		}
-
-		ret = load->read(load, seg_offset, seg_filesz,
-				 (void *)seg_paddr);
-		if (ret != seg_filesz) {
-			pr_err("Failed to read seg (read %d, expected %llu)\n",
-				ret, seg_filesz);
-			return -EIO;
-		}
-	}
-
-	/*
-	 * Zero initialize the remaining memory region if memsz > filesz
-	 */
-	if (seg_memsz > seg_filesz) {
-		memset((void *)(seg_paddr + seg_filesz),
-			0,
-			seg_memsz - seg_filesz);
-	}
-
-	return 0;
-}
-
-/**
- * ipq_spl_load_elf_segments() - Load all ELF segments.
- * @elf_ctx:	Pointer to the SPL ELF context.
- *
- * This function iterates through all ELF program headers and loads each
- * loadable segment into memory.
- * Return: 0 on success, or a negative error code on failure.
- */
-int ipq_spl_load_elf_segments(struct ipq_spl_elf_ctx *elf_ctx)
-{
-	int ret = 0;
-	u8 seg_count;
-	u8 seg_index;
-	void *phdr;
-	u64 phdr_size;
-	u32 ptype;
-
-	if (!elf_ctx) {
-		pr_err("Invalid ELF context\n");
-		return -EINVAL;
-	}
-
-	if (!elf_ctx->fl_ctx) {
-		pr_err("Flash context not set in ELF context\n");
-		return -EINVAL;
-	}
-
-	switch (elf_ctx->class) {
-	case ELFCLASS64:
-		seg_count = ((Elf64_Ehdr *)elf_ctx->ehdr)->e_phnum;
-		phdr_size = ((Elf64_Ehdr *)elf_ctx->ehdr)->e_phentsize;
-		break;
-	case ELFCLASS32:
-		seg_count = ((Elf32_Ehdr *)elf_ctx->ehdr)->e_phnum;
-		phdr_size = ((Elf32_Ehdr *)elf_ctx->ehdr)->e_phentsize;
-		break;
-	default:
-		pr_err("Invalid ELF class %d\n", elf_ctx->class);
-		return -EINVAL;
-	}
-
-	for (seg_index = 0; seg_index < seg_count; seg_index++) {
-		phdr = (u8 *)elf_ctx->phdr + (seg_index * phdr_size);
-
-		ptype = (elf_ctx->class == ELFCLASS64) ?
-				((Elf64_Phdr *)phdr)->p_type :
-				((Elf32_Phdr *)phdr)->p_type;
-
-		if (ptype == PT_LOAD) {
-			ret = ipq_spl_load_elf_seg(elf_ctx->fl_ctx,
-							elf_ctx->class,
-							phdr);
-			if (ret) {
-				pr_err("Failed to load ELF seg %d (ret=%d)\n",
-					seg_index, ret);
-				break;
-			}
-		}
-	}
-
-	return ret;
-}
-
-/**
- * ipq_spl_load_elf_or_bin_image() - Load an ELF or binary image.
- * @pctx:	Pointer to the global SPL context.
- * @p_img_entry:Pointer to the image context for the current image.
- *
- * This function handles opening the partition, loading the specified image
- * (either ELF by parsing headers and segments, or raw binary), and closing
- * the partition.
- * Return: 0 on success, or a negative error code on failure.
- */
-static int ipq_spl_load_elf_or_bin_image(struct ipq_spl_ctx *pctx,
-					 struct ipq_spl_img_ctx *p_img_entry)
-{
-	int ret;
-	int close_res;
-	struct spl_load_info *load;
-	struct ipq_spl_fl_ops *fl_ops;
-
-	if (!pctx) {
-		pr_err("Invalid SPL context\n");
-		return -EINVAL;
-	}
-
-	if (!p_img_entry) {
-		pr_err("Invalid image entry\n");
-		return -EINVAL;
-	}
-
-	load = &pctx->fl_ctx.load;
-	fl_ops = pctx->fl_ctx.ops;
-
-	if (!fl_ops) {
-		pr_err("Flash operations not set\n");
-		ret = -EINVAL;
-		goto end_func;
-	}
-
-	pr_info("Loading Image: %s\n", p_img_entry->img_name);
-
-	if (!fl_ops->open) {
-		pr_err("Flash open operation is NULL\n");
-		ret = -EINVAL;
-		goto end_func;
-	}
-	ret = fl_ops->open(load, p_img_entry->prt_name);
-	if (ret) {
-		pr_err("Failed to open partition %s (ret=%d)\n",
-			p_img_entry->prt_name, ret);
-		goto end_func;
-	}
-
-	switch (p_img_entry->img_type) {
-	case IPQ_SPL_ELF_IMG:
-		ret = ipq_spl_elf_init(&pctx->elf_ctx);
-		if (ret) {
-			pr_err("Failed to initialize ELF context (ret=%d)\n",
-				ret);
-			goto close_media;
-		}
-
-		pctx->elf_ctx.fl_ctx = &pctx->fl_ctx;
-
-		ret = ipq_spl_load_elf_ehdr(&pctx->elf_ctx);
-		if (ret) {
-			pr_err("Failed to load ELF header (ret=%d)\n", ret);
-			goto close_media;
-		}
-
-		ret = ipq_spl_load_elf_phdr(&pctx->elf_ctx);
-		if (ret) {
-			pr_err("Failed to load ELF program headers (ret=%d)\n",
-				ret);
-			goto close_media;
-		}
-
-		ret = ipq_spl_load_elf_segments(&pctx->elf_ctx);
-		if (ret) {
-			pr_err("Failed to load ELF segments (ret=%d)\n", ret);
-			goto close_media;
-		}
-		break;
-	case IPQ_SPL_BIN_IMG:
-		if (!load->read) {
-			pr_err("Flash read operation is NULL\n");
-			ret = -EINVAL;
-			goto close_media;
-		}
-
-		ret = load->read(load, 0, p_img_entry->img_sz,
-					(void *)p_img_entry->load_addr);
-		if (ret != p_img_entry->img_sz) {
-			pr_err("Failed to load img (read %d, expected %llu)\n",
-				ret, p_img_entry->img_sz);
-			goto close_media;
-		}
-		break;
-	default:
-		pr_err("Unsupported image type %d\n", p_img_entry->img_type);
-		ret = -EINVAL;
-		goto close_media;
-	}
-
-close_media:
-	if (!fl_ops->close) {
-		pr_err("Flash close operation is NULL\n");
-		/*
-		 * If previous operations were successful, set this error
-		 */
-		if (!ret)
-			ret = -EINVAL;
-	} else {
-		close_res = fl_ops->close(load);
-		/*
-		 * If close fails, propagate the error only if no other error
-		 */
-		if (close_res && !ret)
-			ret = close_res;
-	}
-
-end_func:
-	return ret;
-}
-
-/**
- * ipq_spl_process_elf_or_bin_image() - Process loading of ELF or binary images.
- * @ctx:	Pointer to the global SPL context.
- *
- * This function manages the loading and optional fixup of ELF or binary
- * images, handling optional images gracefully on failure.
- * Return: 0 on success, or a negative error code on failure.
- */
-int ipq_spl_process_elf_or_bin_image(void *ctx)
-{
-	int ret;
-	struct ipq_spl_ctx *pctx = ctx;
-	struct ipq_spl_img_ctx *p_img_entry;
-	struct ipq_spl_fl_ops *fl_ops;
-
-	if (!pctx) {
-		pr_err("Invalid SPL context\n");
-		return -EINVAL;
-	}
-
-	p_img_entry = pctx->img_tbl;
-	if (!p_img_entry) {
-		pr_err("Invalid image entry\n");
-		return -EINVAL;
-	}
-
-	if (p_img_entry->load == false) {
-		pr_debug("Image %s not marked for loading, skipping\n",
-			 p_img_entry->img_name);
-		return 0;
-	}
-
-	fl_ops = pctx->fl_ctx.ops;
-	if (!fl_ops) {
-		pr_err("Flash operations not set\n");
-		return -EINVAL;
-	}
-
-	ret = ipq_spl_load_elf_or_bin_image(pctx, p_img_entry);
-	if (ret) {
-		if (p_img_entry->optional == true) {
-			pr_warn("Failed to load optional img '%s' (ret=0x%x)\n",
-				p_img_entry->img_name, ret);
-			ret = 0;
-			/*
-			 * Skip image fixups on error
-			 */
-			p_img_entry->fixup = NULL;
-		} else {
-			pr_err("Failed to load image '%s' (ret=0x%x)\n",
-				p_img_entry->img_name, ret);
-			return ret;
-		}
-	}
-
-	/*
-	 * Perform image fixup if available
-	 */
-	if (p_img_entry->fixup) {
-		ret = p_img_entry->fixup(pctx);
-		if (ret) {
-			pr_err("Fixup for image '%s' failed (ret=%d)\n",
-				p_img_entry->img_name, ret);
-			return ret;
-		}
-	}
-
-	return 0;
-}
-
-/**
- * ipq_spl_get_elf_img_entry_point() - Get entry point from ELF image.
- * @elf_ctx:	Pointer to the SPL ELF context.
- * @entry_point:Pointer to store the retrieved entry point.
- *
- * This function extracts the entry point from the loaded ELF executable
- * header based on the ELF class.
- * Return: 0 on success, or -EINVAL if context or entry_point is invalid.
- */
-static int ipq_spl_get_elf_img_entry_point(struct ipq_spl_elf_ctx *elf_ctx,
-						u64 *entry_point)
-{
-	if (!elf_ctx) {
-		pr_err("Invalid ELF context\n");
-		return -EINVAL;
-	}
-	if (!entry_point) {
-		pr_err("Entry point pointer is NULL\n");
-		return -EINVAL;
-	}
-
-	switch (elf_ctx->class) {
-	case ELFCLASS64:
-		*entry_point = ((Elf64_Ehdr *)elf_ctx->ehdr)->e_entry;
-		break;
-	case ELFCLASS32:
-		*entry_point = ((Elf32_Ehdr *)elf_ctx->ehdr)->e_entry;
-		break;
-	default:
-		pr_err("Invalid ELF class %d\n", elf_ctx->class);
-		return -EINVAL;
-	}
-
-	return 0;
-}
-#endif /* CONFIG_IPQ_SPL_LOAD_ELF_IMG */
-
 /**
  * ipq_spl_get_fit_img_entry_point() - Get entry point from FIT image node.
  * @fit:	Pointer to the FIT image blob.
@@ -1694,54 +1099,6 @@ static int ipq_spl_get_fit_img_entry_point(void *fit,
 		if (ret)
 			pr_err("No load address for node %d (ret=%d)\n",
 				node, ret);
-	}
-
-	return ret;
-}
-
-/**
- * ipq_spl_get_img_entry_point() - Get entry point for any image type.
- * @ctx:	Pointer to the global SPL context.
- * @entry_point:Pointer to store the retrieved entry point.
- *
- * This function acts as a wrapper to get the entry point for different
- * image types (ELF, BIN, FIT).
- * Return: 0 on success, or a negative error code on failure.
- */
-static int ipq_spl_get_img_entry_point(void *ctx, u64 *entry_point)
-{
-	int ret;
-	struct ipq_spl_ctx *pctx = ctx;
-
-	if (!pctx) {
-		pr_err("Invalid SPL context\n");
-		return -EINVAL;
-	}
-	if (!pctx->img_tbl) {
-		pr_err("Image table is NULL\n");
-		return -EINVAL;
-	}
-
-	switch (pctx->img_tbl->img_type) {
-#if defined(CONFIG_IPQ_SPL_LOAD_ELF_IMG)
-	case IPQ_SPL_ELF_IMG:
-		ret = ipq_spl_get_elf_img_entry_point(&pctx->elf_ctx,
-						      entry_point);
-		break;
-#endif /* CONFIG_IPQ_SPL_LOAD_ELF_IMG */
-	case IPQ_SPL_BIN_IMG:
-		*entry_point = pctx->img_tbl->load_addr;
-		ret = 0;
-		break;
-	case IPQ_SPL_FIT_IMG:
-		ret = ipq_spl_get_fit_img_entry_point(pctx->fit,
-						      pctx->img_tbl->fit_node,
-						      entry_point);
-		break;
-	default:
-		pr_err("Invalid image type %d\n", pctx->img_tbl->img_type);
-		ret = -EINVAL;
-		break;
 	}
 
 	return ret;
@@ -1908,6 +1265,16 @@ static int ipq_spl_xcfg_fixup(void *ctx)
 		return -EINVAL;
 	}
 
+	if (!pctx->img_tbl) {
+		pr_err("Image table is NULL\n");
+		return -EINVAL;
+	}
+
+	if (!pctx->fit) {
+		pr_err("FIT image not loaded\n");
+		return -EINVAL;
+	}
+
 	/*
 	 * Initialize the interface table
 	 */
@@ -1926,7 +1293,8 @@ static int ipq_spl_xcfg_fixup(void *ctx)
 		QCCONFIG,
 		strlen(QCCONFIG));
 
-	ret = ipq_spl_get_img_entry_point(pctx,
+	ret = ipq_spl_get_fit_img_entry_point(pctx->fit,
+			pctx->img_tbl->fit_node,
 			&pctx->if_tbl.if_table_entries[entry_idx].address);
 	if (ret) {
 		pr_err("Failed to get qcconfig-meta entry point (ret=%d)\n",
@@ -1970,12 +1338,20 @@ static int ipq_spl_qclib_fixup(void *ctx)
 		pr_err("Invalid SPL context\n");
 		return -EINVAL;
 	}
+
 	if (!pctx->img_tbl) {
 		pr_err("Image table is NULL\n");
 		return -EINVAL;
 	}
 
-	ret = ipq_spl_get_img_entry_point(pctx, &entry_point);
+	if (!pctx->fit) {
+		pr_err("FIT image not loaded\n");
+		return -EINVAL;
+	}
+
+	ret = ipq_spl_get_fit_img_entry_point(pctx->fit,
+				pctx->img_tbl->fit_node,
+				&entry_point);
 	if (ret) {
 		pr_err("Failed to get qclib-meta entry point (ret=%d)\n", ret);
 		return ret;
@@ -2008,10 +1384,14 @@ static int ipq_spl_tfa_fixup(void *ctx)
 		return -EINVAL;
 	}
 
-	ret = ipq_spl_get_img_entry_point(pctx, &pctx->bl31_entry);
-	if (ret) {
-		pr_err("Failed to get BL31 entry point (ret=%d)\n", ret);
-		return ret;
+	if (!pctx->img_tbl) {
+		pr_err("Image table is NULL\n");
+		return -EINVAL;
+	}
+
+	if (!pctx->fit) {
+		pr_err("FIT image not loaded\n");
+		return -EINVAL;
 	}
 
 	/*
@@ -2038,20 +1418,7 @@ static int ipq_spl_tfa_fixup(void *ctx)
  */
 static int ipq_spl_optee_fixup(void *ctx)
 {
-	int ret;
-	struct ipq_spl_ctx *pctx = ctx;
-
-	if (!pctx) {
-		pr_err("Invalid SPL context\n");
-		return -EINVAL;
-	}
-
-	ret = ipq_spl_get_img_entry_point(pctx, &pctx->bl32_entry);
-	if (ret) {
-		pr_err("Failed to get BL32 entry point (ret=%d)\n", ret);
-		return ret;
-	}
-
+	pr_debug("OP-TEE fixup skipped\n");
 	return 0;
 }
 
@@ -2064,20 +1431,7 @@ static int ipq_spl_optee_fixup(void *ctx)
  */
 static int ipq_spl_uboot_fixup(void *ctx)
 {
-	int ret;
-	struct ipq_spl_ctx *pctx = ctx;
-
-	if (!pctx) {
-		pr_err("Invalid SPL context\n");
-		return -EINVAL;
-	}
-
-	ret = ipq_spl_get_img_entry_point(pctx, &pctx->bl33_entry);
-	if (ret) {
-		pr_err("Failed to get BL33 entry point (ret=%d)\n", ret);
-		return ret;
-	}
-
+	pr_debug("U-Boot fixup skipped\n");
 	return 0;
 }
 
