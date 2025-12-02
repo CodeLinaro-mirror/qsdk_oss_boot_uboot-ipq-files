@@ -619,6 +619,32 @@ struct spi_flash *ipq_spi_probe(void)
 }
 #endif
 
+#if defined(CONFIG_NOR_BLK)
+void ipq_update_sfi_block_size(void)
+{
+	struct ipq_smem_flash_info *smem_info = ipq_get_smem_info();
+
+	if (IS_ERR_OR_NULL(smem_info))
+		return;
+
+	if (smem_info->flash_type == SMEM_BOOT_NORGPT_FLASH) {
+		struct spi_flash *flash = ipq_spi_probe();
+			if (!flash) {
+			printf("Failed to probe SPI flash\n");
+			return;
+		}
+		/*
+		* add flash details in sfi structure
+		*/
+		smem_info->flash_block_size = flash->sector_size;
+		smem_info->flash_density = flash->size;
+
+	}
+}
+#else
+void ipq_update_sfi_block_size(void) {}
+#endif
+
 #if defined(CONFIG_RUNTIME_SF_ENV_UPDATE) && defined(CONFIG_ENV_IS_IN_SPI_FLASH)
 static void ipq_update_env_offset(void)
 {

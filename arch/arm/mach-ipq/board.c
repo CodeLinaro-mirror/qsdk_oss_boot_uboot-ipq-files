@@ -406,6 +406,7 @@ int board_init(void)
 #if defined(CONFIG_BOARD_EARLY_INIT_R)
 int board_early_init_r(void)
 {
+	ipq_update_sfi_block_size();
 	/*
 	 * Update env address in runtime , support only in Nor flash
 	 */
