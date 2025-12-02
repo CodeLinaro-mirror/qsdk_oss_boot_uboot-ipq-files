@@ -307,7 +307,7 @@ int dram_init(void)
 	for (j = i = 0; i < rpt->num_partitions; i++, rpe++)
 		if ((rpe->partition_category == RAM_PARTITION_SDRAM) &&
 			(rpe->partition_type == RAM_PARTITION_SYS_MEMORY))
-			gd->ram_size += rpe->available_length;
+			gd->ram_size += rpe->length;
 
 	return 0;
 }
@@ -333,7 +333,7 @@ int dram_init_banksize(void)
 		if ((rpe->partition_category == RAM_PARTITION_SDRAM) &&
 			(rpe->partition_type == RAM_PARTITION_SYS_MEMORY)) {
 			gd->bd->bi_dram[i].start = rpe->start_address;
-			gd->bd->bi_dram[i].size = rpe->available_length;
+			gd->bd->bi_dram[i].size = rpe->length;
 		}
 	}
 
