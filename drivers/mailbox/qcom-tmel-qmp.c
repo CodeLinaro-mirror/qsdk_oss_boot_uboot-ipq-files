@@ -140,6 +140,14 @@ struct iovec_tmel {
 };
 
 /**
+ * struct qmp_device_cfg - QMP device configuration
+ * @shared_irq: IRQ to notify tx completion from APSS to TME-L
+ */
+struct qmp_device_cfg {
+	u32 shared_irq;
+};
+
+/**
  * struct qmp_device - local information for managing a single mailbox
  * @dev: The device that corresponds to this mailbox
  * @mcore_desc: Local core (APSS) mailbox descriptor
@@ -152,6 +160,7 @@ struct iovec_tmel {
  * @link_complete: Use to block until link negotiation with remote proc
  * @ch_complete: Use to block until the channel is fully opened
  * @tx_sent: True if tx is sent and remote proc has not sent ack
+ * @shared_irq: IRQ to notify tx completion from APSS to TME-L
  */
 struct qmp_device {
 	struct udevice *dev;
@@ -171,6 +180,7 @@ struct qmp_device {
 	bool ch_complete;
 
 	atomic_t tx_sent;
+	u32 shared_irq;
 };
 
 /**
@@ -253,7 +263,7 @@ static int tmel_qmp_send_data(struct qmp_device *mdev, void *data);
  */
 static inline void tmel_qmp_send_irq(struct qmp_device *mdev)
 {
-	if (!mdev)
+	if (!mdev || !mdev->dev)
 		return;
 
 	writel(mdev->mcore.val, mdev->mcore_desc);
@@ -263,7 +273,7 @@ static inline void tmel_qmp_send_irq(struct qmp_device *mdev)
 	dev_dbg(mdev->dev, "%s: mcore 0x%x ucore 0x%x", __func__,
 		mdev->mcore.val, mdev->ucore.val);
 
-	writel(BIT(20), CONFIG_SHARED_IPC_INTERRUPT_REG);
+	writel(mdev->shared_irq, CONFIG_SHARED_IPC_INTERRUPT_REG);
 }
 
 /**
@@ -1142,6 +1152,7 @@ static int tmel_qmp_mbox_probe(struct udevice *dev)
 {
 	struct tmel *tdev = dev_get_priv(dev);
 	struct qmp_device *mdev;
+	struct qmp_device_cfg *mdev_cfg;
 	int ret;
 
 	if (!tdev)
@@ -1167,14 +1178,30 @@ static int tmel_qmp_mbox_probe(struct udevice *dev)
 
 	tdev->mdev = mdev;
 
+	mdev_cfg = (struct qmp_device_cfg *)dev_get_driver_data(mdev->dev);
+	if (!mdev_cfg) {
+		dev_err(mdev->dev, "Failed to get QMP device config\n");
+		return -EINVAL;
+	}
+
+	mdev->shared_irq = mdev_cfg->shared_irq;
 	set_interrupt_flags(tdev);
 	enable_interrupt(tdev);
 
 	return 0;
 }
 
+static const struct qmp_device_cfg config_ipq_sec = {
+	.shared_irq = BIT(21),
+};
+
+static const struct qmp_device_cfg config_ipq_nsec = {
+	.shared_irq = BIT(20),
+};
+
 static const struct udevice_id tmel_qmp_mbox_of_match[] = {
-	{ .compatible = "qcom,tmel-qmp-mbox" },
+	{ .compatible = "qcom,tmel-qmp-mbox-secure", .data = (ulong)&config_ipq_sec},
+	{ .compatible = "qcom,tmel-qmp-mbox", .data = (ulong)&config_ipq_nsec},
 	{}
 };
 

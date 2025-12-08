@@ -50,6 +50,8 @@
 #include <asm/armv8/mmu.h>
 #endif
 #include <asm/cache.h>
+#include <mailbox.h>
+#include <linux/tmelcom-qmp.h>
 
 /*******************************************************************************
  * Globals constant & typedef
@@ -141,6 +143,7 @@ struct interface_table {
  * struct ipq_spl_img_ctx - SPL image context
  * @img_name:	Name of the image.
  * @prt_name:	Partition name where the image resides.
+ * @sw_id:	Software ID for the image.
  * @load_addr:	Load address of the image.
  * @img_sz:	Size of the image.
  * @img_off:	Offset of the image within the partition.
@@ -153,6 +156,7 @@ struct interface_table {
 struct ipq_spl_img_ctx {
 	char *img_name;
 	char *prt_name;
+	u64 sw_id;
 	u64 load_addr;
 	u64 img_sz;
 	u64 img_off;
@@ -229,6 +233,23 @@ static struct ipq_spl_fuse_info fuse_info_array[] = {
 	{"GPR0", IPQ_SPL_DDR_GPR0_ADDR},
 };
 
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
+/**
+ * tme_fuse_info_array - Array of TME IPC based fuse information.
+ *
+ * This array contains the names and addresses of various TME IPC based fuses
+ * used in the system. These fuses are typically used for security features
+ * and configuration settings.
+ */
+static struct ipq_spl_fuse_info tme_fuse_info_array[] = {
+	{"OEM TME Row 0", IPQ_SPL_FUSE_OEM_TME_ROW_0_ADDR},
+	{"Feature Config Row 0", IPQ_SPL_FUSE_FEATURE_CONFIG_ROW_0_ADDR},
+	{"Feature Config Row 1", IPQ_SPL_FUSE_FEATURE_CONFIG_ROW_1_ADDR},
+	{"OEM Config Row 0", IPQ_SPL_FUSE_OEM_CONFIG_ROW_0_ADDR},
+	{"OEM Config Row 1", IPQ_SPL_FUSE_OEM_CONFIG_ROW_1_ADDR},
+};
+#endif /* CONFIG_IPQ_TMEL_IPC_SUPPORT */
+
 /**
  * img_tbl_fit - Image loader table for FIT images.
  *
@@ -238,22 +259,27 @@ static struct ipq_spl_fuse_info fuse_info_array[] = {
 struct ipq_spl_img_ctx img_tbl_fit[] = {
 	{
 		.img_name = "qcconfig-meta",
+		.sw_id = IPQ_SPL_QCLIB_DDR_SEC_AUTH_SWID,
 		.auth = true,
 		.fixup = ipq_spl_xcfg_fixup,
 	}, {
 		.img_name = "qclib-meta",
+		.sw_id = IPQ_SPL_QCLIB_DDR_SEC_AUTH_SWID,
 		.auth = true,
 		.fixup = ipq_spl_qclib_fixup,
 	}, {
 		.img_name = "tfa_bl31-meta",
+		.sw_id = IPQ_SPL_TZ_TEE_SEC_AUTH_SWID,
 		.auth = true,
 		.fixup = ipq_spl_tfa_fixup,
 	}, {
 		.img_name = "optee-meta",
+		.sw_id = IPQ_SPL_OP_TEE_SEC_AUTH_SWID,
 		.auth = true,
 		.fixup = ipq_spl_optee_fixup,
 	}, {
 		.img_name = "uboot-meta",
+		.sw_id = IPQ_SPL_APPSBL_SEC_AUTH_SWID,
 		.auth = true,
 		.fixup = ipq_spl_uboot_fixup,
 	},
@@ -720,11 +746,6 @@ static int ipq_spl_tfa_fixup(void *ctx)
 		return -EINVAL;
 	}
 
-	if (!pctx->fit) {
-		pr_err("FIT image not loaded\n");
-		return -EINVAL;
-	}
-
 	/*
 	 * Populate SMEM in coldboot (Dload bit not set)
 	 */
@@ -765,6 +786,131 @@ static int ipq_spl_uboot_fixup(void *ctx)
 	pr_debug("U-Boot fixup skipped\n");
 	return 0;
 }
+
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
+/**
+ * ipq_spl_list_tme_fuse() - List all TME fuses.
+ * @fuse_arr:	Pointer to the fuse array.
+ * @fuse_cnt:	Number of fuses.
+ *
+ * This function lists all fuses using TME IPC communication.
+ * Return: 0 on success, or a negative error code on failure.
+ */
+static int ipq_spl_list_tme_fuse(struct ipq_spl_fuse_info *fuse_arr,
+				 u8 fuse_cnt)
+{
+	int ret;
+	u8 index;
+	size_t fuse_size;
+	size_t aligned_size;
+	struct fuse_payload *fuse;
+	struct list_fuse_params fuse_params;
+
+	fuse_size = sizeof(struct fuse_payload) * fuse_cnt;
+	aligned_size = roundup(fuse_size, CONFIG_SYS_CACHELINE_SIZE);
+	fuse = malloc_cache_aligned(aligned_size);
+	if (fuse == NULL) {
+		pr_err("Failed to allocate memory for fuse data\n");
+		return -ENOMEM;
+	}
+
+	memset(fuse, 0, aligned_size);
+
+	for (index = 0; index < fuse_cnt ; index++)
+		fuse[index].fuse_addr = fuse_arr[index].fuse_addr;
+
+	fuse_params.fuse = fuse;
+	fuse_params.fuse_read_cnt = fuse_cnt;
+	fuse_params.fuse_payload_size = sizeof(struct fuse_payload);
+	fuse_params.size = fuse_size;
+
+	ret = ipq_list_fuse_tme_impl(&fuse_params);
+	if (ret)
+		goto fail;
+
+	for (index = 0; index < fuse_cnt ; index++) {
+		printf("%-24s @ 0x%08X = 0x%08X%08X\n",
+			fuse_arr[index].fuse_name,
+			fuse[index].fuse_addr,
+			fuse[index].msb_val,
+			fuse[index].lsb_val);
+	}
+fail:
+	free(fuse);
+
+	return ret;
+}
+
+/**
+ * ipq_spl_auth_image() - Authenticate an image using TME.
+ * @p_img_entry: Pointer to the image context.
+ *
+ * This function authenticates an image using TME.
+ * Return: 0 on success, or a negative error code on failure.
+ */
+static int ipq_spl_auth_image(struct ipq_spl_img_ctx *p_img_entry)
+{
+	int ret;
+	struct secure_auth_params auth_params = {0};
+
+	if (!p_img_entry) {
+		pr_err("Invalid image entry\n");
+		return -EINVAL;
+	}
+
+	if (p_img_entry->auth == false) {
+		printf("Authentication disabled for %s\n",
+				p_img_entry->img_name);
+		return 0;
+	}
+
+	/*
+	 * Validate authentication parameters
+	 */
+	if (!p_img_entry->load_addr) {
+		pr_err("Image Auth: Invalid load address\n");
+		return -EINVAL;
+	}
+
+	if (!p_img_entry->img_sz) {
+		pr_err("Image Auth: Invalid image size\n");
+		return -EINVAL;
+	}
+
+	printf("Auth image with SW_ID=0x%llx, addr=0x%llx, size=0x%llx\n",
+		p_img_entry->sw_id, p_img_entry->load_addr,
+		p_img_entry->img_sz);
+
+	/*
+	 * Populate Image params
+	 */
+	auth_params.type = p_img_entry->sw_id;
+	auth_params.addr = p_img_entry->load_addr;
+	auth_params.size = p_img_entry->img_sz;
+#ifdef CONFIG_SECURE_AUTH_V3
+	auth_params.flags = 1;
+#endif
+
+	/*
+	 * Populate relocated segments information
+	 */
+	auth_params.relocate = 0;
+	auth_params.load_seg_buff = NULL;
+	auth_params.load_seg_info_size = 0;
+	auth_params.load_seg_cnt = 0;
+
+	ret = ipq_secure_auth_tme_impl(&auth_params);
+	if (ret) {
+		pr_err("Image Auth: failed (ret=%d)\n", ret);
+		return ret;
+	}
+
+	printf("Image Auth: success\n");
+
+	return 0;
+}
+
+#endif /* CONFIG_IPQ_TMEL_IPC_SUPPORT */
 
 /**
  * spl_get_load_buffer() - Allocate a cache-aligned buffer for image loading.
@@ -820,6 +966,8 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 	int ret;
 	u8 uc_index;
 	u8 uc_size;
+	u64 load_addr;
+	void *load_ptr;
 	const char *img_name = fit_get_name(fit, node, NULL);
 	struct ipq_spl_ctx *ctx = U_BOOT_GET_IPQ_SPL_CTX(ipq_default_ctx);
 
@@ -827,8 +975,41 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 
 	if (!ctx) {
 		pr_err("Unable to get SPL context\n");
-		return;
+		goto fail;
 	}
+
+	if (!p_image || !*p_image || !p_size || !*p_size) {
+		pr_err("Invalid image parameters\n");
+		goto fail;
+	}
+
+	/*
+	 * Get the actual image load address from the FIT image.
+	 */
+	if (fit_image_get_load(fit, node, (ulong *)&load_addr)) {
+		pr_err("Failed to get load address for %s\n", img_name);
+		goto fail;
+	}
+
+	/*
+	 * Copy the p_image pointer to the actual image load address to
+	 * handle any address alignments caused by block‑based flash reads.
+	 */
+	load_ptr = map_sysmem(load_addr, *p_size);
+	memcpy(load_ptr, *p_image, *p_size);
+
+	/*
+	 * Adjust the image pointer to the final load address post-memcpy.
+	 */
+	*p_image = load_ptr;
+
+#if !(CONFIG_IS_ENABLED(SYS_ICACHE_OFF) && CONFIG_IS_ENABLED(SYS_DCACHE_OFF))
+	/*
+	 * Ensure that the image data is written to the actual
+	 * memory location before we process it.
+	 */
+	flush_cache((unsigned long)(*p_image), (unsigned long)(*p_size));
+#endif
 
 	/*
 	 * Traverse through the SPL image table
@@ -842,16 +1023,23 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 			ctx->img_tbl = &img_tbl_fit[uc_index];
 			ctx->fit = (void *)fit;
 			img_tbl_fit[uc_index].fit_node = node;
+			img_tbl_fit[uc_index].load_addr = (u64)(*p_image);
+			img_tbl_fit[uc_index].img_sz = *p_size;
 
-#if !(CONFIG_IS_ENABLED(SYS_ICACHE_OFF) && CONFIG_IS_ENABLED(SYS_DCACHE_OFF))
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
 			/*
-			 * Ensure that the metadata is written to the actual
-			 * memory location before we process it.
+			 * Authenticate image if enabled
 			 */
-			if ((*p_size > 0) && *p_image)
-				flush_cache((unsigned long)(*p_image),
-						(unsigned long)(*p_size));
-#endif
+			if (img_tbl_fit[uc_index].auth) {
+				ret = ipq_spl_auth_image(ctx->img_tbl);
+				if (ret) {
+					pr_err("%s auth failed (ret=%d)\n",
+					ctx->img_tbl->img_name,
+					ret);
+					goto fail;
+				}
+			}
+#endif /* CONFIG_IPQ_TMEL_IPC_SUPPORT */
 
 			/*
 			 * Do the image fixups if available
@@ -862,12 +1050,20 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 					pr_err(
 					"Failed to fixup %s image (ret=%d)\n",
 					img_name, ret);
-					ipq_spl_error_handler(NULL);
+					goto fail;
 				}
 			}
 			break;
 		}
 	}
+
+	/*
+	 * Return on success
+	 */
+	return;
+
+fail:
+	ipq_spl_error_handler(NULL);
 }
 #endif /* CONFIG_SPL_FIT_IMAGE_POST_PROCESS */
 
@@ -936,6 +1132,38 @@ struct bl_params *bl2_plat_get_bl31_params_v2(uintptr_t bl32_entry,
 	}
 
 	return bl_params;
+}
+
+/**
+ * spl_board_prepare_for_boot() - Prepare board for booting.
+ *
+ * This function is invoked during the SPL boot sequence to carry out
+ * any board‑specific setup required before exiting SPL.
+ */
+void spl_board_prepare_for_boot(void)
+{
+	/*
+	 * Disconnect the TME mailbox channel so the client does not receive
+	 * anymore data and can reliquish control of the channel.
+	 */
+	int ret;
+	struct tmelcom *tmelcom_priv;
+
+	ret = ipq_get_tmelcom_device(&tmelcom_priv);
+	if (ret || !tmelcom_priv) {
+		pr_err("Failed to find TMELCOM node %d\n", ret);
+		goto fail;
+	}
+
+	ret = mbox_free(&tmelcom_priv->mbox);
+	if (ret) {
+		pr_err("Failed to shutdown TME mailbox channel: %d\n", ret);
+		goto fail;
+	}
+
+	return;
+fail:
+	ipq_spl_error_handler(NULL);
 }
 
 /**
@@ -1055,6 +1283,11 @@ void board_init_f(ulong dummy)
 
 	ipq_spl_list_fuse(fuse_info_array,
 				ARRAY_SIZE(fuse_info_array));
+
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
+	ipq_spl_list_tme_fuse(tme_fuse_info_array,
+				ARRAY_SIZE(tme_fuse_info_array));
+#endif
 
 #if !(CONFIG_IS_ENABLED(SYS_ICACHE_OFF) && CONFIG_IS_ENABLED(SYS_DCACHE_OFF))
 	ret = arm_reserve_mmu();

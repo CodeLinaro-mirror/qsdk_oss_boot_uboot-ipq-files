@@ -16,6 +16,7 @@
 
 	#address-cells = <2>;
 	#size-cells = <2>;
+	interrupt-parent = <&intc>;
 
 	aliases {
 		serial0 = &uart1;
@@ -129,6 +130,43 @@
 					bias-pull-down;
 				};
 			};
+		};
+
+		intc: interrupt-controller@f200000 {
+			bootph-all;
+			compatible = "arm,gic-v3";
+			reg = <0x0 0x0f200000 0x0 0x10000>, /* GICD */
+			      <0x0 0x0f240000 0x0 0xa0000>; /* GICR * 5 regions */
+			#interrupt-cells = <0x3>;
+			interrupt-controller;
+			#redistributor-regions = <1>;
+			redistributor-stride = <0x0 0x20000>;
+			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
+		};
+
+		tmel_qmp: tmel-qmp@22090000 {
+			bootph-all;
+			compatible = "qcom,tmel-qmp-mbox-secure";
+			reg = <0x0 0x22090000 0x0 0x20>,
+			      <0x0 0x22091000 0x0 0x20>;
+			reg-names = "mcore", "ucore";
+
+			interrupts = <GIC_SPI 122 IRQ_TYPE_EDGE_RISING>;
+			max_pkt_size = <0x18>;
+
+			#mbox-cells = <0>;
+			status = "okay";
+		};
+
+		tmelcom: qcom,tmelcom {
+			bootph-all;
+			compatible = "qcom,tmelcom";
+			mboxes = <&tmel_qmp>;
+			mbox-names = "tmel-qmp-mbox";
+			#clock-cells = <1>;
+			#power-domain-cells = <1>;
+			#reset-cells = <1>;
+			status = "okay";
 		};
 
 		gcc: clock-controller@1800000 {

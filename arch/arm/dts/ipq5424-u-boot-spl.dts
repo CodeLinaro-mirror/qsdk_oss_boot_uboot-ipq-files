@@ -183,12 +183,12 @@
 
 		tmel_qmp: tmel-qmp@32090000 {
 			bootph-all;
-			compatible = "qcom,tmel-qmp-mbox";
+			compatible = "qcom,tmel-qmp-mbox-secure";
 			reg = <0x0 0x32090000 0x0 0x20>,
 				<0x0 0x32091000 0x0 0x20>;
 			reg-names = "mcore", "ucore";
 
-			interrupts = <GIC_SPI 68 IRQ_TYPE_EDGE_RISING>;
+			interrupts = <GIC_SPI 121 IRQ_TYPE_EDGE_RISING>;
 			max_pkt_size = <0x18>;
 
 			#mbox-cells = <0>;
