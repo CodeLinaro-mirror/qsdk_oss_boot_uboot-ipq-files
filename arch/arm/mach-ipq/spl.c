@@ -35,9 +35,11 @@
 #include <cpu_func.h>
 #include <init.h>
 #include <image.h>
+#include <linux/mtd/spi-nor.h>
 #include <spl.h>
 #include <spl_load.h>
 #include <mach/ipq.h>
+#include <spi_flash.h>
 #include <mach/smem_info.h>
 #include <asm/io.h>
 #include <asm/sections.h>
@@ -1085,6 +1087,111 @@ unsigned long spl_mmc_get_uboot_raw_sector(struct mmc *mmc,
 	return 0;
 }
 #endif /*CONFIG_IPQ_MMC*/
+
+#if CONFIG_IPQ_SPI_NOR
+/**
+ * spl_spi_find_partition_offset() - Find the offset of a partition by name
+ * @flash: Pointer to the SPI flash device
+ * @part_name: Name of the partition to find
+ * @offset: Pointer to store the found offset
+ *
+ * This function searches for a partition with the given name in the GPT
+ * partition table of the SPI flash device and returns its offset.
+ * Uses the common partition lookup function for consistency.
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+static int spl_spi_find_partition_offset(struct spi_flash *flash,
+					const char *part_name,
+					unsigned int *offset)
+{
+	int ret;
+	struct disk_partition info;
+
+	if (!flash || !offset) {
+		printf("Invalid SPI flash pointer or offset\n");
+		return -EINVAL;
+	}
+
+	/*
+	 * Use common partition lookup function
+	 */
+	ret = spl_find_partition_info(UCLASS_SPI, CONFIG_SF_DEFAULT_BUS,
+				      part_name, &info);
+	if (ret < 0)
+		return ret;
+
+	/*
+	 * Calculate the offset in bytes
+	 */
+	*offset = info.start * info.blksz;
+	printf("Found partition '%s' at offset 0x%x\n", part_name, *offset);
+
+	return 0;
+}
+
+/**
+ * spl_spi_get_uboot_offs() - Get the offset of U-Boot in SPI flash
+ * @flash: Pointer to the SPI flash device
+ *
+ * This function finds the partition specified by IPQ_SPL_FIT_IMG_PARTITION
+ * in the GPT partition table and returns its offset. If the partition is not found,
+ * it falls back to the default offset defined by CONFIG_SYS_SPI_U_BOOT_OFFS.
+ *
+ * Return: The offset of U-Boot in SPI flash
+ */
+unsigned int spl_spi_get_uboot_offs(struct spi_flash *flash)
+{
+	unsigned int offset;
+	const char *part_name = IPQ_SPL_FIT_IMG_PARTITION;
+	int ret;
+
+	/*
+	 * Try to find the partition by name
+	 */
+	ret = spl_spi_find_partition_offset(flash, part_name, &offset);
+
+	if (ret != 0) {
+		/*
+		 * Partition not found, hang
+		 */
+		hang();
+	} else {
+		/*
+		 * Partition found, return its offset
+		 */
+		return offset;
+	}
+}
+
+/**
+ * spl_spi_boot_bus() - Get the SPI bus number to use
+ *
+ * This function returns the SPI bus number to use for SPI flash operations.
+ * Return: The SPI bus number
+ */
+u32 spl_spi_boot_bus(void)
+{
+	/*
+	 * Return the SPI bus number to use
+	 */
+	return CONFIG_SF_DEFAULT_BUS;
+}
+
+/**
+ * spl_spi_boot_cs() - Get the SPI chip select to use
+ *
+ * This function returns the SPI chip select to use for SPI flash operations.
+ * Return: The SPI chip select
+ */
+u32 spl_spi_boot_cs(void)
+{
+	/*
+	 * Return the SPI chip select to use
+	 */
+	return CONFIG_SF_DEFAULT_CS;
+}
+#endif /*CONFIG_IPQ_SPI_NOR*/
 
 /**
  * spl_boot_device() - Determine the boot device.

@@ -92,6 +92,41 @@
 					bias-pull-up;
 				};
 			};
+
+			spi0_pinmux: spi0 {
+				bootph-all;
+				spi0_sclk {
+					bootph-all;
+					pins = "gpio6";
+					function = "spi0_clk";
+					drive-strength = <8>;
+					bias-pull-down;
+				};
+
+				spi0_cs0 {
+					bootph-all;
+					pins = "gpio7";
+					function = "spi0_cs";
+					drive-strength = <8>;
+					bias-pull-up;
+				};
+
+				spi0_miso {
+					bootph-all;
+					pins = "gpio8";
+					function = "spi0_miso";
+					drive-strength = <8>;
+					bias-pull-down;
+				};
+
+				spi0_mosi {
+					bootph-all;
+					pins = "gpio9";
+					function = "spi0_mosi";
+					drive-strength = <8>;
+					bias-pull-down;
+				};
+			};
 		};
 
 		gcc: clock-controller@1800000 {
@@ -134,6 +169,39 @@
 					     "qcom,geni-uart-fw-v1";
 				reg = <0 0x01a84000 0 0x4000>;
 				status = "okay";
+			};
+
+			spi0: spi@1a80000 {
+				bootph-all;
+				compatible = "qcom-ipq5200-geni-spi";
+				reg = <0 0x1a80000 0 0x4000>;
+				reg-names = "se_phys";
+				clocks = <&gcc GCC_QUPV3_SPI0_CLK>;
+				clock-names = "se-spi-clk";
+				clock-frequency = <50000000>;
+				nor-blk-enable;
+				status = "okay";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				qup-se-fw-load = <&spi0_fw>;
+
+				pinctrl-0 = <&spi0_pinmux>;
+				pinctrl-names = "default";
+
+				nor-flash@0 {
+					bootph-all;
+					compatible = "jedec,spi-nor";
+					reg = <0 0 0 0>;
+					spi-max-frequency = <50000000>;
+				};
+			};
+
+			spi0_fw: spi_firmware@0 {
+				bootph-all;
+				compatible = "qcom,ipq5200-geni-spi-fw-v1",
+					     "qcom,geni-spi-fw-v1";
+				reg = <0 0x1a80000 0 0x4000>;
+				reg-names = "se_phys";
 			};
 		};
 
