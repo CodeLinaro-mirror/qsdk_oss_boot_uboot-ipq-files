@@ -25,8 +25,18 @@
 		ranges;
 
 		/delete-node/ smem;
-		smem_mem: smem_region@8a800000 {
-			reg = <0x0 0x8a800000 0x0 0x32000>;
+		smem_mem: smem_region@8a100000 {
+			reg = <0x0 0x8a100000 0x0 0x40000>;
+			no-map;
+		};
+
+		tfa: tfa_region@0x8a600000 {
+			reg = <0x0 0x8a600000 0x0 0x80000>;
+			no-map;
+		};
+
+		optee: optee_region@0x8a680000 {
+			reg = <0x0 0x8a680000 0x0 0x280000>;
 			no-map;
 		};
 	};
