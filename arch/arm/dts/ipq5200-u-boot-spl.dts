@@ -29,9 +29,9 @@
 		#size-cells = <2>;
 		ranges;
 
-		smem_mem: smem_region@8a800000 {
+		smem_mem: smem_region@8a100000 {
 			bootph-all;
-			reg = <0x0 0x8a800000 0x0 0x32000>;
+			reg = <0x0 0x8a100000 0x0 0x40000>;
 			no-map;
 		};
 	};
