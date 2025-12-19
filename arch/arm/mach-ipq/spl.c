@@ -715,6 +715,28 @@ struct legacy_img_hdr *spl_get_load_buffer(ssize_t offset, size_t size)
 	return (void *)(CONFIG_SPL_LOAD_FIT_ADDRESS);
 }
 
+/**
+ * board_spl_fit_buffer_addr() - Get the address of the FIT image buffer.
+ * @fit_size:	Size of the FIT image.
+ * @sectors:	Number of sectors.
+ * @bl_len:	Block length.
+ *
+ * This function returns the address where the FIT image will be loaded.
+ * It uses the SPL load buffer address.
+ * Return: Address of the FIT image buffer.
+ */
+void *board_spl_fit_buffer_addr(ulong fit_size, int sectors, int bl_len)
+{
+	void *buffer = spl_get_load_buffer(0, sectors * bl_len);
+
+	if (!buffer) {
+		pr_err("Failed to get FIT load buffer\n");
+		ipq_spl_error_handler(NULL);
+	}
+
+	return buffer;
+}
+
 #if defined(CONFIG_SPL_FIT_IMAGE_POST_PROCESS)
 /**
  * board_fit_image_post_process() - Post-processing callback for FIT images.
