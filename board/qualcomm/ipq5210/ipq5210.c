@@ -81,6 +81,96 @@ const u8 comm_type_map[FUNC_MAX] = {
 	[FUNC_AUTH_ROOTFS_ELF] = COMM_TYPE_TME
 };
 
+static struct crashdump_infos dumpinfo_n[] = {
+	{
+		/* DDR Bank 0 */
+		.name = "EBICS.BIN",
+		.start_addr = CFG_SYS_SDRAM_BASE,
+		.size = 0xBAD0FF5E,
+		.dump_level = FULLDUMP,
+		.split_bin_sz = SZ_1G,
+		.is_aligned_access = false,
+		.compression_support = true
+	},
+#if (CONFIG_NR_DRAM_BANKS > 1)
+	{
+		/* DDR Bank 1 */
+		.name = "EBICS.BIN",
+		.start_addr = 0xBAD0FF5E,
+		.size = 0xBAD0FF5E,
+		.dump_level = FULLDUMP,
+		.split_bin_sz = SZ_1G,
+		.is_aligned_access = false,
+		.compression_support = true
+	},
+#endif
+	{
+		.name = "IMEM.BIN",
+		.start_addr = 0x08600000,
+		.size = 0x18000,
+		.dump_level = FULLDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false
+	},
+	{
+		.name = "CPU_INFO.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = true
+	},
+	{
+		.name = "UNAME.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = true
+	},
+	{
+		.name = "DMESG.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = false
+	},
+	{
+		.name = "PT.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = false
+	},
+	{
+		.name = "WLAN_MOD.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = false
+	},
+};
+
+static uint8_t dump_entries_n = ARRAY_SIZE(dumpinfo_n);
+
+struct crashdump_infos *board_dumpinfo = dumpinfo_n;
+
+uint8_t *board_dump_entries = &dump_entries_n;
+
 #ifdef CONFIG_DTB_RESELECT
 void ipq_update_board_name(int machid, struct multidtb_config *dtb)
 {
@@ -124,7 +214,7 @@ void reset_cpu(void)
 void reset_cpu(void)
 {
 #ifdef CONFIG_IPQ_CRASHDUMP
-	reset_crashdump(RESET_V1);
+	reset_crashdump(RESET_V2);
 #endif
 	psci_sys_reset(SYSRESET_COLD);
 }

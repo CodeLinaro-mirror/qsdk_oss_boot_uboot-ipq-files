@@ -36,4 +36,15 @@ struct fuse_payload {
 	u32 msb_val;
 };
 
+#define CFG_CPU_CONTEXT_DUMP_SIZE		0x180F0
+#define TME_CTXT_SIZE				(128 * 1024)
+#define CPU_CNTXT_HDR_SIZE			4624
+
+#if defined(CONFIG_IPQ_MINIDUMP_VERSION_V2)
+#define TLV_BUF_OFFSET				(489 * 1024) - TME_CTXT_SIZE
+#define CFG_TLV_DUMP_SIZE			(23 * 1024)
+#else
+#define TLV_BUF_OFFSET                          (500 * 1024) - TME_CTXT_SIZE
+#define CFG_TLV_DUMP_SIZE			(12 * 1024)
+#endif /* CONFIG_IPQ_MINIDUMP_VERSION_V2 */
 #endif
