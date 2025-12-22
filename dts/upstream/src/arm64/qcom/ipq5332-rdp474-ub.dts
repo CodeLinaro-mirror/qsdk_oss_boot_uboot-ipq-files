@@ -18,7 +18,7 @@
 		};
 
 		usb0: usb@8af8800 {
-			qti,select-utmi-as-pipe-clk;
+			qcom,select-utmi-as-pipe-clk;
 			status = "okay";
 
 			dwc3@8a00000 {
