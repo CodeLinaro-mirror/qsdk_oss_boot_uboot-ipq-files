@@ -18,11 +18,10 @@
 		};
 
 		usb0: usb@8af8800 {
-			qti,select-utmi-as-pipe-clk;
+			qcom,select-utmi-as-pipe-clk;
 			status = "okay";
 
-//			dwc3@8a00000 {
-			usb_dwc: usb@8a00000 {
+			dwc3@8a00000 {
 				phys = <&hs_m31phy_0>;
 				phy-names = "usb2-phy";
 				maximum-speed = "high-speed";
