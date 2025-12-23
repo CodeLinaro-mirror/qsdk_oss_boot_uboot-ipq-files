@@ -57,7 +57,7 @@ config IPQ_I2C
         bool "Enable I2C support in IPQ SOC"
         select I2C
         select DM_I2C
-        select SYS_I2C_GENI if (TARGET_IPQ5424 || TARGET_IPQ5200 || TARGET_IPQ9670)
+        select SYS_I2C_GENI if (TARGET_IPQ5424 || TARGET_IPQ5210 || TARGET_IPQ9670)
 	select SYS_I2C_QUP if (TARGET_IPQ5332 || TARGET_IPQ9574)
         select CMD_I2C
 
@@ -143,7 +143,7 @@ config IPQ_SPI_NOR
 	select SPI
 	select MISC
 	select SPI_QUP if TARGET_IPQ9574 || TARGET_IPQ5332
-	select MSM_GENI_SPI if TARGET_IPQ5424 || TARGET_IPQ5200 || TARGET_IPQ9670
+	select MSM_GENI_SPI if TARGET_IPQ5424 || TARGET_IPQ5210 || TARGET_IPQ9670
 	select DM_SPI
 	select DM_SPI_FLASH
 	select SPI_FLASH_STMICRO
@@ -259,7 +259,7 @@ config SHARED_IPC_INTERRUPT_REG
 	hex "Shared IPC interrupt register"
 	default 0xF40000C if TARGET_IPQ5424
 	default 0xF40000C if TARGET_IPQ9670
-	default 0xB111008 if TARGET_IPQ5200
+	default 0xB111008 if TARGET_IPQ5210
 	default 0
 	help
 	  This config defines the Shared IPC interrupt register.
@@ -511,7 +511,7 @@ config IPQ_PCIE
 	bool "Enable PCIE support in IPQ SOC"
 	select PCI
 	select PCIE_DW_QCOM
-	select PHY_QCOM_QMP_PCIE if TARGET_IPQ9574 || TARGET_IPQ5424 || TARGET_IPQ5200
+	select PHY_QCOM_QMP_PCIE if TARGET_IPQ9574 || TARGET_IPQ5424 || TARGET_IPQ5210
 	select PHY_QCOM_UNIPHY_PCIE if TARGET_IPQ5332
 	select CMD_PCI
 	select PHY
@@ -521,7 +521,7 @@ config IPQ_PCIE
 config IPQ_MAX_PCIE
 	int "Max PCIE supported in IPQSOC"
 	depends on PCI
-	default 2 if TARGET_IPQ5200
+	default 2 if TARGET_IPQ5210
 	default 3 if TARGET_IPQ5332
 	default 4 if TARGET_IPQ9574
 	default 4 if TARGET_IPQ5424
@@ -783,8 +783,8 @@ config TARGET_IPQ5424
 	  - USB 3.0/I2C/UART/PCIe Gen3 2Lane
 	  - 2.5G/10G Ethernet Ports
 
-config TARGET_IPQ5200
-	bool "QTI IPQ5200"
+config TARGET_IPQ5210
+	bool "QTI IPQ5210"
 	imply QCOM_GENI_SE
 	imply IPQ_MULTI_DTB_SUPPORT
 	imply NOR_BLK
@@ -802,7 +802,7 @@ config TARGET_IPQ5200
 	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
 
 	help
-	  Support for IPQ5200 SoC.
+	  Support for IPQ5210 SoC.
 	  - Board Open Platform Specifications.
 	  - Quad Cores A53, Nom@1.2G, L1@32KB L2@512KB
 	  - DDR3L/DDR4

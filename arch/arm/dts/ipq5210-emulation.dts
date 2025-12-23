@@ -5,11 +5,11 @@
 
 /dts-v1/;
 
-#include "ipq5200-u-boot.dtsi"
+#include "ipq5210-u-boot.dtsi"
 
 / {
-	model = "Qualcomm Technologies, Inc. IPQ5200-EMULATION";
-	compatible = "qcom,ipq5200-emulation", "qcom,ipq5200";
+	model = "Qualcomm Technologies, Inc. IPQ5210-EMULATION";
+	compatible = "qcom,ipq5210-emulation", "qcom,ipq5210";
 
 	soc@0 {
 		pcie0: pcie@70000000 {
