@@ -4,6 +4,7 @@
  */
 #include <dm.h>
 #include <malloc.h>
+#include <memalign.h>
 #include <mailbox-uclass.h>
 #include <asm/io.h>
 #include <asm/atomic.h>
@@ -21,6 +22,7 @@
 
 DECLARE_GLOBAL_DATA_PTR;
 
+/* QMP protocol constants */
 #define QMP_NUM_CHANS		0x1
 #define QMP_TOUT_MS		1000
 #define QMP_CTRL_DATA_SIZE	4
@@ -28,16 +30,19 @@ DECLARE_GLOBAL_DATA_PTR;
 #define QMP_UCORE_DESC_OFFSET	0x1000
 #define QMP_SEND_TIMEOUT	30000
 
+/* Mailbox size definitions */
 #define QMP_HW_MBOX_SIZE		32
 #define QMP_MBOX_RSV_SIZE		4
 #define QMP_MBOX_IPC_PACKET_SIZE	(QMP_HW_MBOX_SIZE - QMP_CTRL_DATA_SIZE - QMP_MBOX_RSV_SIZE)
 #define QMP_MBOX_IPC_MAX_PARAMS		5
 
+/* SRAM buffer parameters */
 #define QMP_MAX_PARAM_IN_PARAM_ID	14
 #define QMP_PARAM_CNT_FOR_OUTBUF	3
 #define QMP_SRAM_IPC_MAX_PARAMS		(QMP_MAX_PARAM_IN_PARAM_ID * QMP_PARAM_CNT_FOR_OUTBUF)
 #define QMP_SRAM_IPC_MAX_BUF_SIZE	(QMP_SRAM_IPC_MAX_PARAMS * sizeof(u32))
 
+/* TMEL error codes */
 #define TMEL_ERROR_GENERIC		(0x1u)
 #define TMEL_ERROR_NOT_SUPPORTED	(0x2u)
 #define TMEL_ERROR_BAD_PARAMETER	(0x3u)
@@ -45,6 +50,11 @@ DECLARE_GLOBAL_DATA_PTR;
 #define TMEL_ERROR_BAD_ADDRESS		(0x5u)
 #define TMEL_ERROR_TMELCOM_FAILURE	(0x6u)
 #define TMEL_ERROR_TMEL_BUSY		(0x7u)
+
+/* IRQ check parameters */
+#define IRQ_CHECK_TIMEOUT		100000
+#define IRQ_CHECK_DELAY_US		10
+#define MAX_IRQ_RETRY			30
 
 /*
  * mbox data can be shared over mem or sram
@@ -137,7 +147,6 @@ struct iovec_tmel {
  * @mcore: Local core (APSS) channel descriptor
  * @ucore: Remote core (TME-L) channel descriptor
  * @rx_pkt: Buffer to pass to client, holds received data from mailbox
- * @mbox_client: Mailbox client for the IPC interrupt
  * @mbox_chan: Mailbox client chan for the IPC interrupt
  * @local_state: Current state of mailbox protocol
  * @link_complete: Use to block until link negotiation with remote proc
@@ -167,14 +176,15 @@ struct qmp_device {
 /**
  * struct tmel - tmel controller instance
  * @dev: The device that corresponds to this mailbox
- * @ctrl: Mailbox controller for use by tmel clients
  * @mdev: qmp_device associated with this tmel instance
  * @pkt: Buffer from client, to be sent over mailbox
  * @ipc_pkt: wrapper used for prepare/un_prepare
  * @sram_dma_addr: mailbox sram address to copy the data
  * @rx_done: Use to indicate receive completion from remote
- * @twork: worker for posting the client req to tmel ctrl
  * @data: client data to be sent for the current request
+ * @irq_base: Base address for interrupt controller
+ * @irq_num: IRQ number
+ * @irq_flags: IRQ flags
  */
 struct tmel {
 	struct udevice *dev;
@@ -204,26 +214,51 @@ struct tmel_secboot_sec_auth_resp {
 	u32 status;
 };
 
+struct tmel_secboot_sec_auth_v2_req {
+	u32 sw_id;
+	struct tmel_msg_param_type_buf_in elf_buf;
+	struct tmel_msg_param_type_buf_in region_list;
+	u32 relocate;
+	u32 nsIntegrityCheck:1;
+	u32 reservedBits:31;
+	struct tmel_msg_param_type_buf_in reservedBuf;
+};
+
+struct tmel_secboot_sec_auth_v2_resp {
+	u32 first_seg_addr;
+	u32 first_seg_len;
+	u32 entry_addr;
+	u32 extended_error;
+	u32 status;
+	u32 keyHandle;
+};
+
 struct tmel_secboot_sec_auth {
 	struct tmel_secboot_sec_auth_req req;
 	struct tmel_secboot_sec_auth_resp resp;
 };
 
-struct tmel_secboot_sec {
-	struct udevice *dev;
-	void *elf_buf;
-	struct tmel_secboot_sec_auth msg;
+struct tmel_secboot_sec_auth_v2 {
+	struct tmel_secboot_sec_auth_v2_req req;
+	struct tmel_secboot_sec_auth_v2_resp resp;
 };
+
+/* Forward declarations */
+static void tmel_qmp_rx(struct tmel *tdev);
+static int tmel_qmp_send_data(struct qmp_device *mdev, void *data);
 
 /**
  * tmel_qmp_send_irq() - send an irq to a remote entity as an event signal.
  * @mdev: Which remote entity that should receive the irq.
  */
-static void tmel_qmp_send_irq(struct qmp_device *mdev)
+static inline void tmel_qmp_send_irq(struct qmp_device *mdev)
 {
+	if (!mdev)
+		return;
+
 	writel(mdev->mcore.val, mdev->mcore_desc);
 	/* Ensure desc update is visible before IPC */
-	wmb();
+	wmb(); /* Flush write buffer before sending IPC interrupt */
 
 	dev_dbg(mdev->dev, "%s: mcore 0x%x ucore 0x%x", __func__,
 		mdev->mcore.val, mdev->ucore.val);
@@ -246,18 +281,21 @@ static int tmel_qmp_send_data(struct qmp_device *mdev, void *data)
 	struct iovec_tmel *pkt = (struct iovec_tmel *)data;
 	void __iomem *addr;
 
+	if (!pkt || !pkt->iov_base)
+		return -EINVAL;
+
+	if (!mdev)
+		return -EINVAL;
+
 	if (pkt->iov_len > QMP_MAX_PKT_SIZE) {
-		dev_err(mdev->dev, "Unsupported packet size");
+		dev_err(mdev->dev, "Unsupported packet size\n");
 		return -EINVAL;
 	}
 
 	if (atomic_read(&mdev->tx_sent)) {
-		dev_err(mdev->dev, "Tx already sent");
+		dev_err(mdev->dev, "Tx already sent\n");
 		return -EAGAIN;
 	}
-
-	dev_dbg(mdev->dev, "%s: mcore 0x%x ucore 0x%x", __func__,
-		mdev->mcore.val, mdev->ucore.val);
 
 	addr = mdev->mcore_desc + QMP_CTRL_DATA_SIZE;
 	memcpy(addr, pkt->iov_base, pkt->iov_len);
@@ -286,7 +324,7 @@ static int tmel_qmp_send_data(struct qmp_device *mdev, void *data)
  */
 static void tmel_qmp_notify_client(struct tmel *tdev, void *message)
 {
-	struct iovec_tmel *pkt = NULL;
+	struct iovec_tmel *pkt;
 
 	if (!message) {
 		dev_err(tdev->dev, "spurious message received\n");
@@ -301,6 +339,8 @@ static void tmel_qmp_notify_client(struct tmel *tdev, void *message)
 	pkt = (struct iovec_tmel *)message;
 	tdev->pkt.iov_len = pkt->iov_len;
 	tdev->pkt.iov_base = pkt->iov_base;
+	/* Ensure packet data is written before rx_done is set */
+	wmb();
 	tdev->rx_done = true;
 }
 
@@ -317,6 +357,9 @@ static void tmel_qmp_recv_data(struct tmel *tdev, u32 mbox_of)
 	struct qmp_device *mdev = tdev->mdev;
 	void __iomem *addr;
 	struct iovec_tmel *pkt;
+
+	if (!mdev)
+		return;
 
 	addr = mdev->ucore_desc + mbox_of;
 	pkt = &mdev->rx_pkt;
@@ -336,13 +379,16 @@ static void tmel_qmp_recv_data(struct tmel *tdev, u32 mbox_of)
  * tmel_qmp_clr_mcore_ch_state() - Clear the mcore state of a mailbox.
  * @mdev: mailbox device to be initialized.
  */
-static void tmel_qmp_clr_mcore_ch_state(struct qmp_device *mdev)
+static inline void tmel_qmp_clr_mcore_ch_state(struct qmp_device *mdev)
 {
+	if (!mdev)
+		return;
+
 	/* Clear all fields except link_state */
 	mdev->mcore.bits.ch_state = 0;
 	mdev->mcore.bits.ch_state_ack = 0;
-	mdev->mcore.bits.tx =  0;
-	mdev->mcore.bits.tx_ack =  0;
+	mdev->mcore.bits.tx = 0;
+	mdev->mcore.bits.tx_ack = 0;
 	mdev->mcore.bits.rx_done = 0;
 	mdev->mcore.bits.rx_done_ack = 0;
 	mdev->mcore.bits.frag_size = 0;
@@ -355,10 +401,19 @@ static void tmel_qmp_clr_mcore_ch_state(struct qmp_device *mdev)
  */
 static void tmel_qmp_rx(struct tmel *tdev)
 {
-	struct qmp_device *mdev = tdev->mdev;
+	struct qmp_device *mdev;
+
+	if (!tdev)
+		return;
+
+	mdev = tdev->mdev;
+	if (!mdev)
+		return;
 
 	/* read remote_desc from mailbox register */
 	mdev->ucore.val = readl(mdev->ucore_desc);
+	/* Make sure ucore descriptor is read before we proceed */
+	rmb();
 
 	/* Check if remote link down */
 	if (mdev->local_state >= LINK_CONNECTED &&
@@ -379,6 +434,8 @@ static void tmel_qmp_rx(struct tmel *tdev)
 		tmel_qmp_clr_mcore_ch_state(mdev);
 		mdev->mcore.bits.link_state_ack = mdev->ucore.bits.link_state;
 		mdev->local_state = LINK_CONNECTED;
+		/* Make sure state is updated before waking up the client */
+		wmb();
 		mdev->link_complete = true;
 		dev_dbg(mdev->dev, "Set to link connected");
 		break;
@@ -389,6 +446,8 @@ static void tmel_qmp_rx(struct tmel *tdev)
 		/* Ack to remote ch_state change */
 		mdev->mcore.bits.ch_state_ack = mdev->ucore.bits.ch_state;
 		mdev->local_state = CHANNEL_CONNECTED;
+		/* Make sure state is updated before waking up the client */
+		wmb();
 		mdev->ch_complete = true;
 		dev_dbg(mdev->dev, "Set to channel connected");
 		tmel_qmp_send_irq(mdev);
@@ -427,9 +486,10 @@ static void tmel_qmp_rx(struct tmel *tdev)
 			tmel_qmp_clr_mcore_ch_state(mdev);
 			mdev->local_state = LINK_CONNECTED;
 			dev_dbg(mdev->dev, "Channel closed");
+			/* Make sure the state is updated before signaling completion */
+			wmb();
 			mdev->ch_complete = false;
 		}
-
 		break;
 	default:
 		dev_err(mdev->dev, "Local Channel State corrupted\n");
@@ -451,6 +511,9 @@ static int tmel_prepare_msg(struct tmel *tdev, u32 msg_uid, void *msg_buf,
 	struct mbox_payload *mbox_payload = &ipc_pkt->payload.mbox_payload;
 	struct sram_payload *sram_payload = &ipc_pkt->payload.sram_payload;
 
+	if (!ipc_pkt || !msg_buf || !msg_size)
+		return -EINVAL;
+
 	memset(ipc_pkt, 0, sizeof(struct tmel_ipc_pkt));
 
 	msg_hdr->msg_type = TMEL_MSG_UID_MSG_TYPE(msg_uid);
@@ -465,6 +528,8 @@ static int tmel_prepare_msg(struct tmel *tdev, u32 msg_uid, void *msg_buf,
 		msg_hdr->msg_len = msg_size;
 		memcpy((void *)mbox_payload, msg_buf, msg_size);
 		wmb();
+
+		flush_cache((ulong)mbox_payload, sizeof(struct mbox_payload));
 	} else if (msg_size <= QMP_SRAM_IPC_MAX_BUF_SIZE) {
 		/* SRAM */
 		msg_hdr->ipc_type = IPC_MBOX_SRAM;
@@ -476,11 +541,15 @@ static int tmel_prepare_msg(struct tmel *tdev, u32 msg_uid, void *msg_buf,
 
 		sram_payload->payload_ptr = tdev->sram_dma_addr;
 		sram_payload->payload_len = msg_size;
+
+		flush_cache((ulong)sram_payload, sizeof(struct sram_payload));
+
 	} else {
 		dev_err(tdev->dev, "Invalid payload length: %zu\n", msg_size);
 		return -EINVAL;
 	}
 
+	flush_cache((ulong)ipc_pkt, sizeof(struct tmel_ipc_pkt));
 	return 0;
 }
 
@@ -504,7 +573,10 @@ static void tmel_unprepare_message(struct tmel *tdev, void *msg_buf, size_t msg_
 	}
 }
 
-static u32 read_pending_interrupt(struct tmel *tdev)
+/**
+ * IRQ handling functions
+ */
+static inline u32 read_pending_interrupt(struct tmel *tdev)
 {
 	u32 shift = tdev->irq_num % 32;
 	u32 offset = GICD_ISPENDRn + ((tdev->irq_num / 32) * 4);
@@ -512,7 +584,7 @@ static u32 read_pending_interrupt(struct tmel *tdev)
 	return ((readl(tdev->irq_base + offset) >> shift) & 1);
 }
 
-static void clear_pending_interrupt(struct tmel *tdev)
+static inline void clear_pending_interrupt(struct tmel *tdev)
 {
 	u32 shift = tdev->irq_num % 32;
 	u32 offset = GICD_ICPENDRn + ((tdev->irq_num / 32) * 4);
@@ -521,7 +593,7 @@ static void clear_pending_interrupt(struct tmel *tdev)
 	writel(val, tdev->irq_base + offset);
 }
 
-static void set_interrupt_flags(struct tmel *tdev)
+static inline void set_interrupt_flags(struct tmel *tdev)
 {
 	u32 shift = (tdev->irq_num % 16) * 2;
 	u32 offset = GICD_ICFGR + ((tdev->irq_num / 16) * 4);
@@ -532,7 +604,7 @@ static void set_interrupt_flags(struct tmel *tdev)
 	writel(val, tdev->irq_base + offset);
 }
 
-static void enable_interrupt(struct tmel *tdev)
+static inline void enable_interrupt(struct tmel *tdev)
 {
 	u32 shift = tdev->irq_num % 32;
 	u32 offset = GICD_ISENABLERn + ((tdev->irq_num / 32) * 4);
@@ -548,10 +620,13 @@ static void enable_interrupt(struct tmel *tdev)
 static void tmel_check_for_irq(struct tmel *tdev)
 {
 	int status;
-	int timeout = 100000;
+	int timeout = IRQ_CHECK_TIMEOUT;
+
+	if (!tdev || !tdev->mdev)
+		return;
 
 	do {
-		udelay(10);
+		udelay(IRQ_CHECK_DELAY_US);
 		status = read_pending_interrupt(tdev);
 		if (status) {
 			clear_pending_interrupt(tdev);
@@ -573,12 +648,23 @@ static void tmel_check_for_irq(struct tmel *tdev)
 static int tmel_process_request(struct tmel *tdev, u32 msg_uid, void *msg_buf,
 				size_t msg_size)
 {
-	struct qmp_device *mdev = tdev->mdev;
+	struct qmp_device *mdev;
 	struct tmel_ipc_pkt *resp_ipc_pkt;
-	int ret = 0;
+	int ret = 0, retry;
+
+	if (!tdev || !tdev->ipc_pkt) {
+		dev_err(tdev->dev, "Invalid device or IPC packet\n");
+		return -EINVAL;
+	}
 
 	if (!msg_buf || !msg_size) {
 		dev_err(tdev->dev, "Invalid msg_buf or msg_size\n");
+		return -EINVAL;
+	}
+
+	mdev = tdev->mdev;
+	if (!mdev) {
+		dev_err(tdev->dev, "Invalid mdev\n");
 		return -EINVAL;
 	}
 
@@ -591,14 +677,27 @@ static int tmel_process_request(struct tmel *tdev, u32 msg_uid, void *msg_buf,
 	tdev->pkt.iov_len = sizeof(struct tmel_ipc_pkt);
 	tdev->pkt.iov_base = (void *)tdev->ipc_pkt;
 
-	tmel_qmp_send_data(mdev, &tdev->pkt);
+	ret = tmel_qmp_send_data(mdev, &tdev->pkt);
+	if (ret)
+		return ret;
 
 	/*
 	 * After sending the data, IRQ will be received from TMEL
 	 * to acknowledge it
 	 */
-	while(!tdev->rx_done)
+	retry = MAX_IRQ_RETRY;
+	while (!tdev->rx_done && retry--) {
+		/*
+		 * Make sure we see the updated value of rx_done
+		 */
+		rmb();
 		tmel_check_for_irq(tdev);
+	}
+
+	if (!tdev->rx_done) {
+		dev_err(tdev->dev, "Timeout waiting for response\n");
+		return -ETIMEDOUT;
+	}
 
 	if (tdev->pkt.iov_len != sizeof(struct tmel_ipc_pkt))
 		return -EPROTO;
@@ -613,61 +712,92 @@ static int tmel_process_request(struct tmel *tdev, u32 msg_uid, void *msg_buf,
 /**
  * tmel_secboot_sec_auth() - authenticate the remote subsys image
  * @tdev: the tmel device
- * @sw_id: pas_id of the remote
- * @metadata: payload to be sent
- * @size: size of the payload
+ * @msg: authentication message
  */
-static int tmel_secboot_sec_auth(struct tmel *tdev, u32 sw_id, void *metadata,
-				 size_t size)
+static int tmel_secboot_sec_auth(struct tmel *tdev, struct tmel_sec_auth *msg)
 {
-	struct tmel_secboot_sec *smsg;
+	struct tmel_secboot_sec_auth smsg;
 	struct udevice *dev = tdev->dev;
-	dma_addr_t elf_buf_phys;
-	void *elf_buf;
 	int ret;
 
-	if (!dev || !metadata)
+	if (!tdev || !dev || !msg)
 		return -EINVAL;
 
-	smsg = kzalloc(sizeof(*smsg), GFP_KERNEL);
-	if (IS_ERR_OR_NULL(smsg))
-		return -ENOMEM;
-
-	elf_buf = dma_alloc_coherent(size, (unsigned long *)&elf_buf_phys);
-	if (IS_ERR_OR_NULL(elf_buf)) {
-		kfree(smsg);
-		return -ENOMEM;
-	}
-
-	memcpy(elf_buf, metadata, size);
-	wmb();
-
-	smsg->dev = dev;
-	smsg->elf_buf = (struct tmel_msg_param_type_buf_in *)&elf_buf;
-
-	smsg->msg.req.sw_id = sw_id;
-	smsg->msg.req.elf_buf.buf = (u32)elf_buf_phys;
-	smsg->msg.req.elf_buf.buf_len = (u32)size;
+	smsg.req.sw_id = msg->sw_id;
+	smsg.req.elf_buf = msg->elf_buf;
+	smsg.req.region_list = msg->region_list;
+	smsg.req.relocate = msg->relocate;
 
 	ret = tmel_process_request(tdev, TMEL_MSG_UID_SECBOOT_SEC_AUTH,
-				   &smsg->msg,
+				   &smsg,
 				   sizeof(struct tmel_secboot_sec_auth));
 	if (ret) {
 		dev_err(dev, "Failed to send IPC: %d\n", ret);
-	} else if (smsg->msg.resp.status) {
-		dev_err(dev, "Failed with status: %d", smsg->msg.resp.status);
-		ret = smsg->msg.resp.status ? -EINVAL : 0;
-	} else if (smsg->msg.resp.extended_error) {
-		dev_err(dev, "Failed with error: %d", smsg->msg.resp.extended_error);
-		ret = smsg->msg.resp.extended_error ? -EINVAL : 0;
+		return ret;
 	}
 
-	dma_free_coherent(elf_buf);
-	kfree(smsg);
+	if (smsg.resp.status) {
+		dev_err(dev, "Failed with status: 0x%X\n", smsg.resp.status);
+		ret = -EINVAL;
+	}
+
+	if (smsg.resp.extended_error) {
+		dev_err(dev, "Failed with error: 0x%X", smsg.resp.extended_error);
+		ret = -EINVAL;
+	}
 
 	return ret;
 }
 
+/**
+ * tmel_secboot_sec_auth_v2() - authenticate the remote subsys image (v2)
+ * @tdev: the tmel device
+ * @msg: authentication message
+ */
+static int tmel_secboot_sec_auth_v2(struct tmel *tdev, struct tmel_sec_auth_v2 *msg)
+{
+	struct tmel_secboot_sec_auth_v2 smsg;
+	struct udevice *dev = tdev->dev;
+	int ret;
+
+	if (!tdev || !dev || !msg)
+		return -EINVAL;
+
+	smsg.req.sw_id = msg->sw_id;
+	smsg.req.elf_buf = msg->elf_buf;
+	smsg.req.region_list = msg->region_list;
+	smsg.req.relocate = msg->relocate;
+	smsg.req.nsIntegrityCheck = msg->nsIntegrityCheck;
+
+	ret = tmel_process_request(tdev, TMEL_MSG_UID_SECBOOT_SEC_AUTH_V2,
+				   &smsg,
+				   sizeof(struct tmel_secboot_sec_auth_v2));
+	if (ret) {
+		dev_err(dev, "Failed to send IPC: %d\n", ret);
+		return ret;
+	}
+
+	if (smsg.resp.status) {
+		dev_err(dev, "Failed with status: 0x%X\n", smsg.resp.status);
+		ret = -EINVAL;
+	}
+
+	if (smsg.resp.extended_error) {
+		dev_err(dev, "Failed with error: 0x%X", smsg.resp.extended_error);
+		ret = -EINVAL;
+	}
+
+	msg->keyHandle = smsg.resp.keyHandle;
+
+	return ret;
+}
+
+/**
+ * tmelcom_fuse_list_read() - Read fuse list
+ * @tdev: the tmel device
+ * @fuse: fuse payload
+ * @size: size of payload
+ */
 int tmelcom_fuse_list_read(struct tmel *tdev, struct tmel_fuse_payload *fuse, size_t size)
 {
 	int ret;
@@ -675,9 +805,22 @@ int tmelcom_fuse_list_read(struct tmel *tdev, struct tmel_fuse_payload *fuse, si
 	struct udevice *dev = tdev->dev;
 	dma_addr_t dma_fuse;
 
-	if (!dev || !fuse || !size)
+	if (!tdev || !dev || !fuse || !size)
 		return -EINVAL;
 
+	if (ULONG_MAX - (unsigned long)fuse < size) {
+		dev_err(dev, "Integer overflow in cache range calculation\n");
+		return -EINVAL;
+	}
+
+	/* Additional validation: ensure size is reasonable */
+    if (size > QMP_SRAM_IPC_MAX_BUF_SIZE) {
+        dev_err(dev, "Fuse read size exceeds maximum allowed\n");
+        return -EINVAL;
+    }
+
+	/* Flush cache before DMA mapping */
+	flush_cache((unsigned long)fuse, size);
 	dma_fuse = dma_map_single(fuse, size, DMA_BIDIRECTIONAL);
 
 	msg.status = TMEL_ERROR_GENERIC;
@@ -696,24 +839,47 @@ int tmelcom_fuse_list_read(struct tmel *tdev, struct tmel_fuse_payload *fuse, si
 	return ret ? ret : msg.status;
 }
 
+/**
+ * tmel_qmp_send() - Send message through mailbox
+ * @chan: mailbox channel
+ * @data: message data
+ */
 static int tmel_qmp_send(struct mbox_chan *chan, const void *data)
 {
-	struct tmel *tdev = dev_get_priv(chan->dev);
+	struct tmel *tdev;
 	int ret = -EINVAL;
-	struct tmel_qmp_msg *tmsg = (struct tmel_qmp_msg *)data;
+	struct tmel_qmp_msg *tmsg;
+
+	if (!chan || !data)
+		return -EINVAL;
+
+	tdev = dev_get_priv(chan->dev);
+	tmsg = (struct tmel_qmp_msg *)data;
+
+	if (!tdev || !tmsg->msg)
+		return -EINVAL;
 
 	switch (tmsg->msg_id) {
 	case TMEL_MSG_UID_FUSE_READ_MULTIPLE_ROW:
-		struct tmel_fuse_payload *fuse = (struct tmel_fuse_payload *)tmsg->msg;
+		{
+			struct tmel_fuse_payload *fuse = (struct tmel_fuse_payload *)tmsg->msg;
 
-		ret = tmelcom_fuse_list_read(tdev, fuse, tmsg->size);
+			ret = tmelcom_fuse_list_read(tdev, fuse, tmsg->size);
+		}
 		break;
 	case TMEL_MSG_UID_SECBOOT_SEC_AUTH:
-		struct tmel_secboot_sec_auth *msg = (struct tmel_secboot_sec_auth *)tmsg->msg;
+		{
+			struct tmel_sec_auth *msg = (struct tmel_sec_auth *)tmsg->msg;
 
-		ret = tmel_secboot_sec_auth(tdev, msg->req.sw_id,
-					    (void *)(uintptr_t)msg->req.elf_buf.buf,
-					    msg->req.elf_buf.buf_len);
+			ret = tmel_secboot_sec_auth(tdev, msg);
+		}
+		break;
+	case TMEL_MSG_UID_SECBOOT_SEC_AUTH_V2:
+		{
+			struct tmel_sec_auth_v2 *sec_auth = (struct tmel_sec_auth_v2 *)tmsg->msg;
+
+			ret = tmel_secboot_sec_auth_v2(tdev, sec_auth);
+		}
 		break;
 	default:
 		ret = -EINVAL;
@@ -726,6 +892,7 @@ static int tmel_qmp_send(struct mbox_chan *chan, const void *data)
 /**
  * tmel_qmp_startup() - Start qmp mailbox channel for communication.
  * @chan: mailbox channel that is being opened.
+ * @args: phandle arguments
  * Waits for remote subsystem to open channel if link is not
  * initiated or until timeout.
  */
@@ -733,8 +900,18 @@ static int tmel_qmp_startup(struct mbox_chan *chan,
 			    struct ofnode_phandle_args *args)
 {
 	struct tmel *tdev = dev_get_priv(chan->dev);
-	struct qmp_device *mdev = tdev->mdev;
+	struct qmp_device *mdev;
 	void *rx_buf;
+	int retry;
+	int rx_buf_size;
+	int ret = 0;
+
+	if (!tdev)
+		return -EINVAL;
+
+	mdev = tdev->mdev;
+	if (!mdev)
+		return -EINVAL;
 
 	/*
 	 * Kick start the SM from the negotiation phase
@@ -742,16 +919,31 @@ static int tmel_qmp_startup(struct mbox_chan *chan,
 	 */
 	mdev->mcore.bits.link_state = 1;
 	mdev->local_state = LINK_NEGOTIATION;
+	rx_buf_size = 1 * QMP_MAX_PKT_SIZE;
 
-	rx_buf = devm_kcalloc(chan->dev, 1, QMP_MAX_PKT_SIZE, GFP_KERNEL);
+	rx_buf = malloc_cache_aligned(rx_buf_size);
 	if (IS_ERR_OR_NULL(rx_buf))
 		return -ENOMEM;
 
+	memset(rx_buf, 0, rx_buf_size);
 	mdev->rx_pkt.iov_base = rx_buf;
 	tmel_qmp_send_irq(mdev);
 
-	while (!mdev->link_complete)
+	retry = MAX_IRQ_RETRY;
+	while (!mdev->link_complete && retry--) {
+		/*
+		 * Make sure we see the updated value of link_complete
+		 */
+		rmb();
 		tmel_check_for_irq(tdev);
+		if (mdev->link_complete)
+			break;
+	}
+
+	if (!mdev->link_complete) {
+		dev_err(tdev->dev, "Timeout waiting for link completion\n");
+		return -ETIMEDOUT;
+	}
 
 	if (mdev->local_state == LINK_CONNECTED) {
 		mdev->mcore.bits.ch_state = 1;
@@ -760,10 +952,23 @@ static int tmel_qmp_startup(struct mbox_chan *chan,
 		tmel_qmp_send_irq(mdev);
 	}
 
-	while (!mdev->ch_complete)
+	retry = MAX_IRQ_RETRY;
+	while (!mdev->ch_complete && retry--) {
+		/*
+		 * Make sure we see the updated value of ch_complete
+		 */
+		rmb();
 		tmel_check_for_irq(tdev);
+		if (mdev->ch_complete)
+			break;
+	}
 
-	return 0;
+	if (!mdev->ch_complete) {
+		dev_err(tdev->dev, "Timeout waiting for channel completion\n");
+		return -ETIMEDOUT;
+	}
+
+	return ret;
 }
 
 /**
@@ -794,30 +999,42 @@ static struct mbox_ops tmel_qmp_mbox_ops = {
 	.send = tmel_qmp_send,
 };
 
+/**
+ * tmel_init() - Initialize TMEL device
+ * @dev: device to initialize
+ */
 static int tmel_init(struct udevice *dev)
 {
 	struct tmel *tdev = dev_get_priv(dev);
 
-	tdev->ipc_pkt = devm_kcalloc(dev, 1, sizeof(struct tmel_ipc_pkt),
-				     GFP_KERNEL);
+	if (!tdev)
+		return -EINVAL;
+
+	tdev->ipc_pkt = malloc_cache_aligned(sizeof(struct tmel_ipc_pkt));
 	if (IS_ERR_OR_NULL(tdev->ipc_pkt))
 		return -ENOMEM;
 
+	memset(tdev->ipc_pkt, 0, sizeof(struct tmel_ipc_pkt));
 	tdev->rx_done = false;
 	tdev->dev = dev;
 
 	return 0;
 }
 
+/**
+ * qmp_init() - Initialize QMP device
+ * @dev: device to initialize
+ */
 static struct qmp_device *qmp_init(struct udevice *dev)
 {
 	struct qmp_device *mdev;
 	struct resource res;
 
-	mdev = devm_kcalloc(dev, 1, sizeof(*mdev), GFP_KERNEL);
+	mdev = malloc_cache_aligned(sizeof(struct qmp_device));
 	if (IS_ERR_OR_NULL(mdev))
 		return ERR_PTR(-ENOMEM);
 
+	memset(mdev, 0, sizeof(struct qmp_device));
 	mdev->dev = dev;
 
 	dev_read_resource(dev, 0, &res);
@@ -837,6 +1054,10 @@ static struct qmp_device *qmp_init(struct udevice *dev)
 	return mdev;
 }
 
+/**
+ * tmel_qmp_parse_dt() - Parse device tree for TMEL device
+ * @dev: device to parse DT for
+ */
 static int tmel_qmp_parse_dt(struct udevice *dev)
 {
 	struct tmel *tdev = dev_get_priv(dev);
@@ -847,26 +1068,33 @@ static int tmel_qmp_parse_dt(struct udevice *dev)
 	u32 phandle, count, irq_type, irq_num;
 	u64 addr;
 
+	if (!tdev)
+		return -EINVAL;
+
 	root = fdt_path_offset(fdt, "/");
 	addr_cells_ptr = fdt_getprop(fdt, root, "#address-cells", NULL);
+	if (!addr_cells_ptr) {
+		dev_err(dev, "#address-cells not found in root\n");
+		return -ENODEV;
+	}
 	addr_cells = fdt32_to_cpu(*addr_cells_ptr);
 
 	ph = fdt_getprop(fdt, root, "interrupt-parent", NULL);
 	if (!ph) {
-		printf("interrupt-parent not found in root\n");
+		dev_err(dev, "interrupt-parent not found in root\n");
 		return -ENODEV;
 	}
 
 	phandle = fdt32_to_cpu(*ph);
 	intc_node = fdt_node_offset_by_phandle(fdt, phandle);
 	if (intc_node < 0) {
-		printf("Interrupt controller node not found\n");
+		dev_err(dev, "Interrupt controller node not found\n");
 		return -ENODEV;
 	}
 
 	reg = fdt_getprop(fdt, intc_node, "reg", NULL);
 	if (!reg) {
-		printf("reg property not found in interrupt controller node\n");
+		dev_err(dev, "reg property not found in interrupt controller node\n");
 		return -ENODEV;
 	}
 
@@ -878,19 +1106,21 @@ static int tmel_qmp_parse_dt(struct udevice *dev)
 	tdev->irq_base = (void __iomem *)(uintptr_t)addr;
 	list = dev_read_prop(dev, "interrupts", &size);
 	if (!list) {
-		printf("\ninterrupts property not found ...\n");
+		dev_err(dev, "interrupts property not found\n");
 		return -ENOENT;
 	}
 
 	intr_cells = fdt_getprop(fdt, intc_node, "#interrupt-cells", NULL);
 	if (!intr_cells) {
-		printf("\ninterrupts cells property not found ...\n");
+		dev_err(dev, "interrupt-cells property not found\n");
 		return -ENOENT;
 	}
 
 	count = fdt32_to_cpu(*intr_cells);
-	if (count != 3)
+	if (count != 3) {
+		dev_err(dev, "unexpected interrupt-cells count: %d\n", count);
 		return -ENOENT;
+	}
 
 	irq_type = fdt32_to_cpu(list[0]);
 	irq_num = fdt32_to_cpu(list[1]);
@@ -904,30 +1134,43 @@ static int tmel_qmp_parse_dt(struct udevice *dev)
 	return 0;
 }
 
+/**
+ * tmel_qmp_mbox_probe() - Probe TMEL QMP mailbox device
+ * @dev: device to probe
+ */
 static int tmel_qmp_mbox_probe(struct udevice *dev)
 {
 	struct tmel *tdev = dev_get_priv(dev);
 	struct qmp_device *mdev;
 	int ret;
 
-	ret = tmel_qmp_parse_dt(dev);
-	if (ret)
+	if (!tdev)
 		return -EINVAL;
+
+	ret = tmel_qmp_parse_dt(dev);
+	if (ret) {
+		dev_err(dev, "Failed to parse device tree: %d\n", ret);
+		return -EINVAL;
+	}
 
 	ret = tmel_init(dev);
-	if (ret)
+	if (ret) {
+		dev_err(dev, "Failed to initialize TMEL: %d\n", ret);
 		return -EINVAL;
+	}
 
 	mdev = qmp_init(dev);
-	if (IS_ERR(mdev))
+	if (IS_ERR(mdev)) {
+		dev_err(dev, "Failed to initialize QMP: %ld\n", PTR_ERR(mdev));
 		return -EINVAL;
+	}
 
 	tdev->mdev = mdev;
 
 	set_interrupt_flags(tdev);
 	enable_interrupt(tdev);
 
-	return ret;
+	return 0;
 }
 
 static const struct udevice_id tmel_qmp_mbox_of_match[] = {

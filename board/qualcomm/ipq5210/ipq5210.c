@@ -72,6 +72,16 @@ struct multidtb_config ipq5210_dtb_info = {
 
 struct multidtb_config *g_board_dtb_info = &ipq5210_dtb_info;
 
+/* Board-Specific Communication Type Mapping */
+const u8 comm_type_map[FUNC_MAX] = {
+	[FUNC_LIST_FUSE]       = COMM_TYPE_TME,
+	[FUNC_DUMP_FUSE]       = COMM_TYPE_TME,
+	[FUNC_SECURE_AUTH]     = COMM_TYPE_TME,
+	[FUNC_CHECK_SECURE_BOOT] = COMM_TYPE_TME,
+	[FUNC_IMAGE_AUTH]      = COMM_TYPE_TME,
+	[FUNC_AUTH_ROOTFS_ELF] = COMM_TYPE_TME
+};
+
 void ipq_update_board_name(int machid, struct multidtb_config *dtb)
 {
 	switch(machid) {
@@ -119,3 +129,27 @@ void reset_cpu(void)
 	psci_sys_reset(SYSRESET_COLD);
 }
 #endif
+
+uint32_t is_board_support_image_auth(void)
+{
+	u32 board_type = gd->board_type;
+	u32 ret = 0;
+
+	switch (gd->ram_size) {
+	case SZ_128M:
+		break;
+	default:
+		ret = (board_type & SECURE_BOARD);
+		break;
+	}
+
+	return ret;
+}
+
+void ipq_update_comm_type(void)
+{
+	struct ipq_board_info *bdinfo = ipq_get_bdinfo();
+
+	if (bdinfo)
+		bdinfo->comm_type_map = comm_type_map;
+}

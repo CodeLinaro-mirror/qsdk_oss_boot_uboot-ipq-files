@@ -343,6 +343,12 @@ config SECURE_AUTH_V2
 	help
 	  This config provides support to authenticate secure images
 
+config SECURE_AUTH_V3
+	bool "Secure authentication command"
+	default n
+	help
+	  This config provides support to authenticate secure images
+
 config FUSE_IPQ
 	bool "Enable fuseipq command support"
 	depends on IPQ_SECURE
@@ -808,7 +814,11 @@ config TARGET_IPQ5210
 	imply ARMV8_SWITCH_TO_EL1
 	imply LIST_FUSE
 	imply IPQ_TMEL_IPC_SUPPORT
+	imply SHA384
+	imply SCM_V2
+	imply IPQ_SECURE
 	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
+	imply SECURE_AUTH_V2 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
 
 	help
 	  Support for IPQ5210 SoC.
@@ -834,6 +844,9 @@ config TARGET_IPQ9650
 	imply IPQ_TMEL_IPC_SUPPORT
 	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
 	imply IPQ_I2C
+	imply SCM_V2
+	imply IPQ_SECURE
+	imply SECURE_AUTH_V3 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
 	help
 	  Support for IPQ9650 SoC.
 	  - Board Open Platform Specifications.

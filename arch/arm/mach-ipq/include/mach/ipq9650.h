@@ -23,6 +23,11 @@
 #define TME_OEM_ID_MSK				0xFFFF0000
 #define TME_PRODUCT_ID_MSK			0x0000FFFF
 
+#define QFPROM_CORR_TME_OEM_ATE_ROW0_LSB	0xA40E8
+#define QFPROM_CORR_TME_OEM_ATE_ROW1_LSB	0xA40F0
+
+#define ROOTFS_AUTH_FUSE			0xA0060
+#define OEM_SEC_BOOT_ENABLE			BIT(7)
 struct fuse_payload {
 	u32 fuse_addr;
 	u32 lsb_val;

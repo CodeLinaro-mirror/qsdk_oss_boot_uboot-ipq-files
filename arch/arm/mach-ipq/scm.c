@@ -18,6 +18,7 @@
 #include <asm/system.h>
 #include <malloc.h>
 #include <memalign.h>
+#include <mach/ipq.h>
 
 #ifdef DEBUG
 #define debugf(fmt, args...)						\
@@ -374,4 +375,116 @@ int ipq_scm_call(struct scm_param *param)
 
 	return ret;
 
+}
+
+/* Define all SCM_CMD-related functions in this section */
+
+int ipq_list_fuse_scm_impl(void *params)
+{
+	struct list_fuse_params *fuse_params = (struct list_fuse_params *)params;
+	struct scm_param param;
+	int ret;
+
+	IPQ_SCM_READ_FUSE(param, (unsigned long)fuse_params->fuse,
+			  (fuse_params->fuse_payload_size * fuse_params->fuse_read_cnt));
+
+	flush_cache((unsigned long)fuse_params->fuse, fuse_params->size);
+	ret = ipq_scm_call(&param);
+	return ret;
+}
+
+int ipq_dump_fuse_scm_impl(void *params)
+{
+	struct dump_fuse_params *fuse_params = (struct dump_fuse_params *)params;
+	struct scm_param param;
+	int ret;
+
+	IPQ_SCM_READ_FUSE(param, (unsigned long)fuse_params->fuse,
+			  fuse_params->fuse_payload_size);
+
+	flush_cache((unsigned long)fuse_params->fuse, fuse_params->size);
+	ret = ipq_scm_call(&param);
+	return ret;
+}
+
+#ifdef CONFIG_SCM_V2
+int ipq_check_secure_boot_scm_impl(void *params)
+{
+	struct check_secure_boot_params *boot_params = (struct check_secure_boot_params *)params;
+	struct scm_param param;
+	int ret;
+
+	IPQ_SCM_READ_FUSE(param, (unsigned long)boot_params->fuse,
+			  boot_params->fuse_payload_size);
+
+	flush_dcache_range((unsigned long)boot_params->fuse,
+			   (unsigned long)boot_params->fuse + boot_params->size);
+
+	ret = ipq_scm_call(&param);
+
+	if (ret)
+		return ret;
+
+	/* Check the fuse value for secure boot enable bit */
+	if (boot_params->fuse[0].lsb_val & OEM_SEC_BOOT_ENABLE)
+		*boot_params->result = true;
+
+	return 0;
+}
+#endif
+
+/* SCM secure authentication implementation */
+int ipq_secure_auth_scm_impl(void *params)
+{
+	int ret = CMD_RET_FAILURE;
+	int scm_ret = 0;
+	struct secure_auth_params *auth_params = (struct secure_auth_params *)params;
+	struct scm_param param;
+
+	do {
+		scm_ret = -EOPNOTSUPP;
+		IPQ_SCM_CHECK_SCM_SUPPORT(param,
+					  SCM_SMC_FNID(QCOM_SCM_SVC_BOOT,
+						       QCOM_SCM_SEC_AUTH_CMD) |
+					  (ARM_SMCCC_OWNER_SIP <<
+					   ARM_SMCCC_OWNER_SHIFT));
+		param.get_ret = true;
+		scm_ret = ipq_scm_call(&param);
+
+		if (scm_ret || (!scm_ret && le32_to_cpu(param.res.result[0]) <= 0)) {
+			printf("secure authentication scm call not supported ret = %d\n", scm_ret);
+			ret = CMD_RET_SUCCESS;
+			goto exit;
+		}
+	} while (0);
+
+	if (scm_ret == -EOPNOTSUPP) {
+		printf("Unsupported SCM call\n");
+		ret = CMD_RET_FAILURE;
+		goto exit;
+	}
+
+	do {
+		scm_ret = -EOPNOTSUPP;
+		IPQ_SCM_SECURE_AUTHENTICATE(param, auth_params->type,
+					    auth_params->size, auth_params->addr,
+					    (uintptr_t)auth_params->load_seg_buff,
+					    auth_params->load_seg_cnt);
+		param.get_ret = true;
+		scm_ret = ipq_scm_call(&param);
+
+		if (scm_ret || (param.res.result[0] && !scm_ret))
+			ret = CMD_RET_FAILURE;
+		else
+			ret = CMD_RET_SUCCESS;
+
+	} while (0);
+
+	if (scm_ret == -EOPNOTSUPP) {
+		printf("Unsupported SCM call\n");
+		ret = CMD_RET_FAILURE;
+	}
+
+exit:
+	return ret;
 }

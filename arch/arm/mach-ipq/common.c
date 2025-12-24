@@ -164,6 +164,119 @@ static const u32 crc32table_be[] = {
  * Function declaration
  **********************************************************************/
 
+/* Communication handler weak implementations */
+__weak int ipq_list_fuse_tme_impl(void *p)
+{
+	debug("TME communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_dump_fuse_tme_impl(void *p)
+{
+	debug("TME communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_check_secure_boot_tme_impl(void *p)
+{
+	debug("TME communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_check_secure_boot_scm_impl(void *p)
+{
+	debug("SCM communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_secure_auth_tme_impl(void *p)
+{
+	debug("TME communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_image_auth_tme_impl(void *p)
+{
+	debug("TME communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_image_auth_scm_impl(void *p)
+{
+	debug("SCM communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_auth_rootfs_elf_tme_impl(void *p)
+{
+	debug("TME communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_auth_rootfs_elf_scm_impl(void *p)
+{
+	debug("SCM communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+/* Function Pointer Table for communication handlers */
+static int (*const comm_functions[FUNC_MAX][COMM_TYPE_MAX])(void *) = {
+	[FUNC_LIST_FUSE]       = {ipq_list_fuse_tme_impl, ipq_list_fuse_scm_impl},
+	[FUNC_DUMP_FUSE]       = {ipq_dump_fuse_tme_impl, ipq_dump_fuse_scm_impl},
+	[FUNC_CHECK_SECURE_BOOT] = {ipq_check_secure_boot_tme_impl, ipq_check_secure_boot_scm_impl},
+	[FUNC_SECURE_AUTH]     = {ipq_secure_auth_tme_impl, ipq_secure_auth_scm_impl},
+	[FUNC_IMAGE_AUTH]      = {ipq_image_auth_tme_impl, ipq_image_auth_scm_impl},
+	[FUNC_AUTH_ROOTFS_ELF] = {ipq_auth_rootfs_elf_tme_impl, ipq_auth_rootfs_elf_scm_impl}
+};
+
+/**
+ * ipq_comm_handler - Communication handler dispatcher
+ * @func_id: Function ID (FUNC_LIST_FUSE, FUNC_SECURE_AUTH, etc.)
+ * @params: Parameters to pass to the handler function
+ *
+ * This function routes communication requests to the appropriate handler
+ * (SCM or TME) based on board-specific configuration.
+ *
+ * Returns: 0 on success, negative error code on failure
+ */
+int ipq_comm_handler(enum cmd_function_id func_id, void *params)
+{
+	enum comm_type_id comm_type;
+	int (*func_ptr)(void *args);
+	struct ipq_board_info *bdinfo = ipq_get_bdinfo();
+
+	if (func_id >= FUNC_MAX) {
+		debug("Invalid function ID: %d\n", func_id);
+		return -EINVAL;
+	}
+
+	/* Get communication type from board-specific mapping, or default to SCM */
+	if (!bdinfo || !bdinfo->comm_type_map) {
+		comm_type = COMM_TYPE_SCM;
+		debug("No comm_type_map available, defaulting to SCM for func_id %d\n",
+		      func_id);
+	} else {
+		comm_type = bdinfo->comm_type_map[func_id];
+
+		if (comm_type >= COMM_TYPE_MAX) {
+			debug("Invalid communication type %d for function ID: %d, "
+			      "defaulting to SCM\n", comm_type, func_id);
+			comm_type = COMM_TYPE_SCM;
+		}
+	}
+
+	/* Get function pointer from table */
+	func_ptr = comm_functions[func_id][comm_type];
+	if (!func_ptr) {
+		printf((comm_type == COMM_TYPE_SCM) ?
+		       "SCM communication not supported\n" :
+		       "TME communication not supported\n");
+		return -EOPNOTSUPP;
+	}
+
+	return func_ptr(params);
+}
+
 __weak uint32_t ipq_get_soc_hw_version(void)
 {
 	return readl(CONFIG_SOC_HW_VERSION_REG);
@@ -1218,29 +1331,10 @@ static bool is_secure_boot_v1(void)
 static bool is_secure_boot_v2(void)
 {
 	int ret = -1;
-	struct fuse_payload {
-		u32 fuse_addr;
-		u32 lsb_val;
-		u32 msb_val;
-	};
 	struct fuse_payload *fuse = NULL;
 	size_t size = sizeof(struct fuse_payload);
 	bool status = false;
-#ifdef CONFIG_SCM
-	struct scm_param param;
-#elif CONFIG_IPQ_TMEL_IPC_SUPPORT
-	struct tmelcom *tmelcom_priv;
-	struct udevice *tmelcom_udev;
-	struct tmel_qmp_msg tmsg;
-
-	ret = uclass_get_device_by_name(UCLASS_MISC, "qcom,tmelcom",
-					&tmelcom_udev);
-	if (ret) {
-		printf("Failed to find TMELCOM node %d\n", ret);
-		return CMD_RET_FAILURE;
-	}
-	tmelcom_priv = dev_get_priv(tmelcom_udev);
-#endif
+	struct check_secure_boot_params params;
 
 	size = roundup(size, CONFIG_SYS_CACHELINE_SIZE);
 
@@ -1254,29 +1348,17 @@ static bool is_secure_boot_v2(void)
 
 	do {
 		ret = -ENOTSUPP;
-#ifdef CONFIG_IPQ_TMEL_IPC_SUPPORT
-		tmsg.msg = (void *)fuse;
-		tmsg.size = sizeof(struct fuse_payload);
-		tmsg.msg_id = TMEL_MSG_UID_FUSE_READ_MULTIPLE_ROW;
+		params.fuse = fuse;
+		params.size = size;
+		params.fuse_payload_size = sizeof(struct fuse_payload);
+		params.result = &status;
 
-		flush_dcache_range((unsigned long)fuse,
-				   (unsigned long)fuse + size);
-		ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
-#elif CONFIG_SCM
-		IPQ_SCM_READ_FUSE(param, (unsigned long)fuse,
-					sizeof(struct fuse_payload));
-		/* invalidate cache to update latest value in buff */
-		flush_dcache_range((unsigned long)fuse,
-					(unsigned long)fuse + size);
-		ret = ipq_scm_call(&param);
-#endif
+		ret = ipq_comm_handler(FUNC_CHECK_SECURE_BOOT, &params);
+
 		if (ret) {
 			ret = -1;
 			break;
 		}
-
-		if (fuse[0].lsb_val & OEM_SEC_BOOT_ENABLE)
-			status = true;
 	} while (0);
 
 	if (ret == -ENOTSUPP) {

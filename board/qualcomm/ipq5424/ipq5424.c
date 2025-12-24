@@ -307,7 +307,6 @@ struct crashdump_infos *board_dumpinfo = dumpinfo_n;
 
 uint8_t *board_dump_entries = &dump_entries_n;
 
-
 void ipq_update_board_name(int machid, struct multidtb_config *dtb)
 {
 	switch(machid) {

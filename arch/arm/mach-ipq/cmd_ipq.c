@@ -169,7 +169,6 @@ struct load_seg_info {
 	uint32_t endAddr;	 /**< Region end address (SoC view) */
 };
 
-
 #ifdef CONFIG_PHY_AQUANTIA
 static int ipq_aquantia_load_memory(struct phy_device *phydev, u32 addr,
 				const u8 *data, size_t len)
@@ -381,7 +380,7 @@ struct load_seg_info *elf64_load_seg(void *img_addr, uint8_t *load_seg_cnt,
 	 * ignoring it for memory allocation
 	 */
 	load_seg_info = (struct load_seg_info *) \
-		malloc(sizeof(struct load_seg_info) * (ehdr->e_phnum - 2));
+		malloc_cache_aligned(sizeof(struct load_seg_info) * (ehdr->e_phnum - 2));
 	if (!load_seg_info) {
 		printf("Unable to allocate memory\n");
 		return NULL;
@@ -501,12 +500,17 @@ static int do_secure(struct cmd_tbl *cmdtp, int flag, int argc,
 				char *const argv[])
 {
 	int ret = CMD_RET_FAILURE;
-	int scm_ret = 0;
 	struct load_seg_info *load_seg_buff = NULL;
 	uint8_t load_seg_cnt = 0;
+	struct secure_auth_params auth_params;
+#ifdef CONFIG_SECURE_AUTH_V3
+	u32 flags = 1;
+#endif
 
 #ifdef CONFIG_VERSION_ROLLBACK_PARTITION_INFO
 	int active_part = PRI_PARTITION;
+	int scm_ret = 0;
+	struct scm_param param;
 #endif /* CONFIG_VERSION_ROLLBACK_PARTITION_INFO */
 
 	if (strncmp(argv[0], "is_sec_boot_enabled", 19) == 0 && argc == 1) {
@@ -524,40 +528,14 @@ static int do_secure(struct cmd_tbl *cmdtp, int flag, int argc,
 		if (argc != 4)
 #elif CONFIG_SECURE_AUTH_V2
 		if (argc != 3 && argc != 4)
+#elif CONFIG_SECURE_AUTH_V3
+		if (argc != 5)
 #endif
 			return CMD_RET_USAGE;
 
 		struct auth_cmd_buf auth_buf = {0};
-		struct scm_param param;
-
 		auth_buf.type = simple_strtoul(argv[1], NULL, 16);
 		auth_buf.addr = simple_strtoul(argv[2], NULL, 16);
-
-		do {
-			scm_ret = -ENOTSUPP;
-			IPQ_SCM_CHECK_SCM_SUPPORT(param,
-						SCM_SMC_FNID(QCOM_SCM_SVC_BOOT,
-						QCOM_SCM_SEC_AUTH_CMD) |
-						(ARM_SMCCC_OWNER_SIP <<
-						ARM_SMCCC_OWNER_SHIFT));
-			param.get_ret = true;
-			scm_ret = ipq_scm_call(&param);
-
-			if (scm_ret || (!scm_ret &&
-				le32_to_cpu(param.res.result[0]) <= 0)) {
-				printf("secure authentication scm call" \
-					" is not supported. ret = %d\n", ret);
-				ret = CMD_RET_SUCCESS;
-				goto exit;
-			}
-		} while (0);
-
-		if (scm_ret == -ENOTSUPP) {
-			printf("Unsupported SCM call\n");
-			ret = CMD_RET_FAILURE;
-			goto exit;
-		}
-
 #ifdef CONFIG_VERSION_ROLLBACK_PARTITION_INFO
 		if (is_version_rollback_support()) {
 			active_part = gd->board_type & ACTIVE_BOOT_SET ?
@@ -582,11 +560,14 @@ static int do_secure(struct cmd_tbl *cmdtp, int flag, int argc,
 
 #ifdef CONFIG_SECURE_AUTH_V1
 		auth_buf.size = simple_strtoul(argv[3], NULL, 16);
-#elif CONFIG_SECURE_AUTH_V2
+#elif CONFIG_SECURE_AUTH_V2 || CONFIG_SECURE_AUTH_V3
 		void *load_addr = (void *)(uintptr_t)auth_buf.addr;
 
 		if (argc == 4)
 			auth_buf.size = simple_strtoul(argv[3], NULL, 16);
+#ifdef CONFIG_SECURE_AUTH_V3
+		flags = simple_strtoul(argv[4], NULL, 16);
+#endif
 
 		if (!load_addr || !IS_ELF(*(Elf32_Ehdr *)load_addr)) {
 			printf("It is not a elf image\n");
@@ -616,29 +597,25 @@ static int do_secure(struct cmd_tbl *cmdtp, int flag, int argc,
 		load_seg_cnt = load_seg_cnt * sizeof(struct load_seg_info);
 #endif
 
-		do {
-			scm_ret = -ENOTSUPP;
-			IPQ_SCM_SECURE_AUTHENTICATE(param, auth_buf.type,
-						auth_buf.size, auth_buf.addr,
-						(uintptr_t)load_seg_buff,
-						load_seg_cnt);
-			param.get_ret = true;
-			scm_ret = ipq_scm_call(&param);
+		auth_params.type = auth_buf.type;
+		auth_params.addr = auth_buf.addr;
+		auth_params.size = auth_buf.size;
+		auth_params.load_seg_buff = load_seg_buff;
+		auth_params.load_seg_cnt = load_seg_cnt;
+		auth_params.load_seg_info_size = sizeof(struct load_seg_info);
+		auth_params.relocate = 1;
+#ifdef CONFIG_SECURE_AUTH_V3
+		auth_params.flags = flags;
+#endif
 
-			if (scm_ret || (param.res.result[0] && !scm_ret)) {
-				printf("image authentication failed. " \
-							"ret  = %d\n",
-							ret);
-				ret = CMD_RET_FAILURE;
-			} else {
-				printf("image authentication success\n");
-				ret = CMD_RET_SUCCESS;
-			}
-		} while (0);
-
-		if (scm_ret == -ENOTSUPP) {
-			printf("Unsupported SCM call\n");
-			ret =  CMD_RET_FAILURE;
+		ret = ipq_comm_handler(FUNC_SECURE_AUTH, &auth_params);
+		if (ret) {
+			printf("image authentication failed. ret = %d\n", ret);
+			ret = CMD_RET_FAILURE;
+			goto exit;
+		} else {
+			printf("image authentication success\n");
+			ret = CMD_RET_SUCCESS;
 		}
 	} else {
 		return CMD_RET_USAGE;
@@ -655,12 +632,14 @@ U_BOOT_CMD(is_sec_boot_enabled, 1, 0, do_secure,
 		"check secure boot fuse is enabled or not\n",
 		"is_sec_boot_enabled - check secure boot fuse "
 		"is enabled or not\n");
-U_BOOT_CMD(secure_authenticate, 4, 0, do_secure,
-		"authenticate the signed image\n",
+U_BOOT_CMD(secure_authenticate, 5, 0, do_secure,
+	   "authenticate the signed image\n",
 #ifdef CONFIG_SECURE_AUTH_V1
 		"secure_authenticate <sw_id> <img_addr> <img_size>\n"
 #elif CONFIG_SECURE_AUTH_V2
 		"secure_authenticate <sw_id> <img_addr> [meta_data_size]\n"
+#elif CONFIG_SECURE_AUTH_V3
+		"secure_authenticate <sw_id> <img_addr> [meta_data_size] <flags>\n"
 #endif
 		"       - authenticate the signed image\n");
 #endif
@@ -824,22 +803,7 @@ static int do_list_fuse(struct cmd_tbl *cmdtp, int flag, int argc,
 	uint8_t fuse_read_cnt = TME_OEM_ATE_FUSE_CNT +
 				TME_OEM_MRC_HASH_FUSE_CNT;
 	size_t size = sizeof(struct fuse_payload) * fuse_read_cnt;
-
-#ifdef CONFIG_SCM
-	struct scm_param param;
-#elif CONFIG_IPQ_TMEL_IPC_SUPPORT
-	struct tmelcom *tmelcom_priv;
-	struct udevice *tmelcom_udev;
-	struct tmel_qmp_msg tmsg;
-
-	ret = uclass_get_device_by_name(UCLASS_MISC, "qcom,tmelcom",
-					&tmelcom_udev);
-	if (ret) {
-		printf("Failed to find TMELCOM node %d\n", ret);
-		return CMD_RET_FAILURE;
-	}
-	tmelcom_priv = dev_get_priv(tmelcom_udev);
-#endif
+	struct list_fuse_params fuse_params;
 
 	size = roundup(size, CONFIG_SYS_CACHELINE_SIZE);
 
@@ -860,28 +824,16 @@ static int do_list_fuse(struct cmd_tbl *cmdtp, int flag, int argc,
 					 (index - TME_OEM_ATE_FUSE_CNT));
 		}
 	}
-
 	/* invalidate cache to update latest value in buff */
 	do {
 		ret = -ENOTSUPP;
-#ifdef CONFIG_IPQ_TMEL_IPC_SUPPORT
-		tmsg.msg = (void *)fuse;
-		tmsg.size = sizeof(struct fuse_payload) * fuse_read_cnt;
-		tmsg.msg_id = TMEL_MSG_UID_FUSE_READ_MULTIPLE_ROW;
 
-		flush_dcache_range((unsigned long)fuse,
-				   (unsigned long)fuse +
-					size);
-		ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
-#elif CONFIG_SCM
-		IPQ_SCM_READ_FUSE(param, (unsigned long)fuse,
-			sizeof(struct fuse_payload) * fuse_read_cnt);
+		fuse_params.fuse = fuse;
+		fuse_params.fuse_read_cnt = fuse_read_cnt;
+		fuse_params.fuse_payload_size = sizeof(struct fuse_payload);
+		fuse_params.size = size;
 
-		flush_dcache_range((unsigned long)fuse,
-					(unsigned long)fuse +
-					size);
-		ret = ipq_scm_call(&param);
-#endif
+		ret = ipq_comm_handler(FUNC_LIST_FUSE, &fuse_params);
 		if (ret) {
 			printf("Error (%d) failed to read fuse\n", ret);
 			ret = CMD_RET_FAILURE;
@@ -940,9 +892,9 @@ static int do_dump_fuse(struct cmd_tbl *cmdtp, int flag, int argc,
 {
 	size_t size = sizeof(struct fuse_payload);
 	struct fuse_payload *fuse = NULL;
-	struct scm_param param;
 	u32 addr;
 	int ret;
+	struct dump_fuse_params fuse_params;
 
 	size = roundup(size, CONFIG_SYS_CACHELINE_SIZE);
 
@@ -960,13 +912,12 @@ static int do_dump_fuse(struct cmd_tbl *cmdtp, int flag, int argc,
 
 	do {
 		ret = -ENOTSUPP;
-		IPQ_SCM_READ_FUSE(param, (unsigned long)fuse,
-				  sizeof(struct fuse_payload));
 
-		flush_dcache_range((unsigned long)fuse, (unsigned long)fuse +
-				   size);
-		ret = ipq_scm_call(&param);
+		fuse_params.fuse = fuse;
+		fuse_params.size = size;
+		fuse_params.fuse_payload_size = sizeof(struct fuse_payload);
 
+		ret = ipq_comm_handler(FUNC_DUMP_FUSE, &fuse_params);
 		if (ret) {
 			printf("Error (%d) failed to read fuse\n", ret);
 			ret = CMD_RET_FAILURE;
@@ -977,10 +928,11 @@ static int do_dump_fuse(struct cmd_tbl *cmdtp, int flag, int argc,
 
 #ifdef CONFIG_LIST_FUSE_V1
 		printf("TME_FUSE_ADDR: 0x%08X\tVALUE: 0x%08X\n",
-			fuse->fuse_addr, fuse->val);
+		       fuse->fuse_addr, fuse->val);
 #elif CONFIG_LIST_FUSE_V2
-		printf("TME_FUSE_ADDR: 0x%08X\tVALUE: 0x%08X%08X\n",
-			fuse->fuse_addr, fuse->msb_val, fuse->lsb_val);
+		printf("TME_FUSE_ADDR: 0x%08X\tVALUE: 0x%llX\n",
+		       fuse->fuse_addr,
+		       ((u64)fuse->msb_val << 32 | fuse->lsb_val));
 #endif
 	} while (0);
 

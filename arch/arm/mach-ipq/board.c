@@ -420,6 +420,8 @@ int board_init(void)
 	return 0;
 }
 
+__weak void ipq_update_comm_type(void) {}
+
 #if defined(CONFIG_BOARD_EARLY_INIT_R)
 int board_early_init_r(void)
 {
@@ -430,6 +432,8 @@ int board_early_init_r(void)
 	ipq_runtime_sf_env_update();
 
 	ipq_update_lmb_reservation();
+
+	ipq_update_comm_type();
 
 	return 0;
 }
