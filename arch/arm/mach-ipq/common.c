@@ -2563,6 +2563,64 @@ void qcn92xx_global_soc_reset(uintptr_t bar0_base, bool force_reset)
 }
 #endif
 
+int hex_string_to_binary(const char *hex_str, uint8_t *binary,
+			 size_t binary_len)
+{
+	size_t hex_len = strlen(hex_str);
+	size_t i;
+
+	if (!hex_str || !binary) {
+		printf("Invalid input: NULL pointer\n");
+		return -1;
+	}
+
+	/* Check if hex string length is valid
+	 * (must be even and match binary length * 2) */
+	if (hex_len != binary_len * 2) {
+		printf("Invalid hex string length: %zu (expected %zu)\n",
+		       hex_len, binary_len * 2);
+		return -1;
+	}
+
+	/* Convert hex string to binary */
+	for (i = 0; i < binary_len; i++) {
+		char byte_str[3] = {hex_str[i * 2], hex_str[i * 2 + 1], '\0'};
+		char *endptr;
+		unsigned long byte_val = strtoul(byte_str, &endptr, 16);
+
+		if (*endptr != '\0') {
+			printf("Invalid hex character at position %zu\n", i * 2);
+			return -1;
+		}
+
+		binary[i] = (uint8_t)byte_val;
+	}
+
+	return 0;
+}
+
+void generate_random_context(uint8_t *context, size_t context_len)
+{
+	size_t i;
+	uint32_t random_val;
+
+	for (i = 0; i < context_len; i += sizeof(uint32_t)) {
+		/* Generate a pseudo-random value using timer */
+		random_val = get_timer(0) + i;
+
+		/* XOR with a shifting pattern for better randomness */
+		random_val ^= (random_val << 13);
+		random_val ^= (random_val >> 17);
+		random_val ^= (random_val << 5);
+
+		/* Copy bytes to context buffer */
+		size_t bytes_to_copy = (context_len - i < sizeof(uint32_t)) ?
+				       (context_len - i) : sizeof(uint32_t);
+
+		memcpy(&context[i], &random_val, bytes_to_copy);
+	}
+}
+
 #ifdef CONFIG_CB_CALIB
 static int do_cal_qcn9224(struct cal_config *cfg,
 			  struct cal_per_dev_config *dev_cfg, int debug)

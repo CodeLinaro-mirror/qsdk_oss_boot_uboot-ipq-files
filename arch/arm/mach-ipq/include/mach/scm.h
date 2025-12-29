@@ -125,6 +125,10 @@ struct qcom_scm_res {
 #define SCM_READ_OP			0x01
 #define SCM_WRITE_OP			0x02
 
+#define QCOM_SVC_ICE			23
+#define QCOM_SCM_ICE_CMD                0x1
+#define QCOM_SCM_ICE_CONTEXT_CMD	0x3
+
 /*
  * Check secure boot enablement
  */
@@ -619,6 +623,48 @@ struct qcom_scm_res {
 #endif
 
 /*
+ * Configure ICE
+ */
+#if IS_ENABLED(CONFIG_SCM)
+#define _IPQ_SCM_ICE_CONFIGURE_V1(_param, _a, _b)			\
+	do {								\
+		memset(&(_param), 0, sizeof(struct scm_param));		\
+		(_param).type  = SCM_ICE_CONFIGURE;			\
+		(_param).buff[0] = _a;					\
+		(_param).buff[1] = _b;					\
+		(_param).arg_type[0] = SCM_READ_OP;			\
+		(_param).arg_type[1] = SCM_VAL;				\
+		(_param).len = 2;					\
+	} while (0)
+#else
+#define _IPQ_SCM_ICE_CONFIGURE(...) break;
+#endif
+
+#if IS_ENABLED(CONFIG_SCM)
+#define _IPQ_SCM_ICE_KEY_CONFIGURE_V1(_param, _a, _b, _c, _d, _e, _f, _g) \
+	do {								\
+		memset(&(_param), 0, sizeof(struct scm_param));		\
+		(_param).type  = SCM_ICE_KEY_CONFIGURE;			\
+		(_param).buff[0] = _a;					\
+		(_param).buff[1] = _b;					\
+		(_param).buff[2] = _c;					\
+		(_param).buff[3] = _d;					\
+		(_param).buff[4] = _e;					\
+		(_param).buff[5] = _f;					\
+		(_param).buff[6] = _g;					\
+		(_param).arg_type[0] = SCM_VAL;				\
+		(_param).arg_type[1] = SCM_VAL;				\
+		(_param).arg_type[2] = SCM_VAL;				\
+		(_param).arg_type[3] = SCM_READ_OP;			\
+		(_param).arg_type[4] = SCM_VAL;				\
+		(_param).arg_type[5] = SCM_READ_OP;			\
+		(_param).arg_type[6] = SCM_VAL;				\
+		(_param).len = 7;					\
+	} while (0)
+#else
+#define _IPQ_SCM_ICE_CONFIGURE(...) break;
+#endif
+/*
  * Check ATF support
  */
 #if defined(CONFIG_SCM_V1)
@@ -874,6 +920,19 @@ struct qcom_scm_res {
 #define	IPQ_SCM_CLEAR_AES_KEY(...)	break
 #endif
 
+#ifdef CONFIG_SCM
+#define IPQ_SCM_ICE_CONFIGURE(param, a, b) _IPQ_SCM_ICE_CONFIGURE_V1(param, a, b)
+#else
+#define IPQ_SCM_ICE_CONFIGURE(...)      break;
+#endif
+
+#ifdef CONFIG_SCM
+#define IPQ_SCM_ICE_KEY_CONFIGURE(param, a, b, c, d, e, f, g)		\
+		 _IPQ_SCM_ICE_KEY_CONFIGURE_V1(param, a, b, c, d, e, f, g)
+#else
+#define IPQ_SCM_ICE_KEY_CONFIGURE(...)      break;
+#endif
+
 static inline int qcom_scm_remap_error(int err)
 {
 	switch (err) {
@@ -920,7 +979,9 @@ enum scm_type {
 	SCM_AES_256_DEC,
 	SCM_ROOTFS_HASH_VERIFY,
 	SCM_CHECK_FEATURE_ID,
-	SCM_CLEAR_AES_KEY
+	SCM_CLEAR_AES_KEY,
+	SCM_ICE_CONFIGURE,
+	SCM_ICE_KEY_CONFIGURE
 };
 
 struct scm_param {
@@ -933,6 +994,31 @@ struct scm_param {
 	bool get_ret;
 	enum scm_type type;
 };
+
+#ifdef CONFIG_IPQ_INLINE_ENCRYPTION
+struct ice_config_sec {
+	uint32_t index;
+	uint8_t key_size;
+	uint8_t algo_mode;
+	uint8_t key_mode;
+};
+
+enum ice_cryto_algo_mode {
+	ICE_CRYPTO_ALGO_MODE_HW_AES_ECB = 0x0,
+	ICE_CRYPTO_ALGO_MODE_HW_AES_XTS = 0x3,
+};
+
+enum ice_crpto_key_size {
+	ICE_CRYPTO_KEY_SIZE_HW_128 = 0x0,
+	ICE_CRYPTO_KEY_SIZE_HW_256 = 0x2,
+};
+
+int qcom_ice_init_crashdump(void);
+#endif
+
+int hex_string_to_binary(const char *hex_str, uint8_t *binary_data,
+			 size_t binary_len);
+void generate_random_context(uint8_t *context, size_t context_len);
 
 int qca_scm_sdi(void);
 int qca_scm_dload(uintptr_t tcsr_addr, u32 magic_cookie);
