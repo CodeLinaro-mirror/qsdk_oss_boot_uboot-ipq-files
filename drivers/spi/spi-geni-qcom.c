@@ -981,7 +981,7 @@ static const struct dm_spi_ops qupv3_spi_ops = {
 
 static const struct udevice_id qupv3_spi_ids[] = {
 	{ .compatible = "qcom-ipq5424-geni-spi", },
-	{ .compatible = "qcom-ipq5200-geni-spi", },
+	{ .compatible = "qcom-ipq5210-geni-spi", },
 	{ }
 };
 

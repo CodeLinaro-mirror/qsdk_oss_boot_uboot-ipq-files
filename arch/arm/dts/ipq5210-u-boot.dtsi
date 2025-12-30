@@ -4,8 +4,8 @@
  */
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
-#include <asm/arch/dt-bindings/clock/qcom,ipq5200-gcc.h>
-#include <asm/arch/dt-bindings/reset/qcom,ipq5200-gcc.h>
+#include <asm/arch/dt-bindings/clock/qcom,ipq5210-gcc.h>
+#include <asm/arch/dt-bindings/reset/qcom,ipq5210-gcc.h>
 #include <dt-bindings/gpio/gpio.h>
 / {
 	#address-cells = <2>;
@@ -45,7 +45,7 @@
 		ranges = <0 0 0 0 0x10 0>;
 
 		tlmm: pinctrl@1000000 {
-			compatible = "qcom,ipq5200-tlmm";
+			compatible = "qcom,ipq5210-tlmm";
 			reg = <0 0x01000000 0 0x300000>;
 			gpio-controller;
 			#gpio-cells = <2>;
@@ -117,7 +117,7 @@
 		};
 
 		gcc: clock-controller@1800000 {
-			compatible = "qcom,ipq5200-gcc";
+			compatible = "qcom,ipq5210-gcc";
 			reg = <0 0x01800000 0 0x40000>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
@@ -146,7 +146,7 @@
 		};
 
 		sdhc: mmc@7804000 {
-			compatible = "qcom,ipq5200-sdhci", "qcom,sdhci-msm-v5";
+			compatible = "qcom,ipq5210-sdhci", "qcom,sdhci-msm-v5";
 			reg = <0 0x07804000 0 0x1000>, <0 0x07805000 0 0x1000>;
 			reg-names = "hc", "cqhci";
 
@@ -189,7 +189,7 @@
 		* to use usb 3.0 devices as usb 2.0 device
 		*/
 		usb3_1: usb3_1@8af8800 {
-			compatible = "qcom,ipq5200-dwc3", "qcom,dwc3";
+			compatible = "qcom,ipq5210-dwc3", "qcom,dwc3";
 			reg = <0x0 0x8af8800 0x0 0x100>;
 			#address-cells = <2>;
 			#size-cells = <2>;
@@ -254,7 +254,7 @@
 		};
 
 		pcie0_phy: phy@84000 {
-			compatible = "qcom,ipq5200-qmp-gen3x1-pcie-phy",
+			compatible = "qcom,ipq5210-qmp-gen3x1-pcie-phy",
 				     "qcom,ipq9574-qmp-gen3x1-pcie-phy";
 			reg = <0x0 0x00084000 0x0 0x1bc>; /* Serdes PLL */
 			#address-cells = <1>;
@@ -294,7 +294,7 @@
 		};
 
 		pcie1_phy: phy@f4000 {
-			compatible = "qcom,ipq5200-qmp-gen3x2-pcie-phy",
+			compatible = "qcom,ipq5210-qmp-gen3x2-pcie-phy",
 				     "qcom,ipq9574-qmp-gen3x2-pcie-phy";
 			reg = <0x0 0x000f4000 0x0 0x1bc>; /* Serdes PLL */
 			#address-cells = <1>;
@@ -337,7 +337,7 @@
 
 		/* 1L controller */
 		pcie0: pcie@70000000 {
-			compatible = "qcom,pcie-ipq5200";
+			compatible = "qcom,pcie-ipq5210";
 			reg =  <0x0 0x70000000 0x0 0xf1d>,
 			       <0x0 0x70000f20 0x0 0xa8>,
 			       <0x0 0x70001000 0x0 0x1000>,
@@ -404,7 +404,7 @@
 
 		/* 2L controller */
 		pcie1: pcie@50000000 {
-			compatible = "qcom,pcie-ipq5200";
+			compatible = "qcom,pcie-ipq5210";
 			reg =  <0x0 0x50000000 0x0 0xf1d>,
 			       <0x0 0x50000f20 0x0 0xa8>,
 			       <0x0 0x50001000 0x0 0x1000>,
@@ -577,13 +577,13 @@
 	};
 
 	uart1_fw: uart_firmware@0 {
-		compatible = "qcom,ipq5200-geni-uart-fw-v1", "qcom,geni-uart-fw-v1";
+		compatible = "qcom,ipq5210-geni-uart-fw-v1", "qcom,geni-uart-fw-v1";
 		reg = <0 0x01a84000 0 0x4000>;
 		status = "okay";
 	};
 
 	spi0: spi@1a80000 {
-		compatible = "qcom-ipq5200-geni-spi";
+		compatible = "qcom-ipq5210-geni-spi";
 		reg = <0 0x1a80000 0 0x4000>;
 		reg-names = "se_phys";
 		clocks = <&gcc GCC_QUPV3_SPI0_CLK>;
@@ -606,14 +606,14 @@
 	};
 
 	spi0_fw: spi_firmware@0 {
-		compatible = "qcom,ipq5200-geni-spi-fw-v1",
+		compatible = "qcom,ipq5210-geni-spi-fw-v1",
 			     "qcom,geni-spi-fw-v1";
 		reg = <0 0x1a80000 0 0x4000>;
 		reg-names = "se_phys";
 	};
 
 	i2c0: i2c@1a88000 {
-		compatible = "qcom,ipq5200-geni-i2c", "qcom,geni-i2c";
+		compatible = "qcom,ipq5210-geni-i2c", "qcom,geni-i2c";
 		reg = <0x0 0x1a88000 0x0 0x4000>;
 		reg-names = "se_phys";
 		assigned-clocks = <&gcc GCC_QUPV3_I2C0_CLK>;
@@ -625,14 +625,14 @@
 	};
 
 	i2c0_fw: i2c0_firmware@0 {
-		compatible = "qcom,ipq5200-geni-i2c-fw-v1",
+		compatible = "qcom,ipq5210-geni-i2c-fw-v1",
 			     "qcom,geni-i2c-fw-v1";
 		reg = <0x0 0x1a88000 0x0 0x4000>;
 		status = "okay";
 	};
 
 	i2c1: i2c@1a8c000 {
-		compatible = "qcom,ipq5200-geni-i2c", "qcom,geni-i2c";
+		compatible = "qcom,ipq5210-geni-i2c", "qcom,geni-i2c";
 		reg = <0x0 0x1a8c000 0x0 0x4000>;
 		reg-names = "se_phys";
 		assigned-clocks = <&gcc GCC_QUPV3_I2C1_CLK>;
@@ -644,7 +644,7 @@
 	};
 
 	i2c1_fw: i2c1_firmware@0 {
-		compatible = "qcom,ipq5200-geni-i2c-fw-v1",
+		compatible = "qcom,ipq5210-geni-i2c-fw-v1",
 			     "qcom,geni-i2c-fw-v1";
 		reg = <0x0 0x1a8c000 0x0 0x4000>;
 		status = "okay";

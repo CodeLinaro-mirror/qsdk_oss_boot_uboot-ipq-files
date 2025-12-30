@@ -1,1 +1,1 @@
-obj-y := ipq5200.o
+obj-y := ipq5210.o

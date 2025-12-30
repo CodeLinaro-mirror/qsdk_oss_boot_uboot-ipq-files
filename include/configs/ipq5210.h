@@ -3,8 +3,8 @@
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
-#ifndef _IPQ5200_H_
-#define _IPQ5200_H_
+#ifndef _IPQ5210_H_
+#define _IPQ5210_H_
 
 #ifndef __ASSEMBLY__
 #include <linux/types.h>
@@ -51,4 +51,4 @@ extern uint32_t g_env_offset;
 #define CFG_SYS_HZ_CLOCK			CONFIG_COUNTER_FREQUENCY
 #endif
 
-#endif /* _IPQ5200_H_ */
+#endif /* _IPQ5210_H_ */
