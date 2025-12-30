@@ -63,8 +63,10 @@ int fs_crashdump_encrypted_init(void)
 static void fs_crashdump_encrypted_set_file_data(bool is_file_data)
 {
 	/* Only act if encryption is enabled for this file */
-	if (!g_crypto_ctx.encryption_enabled || !g_crypto_ctx.initialized)
+	if (!g_crypto_ctx.encryption_enabled || !g_crypto_ctx.initialized) {
+		printf("ICE: Encryption not enabled\n");
 		return;
+	}
 
 	/* Transitioning from metadata to file data - ENABLE encryption */
 	if (is_file_data && !g_crypto_ctx.is_file_data) {
@@ -75,7 +77,7 @@ static void fs_crashdump_encrypted_set_file_data(bool is_file_data)
 
 	/* Transitioning from file data to metadata - DISABLE encryption */
 	if (!is_file_data && g_crypto_ctx.is_file_data) {
-		storage_crypto_config(0, false);
+		storage_crypto_config(g_crypto_ctx.current_dun, false);
 		debug("ICE: Disabled encryption for metadata write\n");
 	}
 
@@ -149,18 +151,14 @@ int fs_crashdump_write_encrypted(const char *filename, ulong addr, loff_t offset
 	if (encrypt) {
 		fs_crashdump_encrypted_set_file_data(false);
 
-		/* Update DUN for next file based on actual bytes written */
-		if (ret == 0 && actwrite && *actwrite > 0) {
-			u64 sectors_written = (*actwrite / 512) +
-					      ((*actwrite % 512) ? 1 : 0);
-			g_crypto_ctx.current_dun = g_crypto_ctx.file_start_dun + sectors_written;
-			debug("Completed encrypted write of %s (%llu bytes, DUN now=0x%llx)\n",
-			      filename, *actwrite, g_crypto_ctx.current_dun);
-		} else {
-			/* On error, ensure ICE is explicitly disabled */
-			storage_crypto_config(0, false);
+		if(ret != 0 && !actwrite && *actwrite < 0) {
 			log_err("Encrypted write failed for %s, ICE disabled\n", filename);
 		}
+		/* After write, ensure ICE is explicitly disabled and dun is
+		 * reset to 0
+		 * */
+		storage_crypto_config(0, false);
+		fs_crashdump_encrypted_reset_dun(0);
 	}
 
 	/* Always reset encryption state after write completes */
@@ -259,8 +257,8 @@ bool fs_crashdump_encrypted_is_file_data(void)
 void fs_crashdump_encrypted_notify_file_data(bool is_file_data, u64 sector_off)
 {
 	/* Update DUN based on sector_count when enabling encryption */
-	if (is_file_data && g_crypto_ctx.encryption_enabled) {
-		g_crypto_ctx.current_dun = sector_off / 512;
+	if (!is_file_data && g_crypto_ctx.encryption_enabled) {
+		g_crypto_ctx.current_dun += sector_off / 512;
 		debug("Updated DUN from sector_count: 0x%llx (sector_count=%llu)\n",
 		      g_crypto_ctx.current_dun, sector_off);
 	}
