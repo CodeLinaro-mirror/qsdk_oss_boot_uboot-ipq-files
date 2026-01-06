@@ -44,6 +44,13 @@ config TEXT_SIZE
 	help
 	  This option defines the size of the u-boot text in DDR region.
 
+config SPL_TEXT_SIZE
+	hex "Define Size of u-boot SPL text size in SRAM region"
+	default 0x4B000
+	depends on SPL
+	help
+	  This option defines the size of the u-boot SPL text in SRAM region.
+
 config ARCH_32BIT_SUPPORT
 	bool "IPQSOC 32-bit support"
 	select CPU_V7A
