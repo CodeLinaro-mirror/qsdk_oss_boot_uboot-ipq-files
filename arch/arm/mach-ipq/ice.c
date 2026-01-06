@@ -267,7 +267,6 @@ static int qcom_ice_config_crypto(void __iomem *cmdq_base, u64 dun, bool bypass,
 			   u8 key_index)
 {
 	u32 crypto_params = 0;
-	u32 ice_cap = 0;
 
 	if (!cmdq_base) {
 		printf("ICE: Invalid CMDQ base address for crypto config\n");
@@ -433,7 +432,6 @@ static bool qcom_ice_enable_clock(struct udevice *dev, struct clk *ice_clk)
 	ret = clk_set_rate(ice_clk, 300000000);
 	if (ret < 0) {
 		printf("ICE: Failed to set ICE clock rate: %d\n", ret);
-		clk_free(ice_clk);
 		return false;
 	}
 
@@ -444,7 +442,7 @@ static bool qcom_ice_enable_clock(struct udevice *dev, struct clk *ice_clk)
 		return false;
 	}
 
-	debug("ICE: ICE clock (ID: %d) enabled at 300 MHz\n", ice_clk->id);
+	debug("ICE: ICE clock (ID: %ld) enabled at 300 MHz\n", ice_clk->id);
 	return true;
 }
 
