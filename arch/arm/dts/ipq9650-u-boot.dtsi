@@ -4,8 +4,8 @@
  */
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
-#include <asm/arch/dt-bindings/clock/qcom,ipq9670-gcc.h>
-#include <asm/arch/dt-bindings/reset/qcom,ipq9670-gcc.h>
+#include <asm/arch/dt-bindings/clock/qcom,ipq9650-gcc.h>
+#include <asm/arch/dt-bindings/reset/qcom,ipq9650-gcc.h>
 / {
 	#address-cells = <2>;
 	#size-cells = <2>;
@@ -58,7 +58,7 @@
 		ranges = <0 0 0 0 0x10 0>;
 
 		tlmm: pinctrl@1000000 {
-			compatible = "qcom,ipq9670-tlmm";
+			compatible = "qcom,ipq9650-tlmm";
 			reg = <0 0x01000000 0 0x300000>;
 			gpio-controller;
 			#gpio-cells = <2>;
@@ -109,7 +109,7 @@
 		};
 
 		gcc: clock-controller@1800000 {
-			compatible = "qcom,ipq9670-gcc";
+			compatible = "qcom,ipq9650-gcc";
 			reg = <0 0x01800000 0 0x40000>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
@@ -138,7 +138,7 @@
 		};
 
 		sdhc: mmc@7804000 {
-			compatible = "qcom,ipq9670-sdhci", "qcom,sdhci-msm-v5";
+			compatible = "qcom,ipq9650-sdhci", "qcom,sdhci-msm-v5";
 			reg = <0 0x07804000 0 0x1000>, <0 0x07805000 0 0x1000>;
 			reg-names = "hc", "cqhci";
 
@@ -286,13 +286,13 @@
 	};
 
 	uart1_fw: uart_firmware@0 {
-		compatible = "qcom,ipq9670-geni-uart-fw-v1", "qcom,geni-uart-fw-v1";
+		compatible = "qcom,ipq9650-geni-uart-fw-v1", "qcom,geni-uart-fw-v1";
 		reg = <0 0x01a84000 0 0x4000>;
 		status = "okay";
 	};
 
 	spi0: spi@1a80000 {
-		compatible = "qcom-ipq9670-geni-spi","qcom-ipq5424-geni-spi";
+		compatible = "qcom-ipq9650-geni-spi","qcom-ipq5424-geni-spi";
 		reg = <0 0x1a80000 0 0x4000>;
 		reg-names = "se_phys";
 		clocks = <&gcc GCC_QUPV3_SPI0_CLK>;
@@ -316,7 +316,7 @@
 	};
 
 	spi0_fw: spi_firmware@0 {
-		compatible = "qcom,ipq9670-geni-spi-fw-v1", "qcom,geni-spi-fw-v1";
+		compatible = "qcom,ipq9650-geni-spi-fw-v1", "qcom,geni-spi-fw-v1";
 		reg = <0 0x1a80000 0 0x4000>;
 		reg-names = "se_phys";
 		status = "okay";
@@ -337,7 +337,7 @@
 	};
 
 	i2c2_fw: i2c2_firmware@0 {
-		compatible = "qcom,ipq9670-geni-i2c-fw-v1", "qcom,geni-i2c-fw-v1";
+		compatible = "qcom,ipq9650-geni-i2c-fw-v1", "qcom,geni-i2c-fw-v1";
 		reg = <0x0 0x1a88000 0x0 0x4000>;
 		status = "disabled";
 	};
@@ -357,7 +357,7 @@
 	};
 
 	i2c3_fw: i2c3_firmware@0 {
-		compatible = "qcom,ipq9670-geni-i2c-fw-v1", "qcom,geni-i2c-fw-v1";
+		compatible = "qcom,ipq9650-geni-i2c-fw-v1", "qcom,geni-i2c-fw-v1";
 		reg = <0x0 0x1a8c000 0x0 0x4000>;
 		status = "disabled";
 	};

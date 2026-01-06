@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0+
 /*
- * Qualcomm IPQ9670 pinctrl
+ * Qualcomm IPQ9650 pinctrl
  *
  * Copyright (c) 2019 Sartura Ltd.
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
@@ -15,7 +15,7 @@
 #define MAX_PIN_NAME_LEN 32
 static char pin_name[MAX_PIN_NAME_LEN] __section(".data");
 
-enum ipq9670_functions {
+enum ipq9650_functions {
 	msm_mux_gpio,
 	msm_mux_uart1,
 	msm_mux_sdc_clk,
@@ -60,7 +60,7 @@ typedef unsigned int msm_pin_function[10];
 			msm_mux_##f9,			\
 	}
 
-static const msm_pin_function ipq9670_pin_functions[] = {
+static const msm_pin_function ipq9650_pin_functions[] = {
 	PINGROUP(0, sdc_data, qspi_data, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(1, sdc_data, qspi_data, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(2, sdc_data, qspi_data, NA, NA, NA, NA, NA, NA, NA),
@@ -72,24 +72,24 @@ static const msm_pin_function ipq9670_pin_functions[] = {
 	PINGROUP(39, uart1, NA, NA, NA, NA, NA, NA, NA, NA),
 };
 
-static const char *ipq9670_get_function_name(struct udevice *dev,
+static const char *ipq9650_get_function_name(struct udevice *dev,
 					     unsigned int selector)
 {
 	return msm_pinctrl_functions[selector].name;
 }
 
-static const char *ipq9670_get_pin_name(struct udevice *dev,
+static const char *ipq9650_get_pin_name(struct udevice *dev,
 					unsigned int selector)
 {
 	snprintf(pin_name, MAX_PIN_NAME_LEN, "gpio%u", selector);
 	return pin_name;
 }
 
-static unsigned int ipq9670_get_function_mux(unsigned int pin,
+static unsigned int ipq9650_get_function_mux(unsigned int pin,
 					     unsigned int selector)
 {
 	unsigned int i;
-	const msm_pin_function *func = ipq9670_pin_functions + pin;
+	const msm_pin_function *func = ipq9650_pin_functions + pin;
 
 	for (i = 0; i < 10; i++)
 		if ((*func)[i] == selector)
@@ -99,24 +99,24 @@ static unsigned int ipq9670_get_function_mux(unsigned int pin,
 	return -EINVAL;
 }
 
-static const struct msm_pinctrl_data ipq9670_data = {
+static const struct msm_pinctrl_data ipq9650_data = {
 	.pin_data = {
 		.pin_count = 53,
 		.special_pins_start = 53, /* There are no special pins */
 	},
 	.functions_count = ARRAY_SIZE(msm_pinctrl_functions),
-	.get_function_name = ipq9670_get_function_name,
-	.get_function_mux = ipq9670_get_function_mux,
-	.get_pin_name = ipq9670_get_pin_name,
+	.get_function_name = ipq9650_get_function_name,
+	.get_function_mux = ipq9650_get_function_mux,
+	.get_pin_name = ipq9650_get_pin_name,
 };
 
 static const struct udevice_id msm_pinctrl_ids[] = {
-	{ .compatible = "qcom,ipq9670-tlmm", .data = (ulong)&ipq9670_data },
+	{ .compatible = "qcom,ipq9650-tlmm", .data = (ulong)&ipq9650_data },
 	{ /* Sentinal */ }
 };
 
-U_BOOT_DRIVER(pinctrl_ipq9670) = {
-	.name		= "pinctrl_ipq9670",
+U_BOOT_DRIVER(pinctrl_ipq9650) = {
+	.name		= "pinctrl_ipq9650",
 	.id		= UCLASS_NOP,
 	.of_match	= msm_pinctrl_ids,
 	.ops		= &msm_pinctrl_ops,

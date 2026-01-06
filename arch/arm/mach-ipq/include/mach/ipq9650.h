@@ -3,8 +3,8 @@
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
-#ifndef __IPQ9670_H__
-#define __IPQ9670_H__
+#ifndef __IPQ9650_H__
+#define __IPQ9650_H__
 
 #define TCSR_BOOT_MISC_REG			((u32 *)0x195C100)
 
