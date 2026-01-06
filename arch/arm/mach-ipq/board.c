@@ -33,7 +33,7 @@ DECLARE_GLOBAL_DATA_PTR;
 #ifndef BOOT_PARAMS_ADDR
 #define BOOT_PARAMS_ADDR			(KERNEL_START_ADDR + 0x100)
 #endif
-uint32_t g_board_machid;
+uint32_t g_board_machid __section(".data");
 struct ipq_board_info *ipq_bdinfo;
 uint32_t g_recovery_path __section(".data");
 #if defined(CONFIG_ENV_IS_IN_SPI_FLASH)
