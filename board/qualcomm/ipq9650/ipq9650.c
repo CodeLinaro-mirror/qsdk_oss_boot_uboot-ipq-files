@@ -17,6 +17,94 @@
 /* MACH IDs for various RDPs */
 #define MACH_TYPE_IPQ9650_EMULATION		0xF060000
 
+static struct crashdump_infos dumpinfo_n[] = {
+	{
+		/* DDR Bank 0 */
+		.name = "EBICS.BIN",
+		.start_addr = CFG_SYS_SDRAM_BASE,
+		.size = 0xBAD0FF5E,
+		.dump_level = FULLDUMP,
+		.split_bin_sz = SZ_1G,
+		.is_aligned_access = false,
+		.compression_support = true
+	},
+	{
+		/* DDR Bank 1 */
+		.name = "EBICS.BIN",
+		.start_addr = 0xBAD0FF5E,
+		.size = 0xBAD0FF5E,
+		.dump_level = FULLDUMP,
+		.split_bin_sz = SZ_1G,
+		.is_aligned_access = false,
+		.compression_support = true
+	},
+	{
+		.name = "IMEM.BIN",
+		.start_addr = 0x08600000,
+		.size = 0x00020000,
+		.dump_level = FULLDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false
+	},
+	{
+		.name = "CPU_INFO.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = true
+	},
+	{
+		.name = "UNAME.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = true
+	},
+	{
+		.name = "DMESG.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = false
+	},
+	{
+		.name = "PT.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = false
+	},
+	{
+		.name = "WLAN_MOD.BIN",
+		.start_addr = 0x0,
+		.size = 0xBAD0FF5E,
+		.dump_level = MINIDUMP,
+		.split_bin_sz = 0,
+		.is_aligned_access = false,
+		.compression_support = false,
+		.dumptoflash_support = false
+	},
+};
+
+static uint8_t dump_entries_n = ARRAY_SIZE(dumpinfo_n);
+
+struct crashdump_infos *board_dumpinfo = dumpinfo_n;
+
+uint8_t *board_dump_entries = &dump_entries_n;
+
 struct dts_fixup ipq9650_mmc_fixup [] = {
 	{ "/soc@0/nand@79b0000/", {"/soc@0/nand@79b0000/%status%?disabled"},1},
 	{ "/soc@0/mmc@7804000/", {"/soc@0/mmc@7804000/%status%?okay"}, 1},
