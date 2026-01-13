@@ -46,6 +46,10 @@
 #include <smem.h>
 #include <atf_common.h>
 #include <linux/err.h>
+#ifdef CONFIG_ARM64
+#include <asm/armv8/mmu.h>
+#endif
+#include <asm/cache.h>
 
 /*******************************************************************************
  * Globals constant & typedef
@@ -839,6 +843,16 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 			ctx->fit = (void *)fit;
 			img_tbl_fit[uc_index].fit_node = node;
 
+#if !(CONFIG_IS_ENABLED(SYS_ICACHE_OFF) && CONFIG_IS_ENABLED(SYS_DCACHE_OFF))
+			/*
+			 * Ensure that the metadata is written to the actual
+			 * memory location before we process it.
+			 */
+			if ((*p_size > 0) && *p_image)
+				flush_cache((unsigned long)(*p_image),
+						(unsigned long)(*p_size));
+#endif
+
 			/*
 			 * Do the image fixups if available
 			 */
@@ -1041,6 +1055,16 @@ void board_init_f(ulong dummy)
 
 	ipq_spl_list_fuse(fuse_info_array,
 				ARRAY_SIZE(fuse_info_array));
+
+#if !(CONFIG_IS_ENABLED(SYS_ICACHE_OFF) && CONFIG_IS_ENABLED(SYS_DCACHE_OFF))
+	ret = arm_reserve_mmu();
+	if (ret) {
+		pr_debug("Failed to reserve space for MMU (ret=%d)\n", ret);
+		goto fail;
+	}
+
+	enable_caches();
+#endif
 
 	ret = ipq_spl_loader_pre_ddr(spl_boot_device());
 	if (ret) {
