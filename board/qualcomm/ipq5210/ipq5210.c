@@ -59,7 +59,7 @@ struct machid_dts_map machid_dts[] = {
 		MACH_TYPE_IPQ5210_EMULATION,
 		"ipq5210-emulation-fbc",
 		"emulation-fbc",
-		NULL
+		"1",
 	},
 };
 
