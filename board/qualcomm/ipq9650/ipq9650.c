@@ -11,6 +11,7 @@
 #include <config.h>
 #include <mtd_node.h>
 #include <jffs2/load_kernel.h>
+#include <linux/delay.h>
 
 #define IM_SLEEP_CLK				0x1834020
 /* MACH IDs for various RDPs */
