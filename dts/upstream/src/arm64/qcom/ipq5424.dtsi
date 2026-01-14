@@ -208,8 +208,11 @@
 
 		sdhc: mmc@7804000 {
 			compatible = "qcom,ipq5424-sdhci", "qcom,sdhci-msm-v5";
-			reg = <0 0x07804000 0 0x1000>, <0 0x07805000 0 0x1000>,
-			      <0 0x07808000 0 0x2000>;
+			#address-cells = <2>;
+			#size-cells = <2>;
+			reg = <0 0x07804000 0 0x1000>,
+				<0 0x07805000 0 0x1000>,
+				<0 0x07808000 0 0x2000>;
 			reg-names = "hc", "cqhci", "ice";
 
 			interrupts = <GIC_SPI 116 IRQ_TYPE_LEVEL_HIGH>,
