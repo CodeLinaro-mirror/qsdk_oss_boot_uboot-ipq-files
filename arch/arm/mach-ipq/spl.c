@@ -88,6 +88,16 @@ enum {
 };
 
 /**
+ * struct ipq_spl_fuse_info - Fuse information structure
+ * @fuse_name:	Name of the fuse.
+ * @fuse_addr:	Address of the fuse register.
+ */
+struct ipq_spl_fuse_info {
+	char fuse_name[24];
+	u32 fuse_addr;
+};
+
+/**
  * struct interface_table_entry - Meta data for blobs in QCLIB interface
  * @entry_name:	Name of the data blob (e.g., "dcb_settings").
  * @address:	Address of the data blob.
@@ -195,6 +205,25 @@ static int ipq_spl_qclib_fixup(void *ctx);
 static int ipq_spl_tfa_fixup(void *ctx);
 static int ipq_spl_optee_fixup(void *ctx);
 static int ipq_spl_uboot_fixup(void *ctx);
+
+/**
+ * fuse_info_array - Array of fuse information.
+ *
+ * This array contains the names and addresses of various fuses used in the
+ * system. These fuses are typically used for configuration.
+ */
+static struct ipq_spl_fuse_info fuse_info_array[] = {
+	{"Boot Config", IPQ_SPL_FUSE_BOOT_CFG_ADDR},
+	{"JTAG ID", IPQ_SPL_FUSE_JTAG_ID_ADDR},
+	{"OEM ID", IPQ_SPL_FUSE_OEM_ID_ADDR},
+	{"TME-L LCS", IPQ_SPL_FUSE_TME_L_LCS_ADDR},
+	{"Serial Number", IPQ_SPL_FUSE_SERIAL_NUM_ADDR},
+	{"Product Id", IPQ_SPL_FUSE_PRODUCT_ID_ADDR},
+	{"Reset Debug", IPQ_SPL_GCC_RESET_DEBUG_ADDR},
+	{"Reset Status", IPQ_SPL_GCC_RESET_STATUS_ADDR},
+	{"FSM Status", IPQ_SPL_GCC_FSM_STATUS_ADDR},
+	{"GPR0", IPQ_SPL_DDR_GPR0_ADDR},
+};
 
 /**
  * img_tbl_fit - Image loader table for FIT images.
@@ -306,6 +335,38 @@ void ipq_spl_malloc_init_f(void)
 	gd->flags |= GD_FLG_FULL_MALLOC_INIT;
 }
 #endif
+
+/**
+ * ipq_spl_list_fuse() - List all fuses.
+ * @fuse_arr:	Pointer to the fuse array.
+ * @fuse_cnt:	Number of fuses.
+ *
+ * This function lists all fuses.
+ * Return: 0 on success, or a negative error code on failure.
+ */
+int ipq_spl_list_fuse(struct ipq_spl_fuse_info *fuse_arr, size_t fuse_cnt)
+{
+	size_t index;
+
+	if (!fuse_arr) {
+		pr_err("Invalid fuse array pointer\n");
+		return -EINVAL;
+	}
+
+	for (index = 0; index < fuse_cnt ; index++) {
+		if (fuse_arr[index].fuse_addr == 0) {
+			pr_warn("invalid fuse address at index %zu\n", index);
+			continue;
+		}
+
+		printf("%-24s @ 0x%08X = 0x%08X\n",
+			fuse_arr[index].fuse_name,
+			fuse_arr[index].fuse_addr,
+			readl((uintptr_t)fuse_arr[index].fuse_addr));
+	}
+
+	return 0;
+}
 
 /**
  * ipq_spl_get_fit_img_entry_point() - Get entry point from FIT image node.
@@ -977,6 +1038,9 @@ void board_init_f(ulong dummy)
 	}
 
 	preloader_console_init();
+
+	ipq_spl_list_fuse(fuse_info_array,
+				ARRAY_SIZE(fuse_info_array));
 
 	ret = ipq_spl_loader_pre_ddr(spl_boot_device());
 	if (ret) {
