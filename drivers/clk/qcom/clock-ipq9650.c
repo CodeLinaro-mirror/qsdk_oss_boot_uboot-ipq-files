@@ -25,6 +25,14 @@
 #define GCC_QUPV3_WRAP_SE3_CMD_RCGR		0x03050
 #define GCC_QPIC_CMD_RCGR			(0x32020)
 #define GCC_QPIC_IO_MACRO_CMD_RCGR		(0x32004)
+#define GCC_USB0_MASTER_CMD_RCGR		(0x2C004)
+#define GCC_USB0_MOCK_UTMI_DIV_CDIVR		(0x2C040)
+#define GCC_USB0_MOCK_UTMI_CMD_RCGR		(0x2C02C)
+#define GCC_USB0_AUX_CMD_RCGR			(0x2C018)
+#define GCC_USB1_MOCK_UTMI_DIV_CDIVR		(0x3C018)
+#define GCC_USB1_MOCK_UTMI_CMD_RCGR		(0x3C004)
+
+#define CFG_CLK_SRC_GPLL4_OUT_AUX		(1 << 8)
 
 #define IO_MACRO_CLK_400_MHZ				(400000000)
 #define IO_MACRO_CLK_320_MHZ				(320000000)
@@ -106,6 +114,28 @@ static ulong ipq9650_set_rate(struct clk *clk, ulong rate)
 		clk_rcg_set_rate_v2(priv->base, GCC_QPIC_IO_MACRO_CMD_RCGR,
 				    0, div, 0, src);
 		break;
+	case GCC_USB0_MASTER_CLK:
+		/* Default: 200MHz */
+		clk_rcg_set_rate_mnd(priv->base, GCC_USB0_MASTER_CMD_RCGR, 7,
+					0, 0, CFG_CLK_SRC_GPLL0, 8);
+		break;
+	case GCC_USB0_MOCK_UTMI_CLK:
+		/* Default: 60MHz */
+		writel(1, priv->base + GCC_USB0_MOCK_UTMI_DIV_CDIVR);
+		clk_rcg_set_rate_mnd(priv->base, GCC_USB0_MOCK_UTMI_CMD_RCGR,
+					19, 0, 0, CFG_CLK_SRC_GPLL4_OUT_AUX, 16);
+		break;
+	case GCC_USB0_AUX_CLK:
+		/* Default: 24MHz */
+		clk_rcg_set_rate_mnd(priv->base, GCC_USB0_AUX_CMD_RCGR, 1,
+					0, 0, CFG_CLK_SRC_CXO, 8);
+		break;
+	case GCC_USB1_MOCK_UTMI_CLK:
+		/* Default: 60MHz */
+		writel(1, priv->base + GCC_USB1_MOCK_UTMI_DIV_CDIVR);
+		clk_rcg_set_rate_mnd(priv->base, GCC_USB1_MOCK_UTMI_CMD_RCGR,
+					19, 0, 0, CFG_CLK_SRC_GPLL4_OUT_AUX, 8);
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -123,6 +153,17 @@ static const struct gate_clk ipq9650_clks[] = {
 	GATE_CLK(GCC_QPIC_CLK,			0x32028, 0x00000001),
 	GATE_CLK(GCC_QPIC_AHB_CLK,		0x32010, 0x00000001),
 	GATE_CLK(GCC_QPIC_IO_MACRO_CLK,		0x3200C, 0x00000001),
+	GATE_CLK(GCC_USB0_PIPE_CLK,		0x2C054,  0x00000001),
+	GATE_CLK(GCC_USB0_PHY_CFG_AHB_CLK,	0x2C05C,  0x00000001),
+	GATE_CLK(GCC_USB1_PHY_CFG_AHB_CLK,	0x3C01C,  0x00000001),
+	GATE_CLK(GCC_USB0_MASTER_CLK,		0x2C044,  0x00000001),
+	GATE_CLK(GCC_USB0_MOCK_UTMI_CLK,	0x2C050,  0x00000001),
+	GATE_CLK(GCC_USB0_AUX_CLK,		0x2C04C,  0x00000001),
+	GATE_CLK(GCC_USB0_SLEEP_CLK,		0x2C058,  0x00000001),
+	GATE_CLK(GCC_USB1_MOCK_UTMI_CLK,	0x3C024,  0x00000001),
+	GATE_CLK(GCC_USB1_MASTER_CLK,		0x3C028,  0x00000001),
+	GATE_CLK(GCC_USB1_SLEEP_CLK,		0x3C020,  0x00000001),
+	GATE_CLK(GCC_SNOC_USB_CLK,		0x2E0C4,  0x00000001),
 };
 
 static int ipq9650_enable(struct clk *clk)
@@ -143,6 +184,12 @@ static int ipq9650_enable(struct clk *clk)
 
 static const struct qcom_reset_map ipq9650_gcc_resets[] = {
 	[GCC_SDCC_BCR] = {0x33000, 0},
+	[GCC_USB0_PHY_BCR]		= {0x2C06C, 0},
+	[GCC_USB3PHY_0_PHY_BCR]		= {0x2C070, 0},
+	[GCC_QUSB2_0_PHY_BCR]		= {0x2C068, 0},
+	[GCC_QUSB2_1_PHY_BCR]		= {0x3C030, 0},
+	[GCC_USB_BCR]			= {0x2C000, 0},
+	[GCC_USB1_BCR]			= {0x3C000, 0},
 };
 
 static struct msm_clk_data ipq9650_gcc_data = {

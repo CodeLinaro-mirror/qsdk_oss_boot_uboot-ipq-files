@@ -10,6 +10,26 @@
 / {
 	model = "Qualcomm Technologies, Inc. IPQ9650-EMULATION";
 	compatible = "qcom,ipq9650-emulation", "qcom,ipq9650";
+	soc@0 {
+
+		usb3_0: usb3_0@8af8800 {
+			status = "okay";
+			dwc3@8a00000 {
+				phys = <>;
+				phy-names = "";
+                        };
+
+		};
+
+		usb2_0: usb2_0@1ef8800 {
+			status = "okay";
+			dwc3@1e00000 {
+				phys = <>;
+				phy-names = "";
+                        };
+
+		};
+	};
 };
 
 &tmel_qmp {
