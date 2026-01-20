@@ -64,7 +64,7 @@ static void fs_crashdump_encrypted_set_file_data(bool is_file_data)
 {
 	/* Only act if encryption is enabled for this file */
 	if (!g_crypto_ctx.encryption_enabled || !g_crypto_ctx.initialized) {
-		printf("ICE: Encryption not enabled\n");
+		debug("ICE: Encryption not enabled\n");
 		return;
 	}
 
