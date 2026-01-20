@@ -21,6 +21,8 @@
 #include <dm.h>
 #include <clk.h>
 #include <watchdog.h>
+#include <linux/delay.h>
+#include <reset.h>
 
 #include "qcom_nand.h"
 
@@ -4003,6 +4005,7 @@ static int qti_nand_probe(struct udevice *device)
 	uint8_t  write_pipe_grp;
 	uint8_t  cmd_pipe_grp;
 	uint8_t status_pipe_grp;
+	struct reset_ctl reset_info;
 #ifdef CONFIG_QSPI_LAYOUT_SWITCH
 	char *env_layout = env_get("nand_layout");
 #endif
@@ -4092,6 +4095,15 @@ static int qti_nand_probe(struct udevice *device)
 					DATA_CONSUMER_PIPE_GRP);
 
 	nandc->do_serial_training = dev_read_bool(device, "serial_training");
+
+	ret = reset_get_by_name(device, "bcr_rst", &reset_info);
+	if (!ret) {
+		reset_assert(&reset_info);
+		mdelay(10);
+
+		reset_deassert(&reset_info);
+		mdelay(10);
+	}
 
 	ret = clk_get_by_name(device, "qpic-io-macro-clk", &nandc->clk);
 	if (ret)
@@ -4385,3 +4397,39 @@ int qti_nand_deinit(struct udevice *device)
 	return ret;
 }
 
+#ifdef CONFIG_SPL
+int nand_spl_load_image(uint32_t offs, unsigned int size, void *dst)
+{
+	int ret;
+	struct mtd_info *mtd = get_nand_dev_by_index(0);
+	size_t length = size;
+
+	if (!mtd) {
+		printf("No NAND flash device found\n");
+		ret = -ENODEV;
+	} else {
+		ret = nand_read(mtd, offs, &length, (u_char *)dst);
+	}
+	return ret;
+}
+
+void nand_deselect(void)
+{
+#ifndef CONFIG_SPL
+	struct udevice *dev;
+	int ret;
+
+	ret = uclass_get_device_by_driver(UCLASS_MTD,
+			DM_DRIVER_GET(qti_nand), &dev);
+	if (!ret && dev) {
+		ret = device_remove(dev, DM_REMOVE_NORMAL);
+		if (ret)
+			pr_warn("Cannot remove dma device '%s'\n",
+					dev->name);
+	} else
+		pr_warn("DMA Device not found\n");
+
+#endif /*CONFIG_SPL*/
+}
+
+#endif

@@ -32,5 +32,6 @@
 #define GCC_PCIE1_AXI_S_STICKY_RESET		22
 #define GCC_PCIE1_AHB_ARES			23
 #define GCC_PCIE1_AUX_ARES			24
+#define GCC_QPIC_BCR				57
 
 #endif

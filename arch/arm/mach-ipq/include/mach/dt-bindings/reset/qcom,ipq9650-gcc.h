@@ -69,5 +69,13 @@
 #define GCC_PCIE2_AXI_S_STICKY_RESET		54
 #define GCC_PCIE2_AHB_ARES			55
 #define GCC_PCIE2_AUX_ARES			56
+#define GCC_SDCC_BCR			0
+#define GCC_USB0_PHY_BCR		1
+#define GCC_USB3PHY_0_PHY_BCR		2
+#define GCC_QUSB2_0_PHY_BCR		3
+#define GCC_QUSB2_1_PHY_BCR		4
+#define GCC_USB_BCR			5
+#define GCC_USB1_BCR			6
+#define GCC_QPIC_BCR			57
 
 #endif

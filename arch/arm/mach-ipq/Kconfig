@@ -142,7 +142,28 @@ config IPQ_NAND
 	  This option is required to use NAND flash devices connected via the
 	  QPIC interface on supported platforms.
 
+config SPL_SYS_NAND_SELF_INIT
+		bool "use self init nand"
+		depends on !SPL_NAND_SIMPLE
+		depends on SPL
+		help
+		  This option, if enabled, provides more flexible and linux-like
+		  NAND initialization process, in SPL.
 
+config SPL_NAND_INIT
+		bool "use nand init from nand.c"
+		depends on SPL
+		help
+		  This option, if enabled, uses the standard nand_init function from
+		  nand.c in SPL. This provides a consistent NAND initialization process
+		  between SPL and the main U-Boot, ensuring proper NAND device setup.
+
+config SPL_NAND_QTI
+		bool "support SPL QTI NAND controller"
+		depends on SPL
+		select SPL_SYS_NAND_SELF_INIT
+		help
+		  Enable this driver for NAND flash in ipq platform
 
 config IPQ_SPI_NOR
 	bool "Enable SPI NOR flash support in IPQ SOC"

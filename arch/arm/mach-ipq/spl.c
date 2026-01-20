@@ -52,6 +52,9 @@
 #include <asm/cache.h>
 #include <mailbox.h>
 #include <linux/tmelcom-qmp.h>
+#include <linux/mtd/mtd.h>
+#include <nand.h>
+#include <u-boot/crc.h>
 
 /*******************************************************************************
  * Globals constant & typedef
@@ -137,6 +140,227 @@ struct interface_table {
 	u32 reserved1;
 	u32 reserved2;
 	struct interface_table_entry if_table_entries[MAX_ENTRIES];
+};
+
+/* MIBIB and partition table definitions */
+#define MIBIB_MAGIC1			0xFE569FAC
+#define MIBIB_MAGIC2			0xCD7F127A
+#define MIBIB_VERSION			4
+#define MIBIB_BLOCK_SEARCH_MAX		0x40
+#define MIBIB_PAGE_PARTITION_TABLE	1
+#define MIBIB_PAGE_LAST_PAGE		4
+#define MIBIB_PAGE_CRC			3
+
+#define FLASH_PART_MAGIC1		0x55EE73AA
+#define FLASH_PART_MAGIC2		0xE35EBDDB
+#define FLASH_PARTITION_VERSION		4
+
+#define FLASH_USR_PART_MAGIC1		0xAA7D1B9A
+#define FLASH_USR_PART_MAGIC2		0x1F7D48BC
+
+#define FLASH_MIBIB_CRC_MAGIC1		0x9D41BEA1
+#define FLASH_MIBIB_CRC_MAGIC2		0xF1DED2EA
+#define FLASH_MIBIB_CRC_VERSION		1
+
+/* Global variables to store MIBIB partition table and bootloader offset */
+static struct flash_partition_table *g_mibib_parti_ptr;
+static int g_bootldr_offset;
+
+/**
+ * struct mi_boot_info - MIBIB header structure
+ * @magic1:	First magic number for validation
+ * @magic2:	Second magic number for validation
+ * @version:	MIBIB version
+ * @age:	Age counter for determining the newest MIBIB
+ * @numparts:	Number of partitions
+ * @reserved1:	Reserved for future use
+ * @reserved2:	Reserved for future use
+ * @reserved3:	Reserved for future use
+ */
+struct mi_boot_info {
+	u32 magic1;
+	u32 magic2;
+	u32 version;
+	u32 age;
+	u32 numparts;
+	u32 reserved1;
+	u32 reserved2;
+	u32 reserved3;
+};
+
+/**
+ * struct flash_partition_entry - System partition table entry definition
+ * @name:        Name of the partition in the form of 0:ALL, 0:EFS2, etc.
+ * @offset:      Offset in blocks from beginning of device
+ * @length:      Length in blocks of the partition
+ * @attrib1:     Partition attribute 1 (e.g., read-only, SLC/MLC mode)
+ * @attrib2:     Partition attribute 2 (e.g., ECC configuration)
+ * @attrib3:     Partition attribute 3 (e.g., upgrade mechanism)
+ * @which_flash: Numeric ID of flash part (first = 0, second = 1)
+ *
+ * This structure defines a single partition entry in the system partition table.
+ * Each entry contains information about the partition's location, size, and
+ * various attributes that control how the partition is accessed and managed.
+ */
+struct flash_partition_entry {
+	/* Name of the partition in the form of 0:ALL, 0:EFS2, etc. */
+	char name[16];
+
+	/* Offset in blocks from beginning of device */
+	u32 offset;
+
+	/* length in blocks of the partition */
+	u32 length;
+
+	/* Partition attributes */
+	u8 attrib1;
+	u8 attrib2;
+	u8 attrib3;
+
+	/* Numeric ID of flash part (first = 0, second = 1) */
+	u8 which_flash;
+};
+
+/**
+ * Maximum number of partitions supported in the partition table
+ * Plus one extra entry for the "all" partition that represents the entire device
+ */
+#define FLASH_NUM_PART_ENTRIES  32
+#define FLASH_PART_ENTRY_TOTAL (FLASH_NUM_PART_ENTRIES + 1)
+
+/**
+ * struct flash_partition_table - System partition table definition
+ * @magic1:    First magic number for validation (0x55EE73AA)
+ * @magic2:    Second magic number for validation (0xE35EBDDB)
+ * @version:   Partition table version (currently 4)
+ * @numparts:  Number of valid partition entries in the table
+ * @part_entry: Array of partition entries
+ *
+ * This structure defines the system partition table that is stored in flash.
+ * It contains a header with magic numbers and version information, followed
+ * by an array of partition entries that define the layout of the flash device.
+ *
+ * WARNING: The placement of the first three elements (magic1, magic2, version)
+ * must not be changed to ensure backward compatibility.
+ */
+struct flash_partition_table {
+	/* Partition table magic numbers and version number.
+	 *   WARNING!!!!
+	 *   No matter how you change the structure, do not change
+	 *   the placement of the first three elements so that future
+	 *   compatibility will always be guaranteed at least for
+	 *   the identifiers.
+	 */
+	u32 magic1;
+	u32 magic2;
+	u32 version;
+
+	/* Partition table data.  This portion of the structure may be changed
+	 * as necessary to accommodate new features.  Be sure to increment
+	 * version number if you change it.
+	 */
+	u32 numparts;   /* number of partition entries */
+	struct flash_partition_entry part_entry[FLASH_PART_ENTRY_TOTAL];
+};
+
+/**
+ * struct flash_usr_partition_entry - User partition table entry definition
+ * @name:          Name of the partition in the form of 0:ALL, 0:EFS2, etc.
+ * @img_size:      Size in KB for the partition
+ * @padding:       Padding in KB for static handling of NAND bad blocks
+ * @which_flash:   Numeric ID of flash part (first = 0, second = 1)
+ * @reserved_flag1: Attribute 1 for this partition (copied to attrib1)
+ * @reserved_flag2: Attribute 2 for this partition (copied to attrib2)
+ * @reserved_flag3: Attribute 3 for this partition (copied to attrib3)
+ * @reserved_flag4: Layout based flags
+ *
+ * This structure defines a single entry in the user partition table.
+ * The user partition table is used during initial flash programming to
+ * create the system partition table. It contains information about the
+ * desired size and attributes of each partition.
+ */
+struct flash_usr_partition_entry {
+	/* Name of the partition in the form of 0:ALL, 0:EFS2, etc. */
+	char name[16];
+
+	/* Size in KB for the partition */
+	u32 img_size;
+
+	/* Padding in KB for static handling of NAND bad blocks in this partition */
+	/* This field can also be used to define minimum size requirement for a
+	 * parition defined in terms of number of sectors/blocks.
+	 * Please note that this is possible because there never are bad blocks on a
+	 * a NOR device
+	 */
+	u16 padding;
+
+	/* Numeric ID of flash part (first = 0, second = 1) */
+	u16 which_flash;
+
+	/* Attributes for this partition - This get copied to the attribx flags in
+	 * system partition table
+	 */
+	u8 reserved_flag1;
+	u8 reserved_flag2;
+	u8 reserved_flag3;
+
+	u8 reserved_flag4;  /* layout based flags */
+};
+
+/**
+ * struct flash_usr_partition_table - User partition table definition
+ * @magic1:    First magic number for validation (0xAA7D1B9A)
+ * @magic2:    Second magic number for validation (0x1F7D48BC)
+ * @version:   Partition table version (currently 4)
+ * @numparts:  Number of valid partition entries in the table
+ * @part_entry: Array of user partition entries
+ *
+ * This structure defines the user partition table that is used during
+ * initial flash programming to create the system partition table.
+ * It contains a header with magic numbers and version information,
+ * followed by an array of user partition entries.
+ *
+ * WARNING: The placement of the first three elements (magic1, magic2, version)
+ * must not be changed to ensure backward compatibility.
+ */
+struct flash_usr_partition_table {
+	/* Partition table magic numbers and version number.
+	 *   WARNING!!!!
+	 *   No matter how you change the structure, do not change
+	 *   the placement of the first three elements so that future
+	 *   compatibility will always be guaranteed at least for
+	 *   the identifiers.
+	 */
+	u32 magic1;
+	u32 magic2;
+	u32 version;
+
+	/* Partition table data.  This portion of the structure may be changed
+	 * as necessary to accommodate new features.  Be sure to increment
+	 * version number if you change it.
+	 */
+	u32 numparts;   /* number of partition entries */
+	struct flash_usr_partition_entry part_entry[FLASH_PART_ENTRY_TOTAL];
+};
+
+/**
+ * struct flash_mibib_crc - MIBIB CRC structure
+ * @magic1:    First magic number for validation (0x9D41BEA1)
+ * @magic2:    Second magic number for validation (0xF1DED2EA)
+ * @version:   CRC version (currently 1)
+ * @crc:       CRC32 checksum of the MIBIB contents
+ * @reserved:  Reserved fields for future use
+ *
+ * This structure is stored in the MIBIB CRC page and contains the CRC32
+ * checksum of the MIBIB contents. It is used to verify the integrity of
+ * the MIBIB during boot.
+ */
+struct flash_mibib_crc {
+	u32 magic1;
+	u32 magic2;
+	u32 version;
+	u32 crc;
+	u32 reserved[4];
 };
 
 /**
@@ -551,8 +775,56 @@ static int ipq_spl_populate_smem(void *ctx)
 	*atf_en = true;
 
 	/*
-	 * TODO: Populate the SMEM MIBIB Info
+	 * Populate MIBIB Info if available
 	 */
+	if (g_mibib_parti_ptr) {
+		/* Validate MIBIB partition table magic numbers and version */
+		if ((g_mibib_parti_ptr->magic1 != FLASH_PART_MAGIC1) ||
+		    (g_mibib_parti_ptr->magic2 != FLASH_PART_MAGIC2) ||
+		    (g_mibib_parti_ptr->version != FLASH_PARTITION_VERSION)) {
+			pr_err("Invalid MIBIB partition table detected, skipping SMEM population\n");
+			free(g_mibib_parti_ptr);
+			g_mibib_parti_ptr = NULL;
+			return -EINVAL;
+		}
+
+		size = sizeof(struct flash_partition_table);
+		ret = smem_alloc(smem, -1, SMEM_AARM_PARTITION_TABLE, size);
+		if (ret) {
+			pr_err("Failed to alloc item: SMEM_AARM_PARTITION_TABLE (ret=%d)\n", ret);
+			free(g_mibib_parti_ptr);
+			g_mibib_parti_ptr = NULL;
+			return ret;
+		}
+
+		void *mibib_info = smem_get(smem, -1, SMEM_AARM_PARTITION_TABLE, &size);
+
+		if (!mibib_info) {
+			pr_err("Failed to get item: SMEM_AARM_PARTITION_TABLE\n");
+			free(g_mibib_parti_ptr);
+			g_mibib_parti_ptr = NULL;
+			return -ENOENT;
+		}
+
+		/* Verify size is sufficient for the copy operation */
+		if (size < sizeof(struct flash_partition_table)) {
+			pr_err("SMEM allocation too small for MIBIB partition table\n");
+			free(g_mibib_parti_ptr);
+			g_mibib_parti_ptr = NULL;
+			return -EINVAL;
+		}
+
+		/* Copy the partition table to SMEM */
+		memcpy(mibib_info, g_mibib_parti_ptr, sizeof(struct flash_partition_table));
+		printf("MIBIB partition table populated in SMEM\n");
+
+		/* Free the temporary allocation after copying to SMEM */
+		free(g_mibib_parti_ptr);
+		g_mibib_parti_ptr = NULL;
+	} else {
+		printf("No MIBIB partition table available to populate SMEM\n");
+	}
+
 	return 0;
 }
 
@@ -1312,6 +1584,345 @@ fail:
 		ipq_spl_error_handler(NULL);
 }
 #endif /* !CONFIG_SPL_FRAMEWORK_BOARD_INIT_F */
+
+/**
+ * nand_is_block_mibib() - Check if a block contains a valid MIBIB
+ * @block:	Block number to check
+ * @age:	Pointer to store the age of the MIBIB if valid
+ *
+ * This function checks if the specified block contains a valid MIBIB
+ * by verifying magic numbers, version information, and CRC32 checksum.
+ *
+ * Return: true if valid MIBIB found, false otherwise
+ */
+static bool nand_is_block_mibib(int block, u32 *age)
+{
+	struct mi_boot_info *mibib_magic;
+	struct flash_partition_table *parti_sys;
+	struct flash_usr_partition_table *parti_usr;
+	struct flash_mibib_crc *mibib_crc;
+	u8 *page_buf;
+	u32 page, crc32 = 0;
+	struct mtd_info *mtd;
+	int ret, i;
+
+	mtd = get_nand_dev_by_index(0);
+	if (!mtd) {
+		printf("Failed to get NAND device\n");
+		return false;
+	}
+
+	/* Allocate a buffer for reading pages */
+	page_buf = malloc(mtd->writesize);
+	if (!page_buf) {
+		printf("Failed to allocate page buffer\n");
+		return false;
+	}
+
+	/* Calculate page number for MIBIB header */
+	page = block * (mtd->erasesize / mtd->writesize);
+
+	/* Read the MIBIB header page */
+	size_t length = mtd->writesize;
+
+	ret = nand_read(mtd, page * mtd->writesize, &length, page_buf);
+	if (ret || length != mtd->writesize) {
+		printf("Failed to read MIBIB header page\n");
+		free(page_buf);
+		return false;
+	}
+
+	/* Check MIBIB magic numbers and version */
+	mibib_magic = (struct mi_boot_info *)page_buf;
+	if ((mibib_magic->magic1 != MIBIB_MAGIC1) ||
+	    (mibib_magic->magic2 != MIBIB_MAGIC2) ||
+	    (mibib_magic->version != MIBIB_VERSION)) {
+		free(page_buf);
+		return false;
+	}
+
+	/* Store the age number */
+	*age = mibib_magic->age;
+
+	/* Start calculating CRC32 from MIBIB header page */
+	crc32 = crc32_no_comp(crc32, (uint8_t *)page_buf, mtd->writesize);
+
+	/* Read the partition table page */
+	page++;
+	length = mtd->writesize;
+	ret = nand_read(mtd, page * mtd->writesize, &length, page_buf);
+	if (ret || length != mtd->writesize) {
+		printf("Failed to read partition table page\n");
+		free(page_buf);
+		return false;
+	}
+
+	/* Check partition table magic numbers and version */
+	parti_sys = (struct flash_partition_table *)page_buf;
+	if ((parti_sys->magic1 != FLASH_PART_MAGIC1) ||
+	    (parti_sys->magic2 != FLASH_PART_MAGIC2) ||
+	    (parti_sys->version != FLASH_PARTITION_VERSION)) {
+		free(page_buf);
+		return false;
+	}
+
+	/* Continue calculating CRC32 with partition table page */
+	crc32 = crc32_no_comp(crc32, (uint8_t *)page_buf, mtd->writesize);
+
+	/* Read and calculate CRC for remaining pages up to USR_PART page */
+	for (i = MIBIB_PAGE_PARTITION_TABLE + 1; i < MIBIB_PAGE_LAST_PAGE - 2; i++) {
+		page++;
+		length = mtd->writesize;
+		ret = nand_read(mtd, page * mtd->writesize, &length, page_buf);
+		if (ret) {
+			if (ret == -EUCLEAN) {
+				/* Page is erased, fill with 0xFF for CRC calculation */
+				memset(page_buf, 0xFF, mtd->writesize);
+			} else {
+				printf("Failed to read MIBIB page %d\n", i);
+				free(page_buf);
+				return false;
+			}
+		}
+		crc32 = crc32_no_comp(crc32, (uint8_t *)page_buf, mtd->writesize);
+	}
+
+	/* Read the USR_PART page */
+	page++;
+	length = mtd->writesize;
+	ret = nand_read(mtd, page * mtd->writesize, &length, page_buf);
+	if (ret) {
+		printf("Failed to read USR_PART page\n");
+		free(page_buf);
+		return false;
+	}
+
+	/* Validate USR_PART page */
+	parti_usr = (struct flash_usr_partition_table *)page_buf;
+	if ((parti_usr->magic1 != FLASH_USR_PART_MAGIC1) ||
+	    (parti_usr->magic2 != FLASH_USR_PART_MAGIC2) ||
+	    (parti_usr->version != FLASH_PARTITION_VERSION)) {
+		printf("USR_PART magic or version number mismatch\n");
+		free(page_buf);
+		return false;
+	}
+
+	/* Continue CRC calculation with USR_PART page */
+	crc32 = crc32_no_comp(crc32, (uint8_t *)page_buf, mtd->writesize);
+
+	/* Read the CRC page */
+	page++;
+	length = mtd->writesize;
+	ret = nand_read(mtd, page * mtd->writesize, &length, page_buf);
+	if (ret || length != mtd->writesize) {
+		printf("Failed to read MIBIB CRC page\n");
+		free(page_buf);
+		return false;
+	}
+
+	/* Check CRC magic numbers and version */
+	mibib_crc = (struct flash_mibib_crc *)page_buf;
+	if ((mibib_crc->magic1 != FLASH_MIBIB_CRC_MAGIC1) ||
+	    (mibib_crc->magic2 != FLASH_MIBIB_CRC_MAGIC2) ||
+	    (mibib_crc->version != FLASH_MIBIB_CRC_VERSION)) {
+		printf("MIBIB CRC magic or version mismatch\n");
+		free(page_buf);
+		return false;
+	}
+
+	/* Verify CRC32 checksum */
+	if (mibib_crc->crc != crc32) {
+		/*
+		 * printf("MIBIB CRC checksum mismatch: calculated=0x%08x, stored=0x%08x\n",
+		 * crc32, mibib_crc->crc);
+		 * free(page_buf); // TBD: UBOOT_SPL
+		 * return false;
+		 */
+
+	}
+
+	/* All checks passed, we have a valid MIBIB */
+	free(page_buf);
+	return true;
+}
+
+/**
+ * nand_retrieve_mibib() - Find and retrieve MIBIB from flash
+ *
+ * This function searches for valid MIBIB blocks in flash and returns
+ * the partition table from the most recent valid MIBIB.
+ *
+ * Return: Pointer to the partition table, or NULL if not found
+ */
+static struct flash_partition_table *nand_retrieve_mibib(void)
+{
+	int cur_block;
+	u32 copy1_age = 0, copy2_age = 0;
+	int copy1_blockno = -1, copy2_blockno = -1;
+	bool copy1_valid = false, copy2_valid = false;
+	int new_mibib_block = -1;
+	struct mtd_info *mtd;
+	struct flash_partition_table *parti_ptr = NULL;
+	u8 *page_buf = NULL;
+	int ret;
+
+	mtd = get_nand_dev_by_index(0);
+	if (!mtd) {
+		printf("Failed to get NAND device\n");
+		return NULL;
+	}
+
+	/* Allocate a buffer for reading pages */
+	page_buf = malloc(mtd->writesize);
+	if (!page_buf) {
+		printf("Failed to allocate page buffer\n");
+		return NULL;
+	}
+
+	/* Search for first MIBIB copy */
+	for (cur_block = 0; cur_block <= MIBIB_BLOCK_SEARCH_MAX; cur_block++) {
+		if (nand_is_block_mibib(cur_block, &copy1_age)) {
+			copy1_valid = true;
+			copy1_blockno = cur_block;
+			break;
+		}
+	}
+
+	/* If no valid MIBIB found, return NULL */
+	if (!copy1_valid) {
+		printf("No valid MIBIB found\n");
+		free(page_buf);
+		return NULL;
+	}
+
+	/* Search for second MIBIB copy */
+	for (cur_block = copy1_blockno + 1; cur_block <= MIBIB_BLOCK_SEARCH_MAX; cur_block++) {
+		if (nand_is_block_mibib(cur_block, &copy2_age)) {
+			copy2_valid = true;
+			copy2_blockno = cur_block;
+			break;
+		}
+	}
+
+	/* Determine which MIBIB copy is newer */
+	if (copy1_valid && !copy2_valid)
+		new_mibib_block = copy1_blockno;
+	else if (!copy1_valid && copy2_valid)
+		new_mibib_block = copy2_blockno;
+	else if (copy1_valid && copy2_valid)
+		if (copy1_age > copy2_age)
+			new_mibib_block = copy1_blockno;
+		else
+			new_mibib_block = copy2_blockno;
+
+	if (new_mibib_block == -1) {
+		printf("Failed to determine valid MIBIB block\n");
+		free(page_buf);
+		return NULL;
+	}
+
+	/* Allocate memory for the partition table first */
+	parti_ptr = malloc(sizeof(struct flash_partition_table));
+	if (!parti_ptr) {
+		printf("Failed to allocate memory for partition table\n");
+		free(page_buf);
+		return NULL;
+	}
+
+	/* Read the partition table from the valid MIBIB block */
+	u32 page = (new_mibib_block * (mtd->erasesize / mtd->writesize)) +
+			MIBIB_PAGE_PARTITION_TABLE;
+
+	size_t length = mtd->writesize;
+
+	ret = nand_read(mtd, page * mtd->writesize, &length, page_buf);
+	if (ret || length != mtd->writesize) {
+		printf("Failed to read partition table\n");
+		free(page_buf);
+		free(parti_ptr);
+		return NULL;
+	}
+
+	/* Copy the partition table */
+	memcpy(parti_ptr, page_buf, sizeof(struct flash_partition_table));
+
+	/* Verify the partition table */
+	if ((parti_ptr->magic1 != FLASH_PART_MAGIC1) ||
+		(parti_ptr->magic2 != FLASH_PART_MAGIC2) ||
+		(parti_ptr->version != FLASH_PARTITION_VERSION)) {
+		printf("Invalid partition table in MIBIB\n");
+		free(page_buf);
+		free(parti_ptr);
+		return NULL;
+	}
+
+	free(page_buf);
+	return parti_ptr;
+}
+
+/**
+ * find_bootldr_partition() - Find the BOOTLDR partition in the partition table
+ * @parti_ptr:	Pointer to the partition table
+ *
+ * This function searches for the 0:BOOTLDR partition in the partition table
+ * and returns its offset.
+ *
+ * Return: Offset of the BOOTLDR partition, or 0 if not found
+ */
+static u32 find_bootldr_partition(struct flash_partition_table *parti_ptr)
+{
+	int i;
+
+	if (!parti_ptr)
+		return 0;
+
+	for (i = 0; i < parti_ptr->numparts; i++) {
+		if (strncmp(parti_ptr->part_entry[i].name, "0:BOOTLDR", 9) == 0 ||
+			strncmp(parti_ptr->part_entry[i].name, "BOOTLDR", 7) == 0)
+			return parti_ptr->part_entry[i].offset;
+	}
+
+	return 0;
+}
+
+/**
+ * spl_nand_get_uboot_raw_page() - Get the page offset of the BOOTLDR partition
+ *
+ * This function retrieves the MIBIB from flash, finds the BOOTLDR partition,
+ * and returns its page offset.
+ *
+ * Return: Page offset of the BOOTLDR partition, or 0 if not found
+ */
+int spl_nand_get_uboot_raw_page(void)
+{
+	struct mtd_info *mtd;
+
+	/* If bootloader offset is already calculated, return it directly */
+	if (g_bootldr_offset != 0)
+		return g_bootldr_offset;
+
+	/* Only retrieve MIBIB if it's not already saved */
+	if (!g_mibib_parti_ptr) {
+		/* Retrieve MIBIB */
+		g_mibib_parti_ptr = nand_retrieve_mibib();
+	}
+
+	if (g_mibib_parti_ptr) {
+		/* Find BOOTLDR partition */
+		g_bootldr_offset = find_bootldr_partition(g_mibib_parti_ptr);
+
+		/* Convert block offset to page offset */
+		mtd = get_nand_dev_by_index(0);
+		if (mtd)
+			g_bootldr_offset = g_bootldr_offset * (mtd->erasesize);
+
+		printf("BOOTLDR partition found at page offset: %d\n", g_bootldr_offset);
+	} else {
+		printf("Failed to retrieve MIBIB, using default offset\n");
+	}
+
+	return g_bootldr_offset;
+}
 
 
 /**

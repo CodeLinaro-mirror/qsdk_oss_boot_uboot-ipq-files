@@ -714,19 +714,35 @@ int ipq_part_get_info_by_name(struct blkpart_info *blkpart)
 struct spi_flash *ipq_spi_probe(void)
 {
 	struct spi_flash *sf = NULL;
-	struct udevice *new;
+	struct udevice *dev;
 	int ret;
-	struct ipq_board_info *_bdinfo = ipq_get_bdinfo();
 
 	ret = spi_flash_probe_bus_cs(CONFIG_SF_DEFAULT_BUS,
 				     CONFIG_SF_DEFAULT_CS,
-				     &new);
+				     &dev);
 	if (ret) {
-		env_set_default("spi_flash_probe_bus_cs() failed", 0);
-	} else {
-		sf = dev_get_uclass_priv(new);
-		_bdinfo->sf = sf;
+#if IS_ENABLED(CONFIG_SPL)
+		pr_err("SPI flash probe failed: %d\n", ret);
+#else
+		pr_err("SPI flash probe failed: %d\n", ret);
+		/* env_set_default("spi_flash_probe_bus_cs() failed", 0); */
+#endif /* CONFIG_SPL */
+		return NULL;
 	}
+
+	sf = dev_get_uclass_priv(dev);
+	if (!sf) {
+#if IS_ENABLED(CONFIG_SPL)
+		pr_err("SPI flash uclass priv is NULL\n");
+#else
+		printf("SPI flash uclass priv is NULL\n");
+#endif /* CONFIG_SPL */
+		return NULL;
+	}
+
+#if !IS_ENABLED(CONFIG_SPL)
+	ipq_get_bdinfo()->sf = sf;
+#endif /* CONFIG_SPL */
 
 	return sf;
 }
