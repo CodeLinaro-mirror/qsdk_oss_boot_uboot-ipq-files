@@ -1025,3 +1025,8 @@ int qca_scm_dload(uintptr_t tcsr_addr, u32 magic_cookie);
 int ipq_scm_call(struct scm_param *param);
 
 #endif
+
+int ipq_list_fuse_scm_impl(void *params);
+int ipq_dump_fuse_scm_impl(void *params);
+int ipq_check_secure_boot_scm_impl(void *params);
+int ipq_secure_auth_scm_impl(void *params);

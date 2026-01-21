@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
- * Clock drivers for Qualcomm ipq9670
+ * Clock drivers for Qualcomm ipq9650
  *
  * (C) Copyright 2024 Linaro Ltd.
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
@@ -14,8 +14,8 @@
 #include <linux/bug.h>
 #include <linux/bitops.h>
 #include <dm/device-internal.h>
-#include <asm/arch/dt-bindings/clock/qcom,ipq9670-gcc.h>
-#include <asm/arch/dt-bindings/reset/qcom,ipq9670-gcc.h>
+#include <asm/arch/dt-bindings/clock/qcom,ipq9650-gcc.h>
+#include <asm/arch/dt-bindings/reset/qcom,ipq9650-gcc.h>
 #include "clock-qcom.h"
 
 #define	GCC_QUPV3_UART1_CMD_RCGR		0x03018
@@ -48,7 +48,7 @@ ulong msm_get_rate(struct clk *clk)
 	return (ulong)clk->rate;
 }
 
-static ulong ipq9670_set_rate(struct clk *clk, ulong rate)
+static ulong ipq9650_set_rate(struct clk *clk, ulong rate)
 {
 	struct msm_clk_priv *priv = dev_get_priv(clk->dev);
 	int src, div = 0;
@@ -113,7 +113,7 @@ static ulong ipq9670_set_rate(struct clk *clk, ulong rate)
 	return rate;
 }
 
-static const struct gate_clk ipq9670_clks[] = {
+static const struct gate_clk ipq9650_clks[] = {
 	GATE_CLK(GCC_QUPV3_UART1_CLK,		0x0302C, 0x00000001),
 	GATE_CLK(GCC_SDCC1_AHB_CLK,		0x3303C, 0x00000001),
 	GATE_CLK(GCC_SDCC1_APPS_CLK,		0x3302C, 0x00000001),
@@ -125,7 +125,7 @@ static const struct gate_clk ipq9670_clks[] = {
 	GATE_CLK(GCC_QPIC_IO_MACRO_CLK,		0x3200C, 0x00000001),
 };
 
-static int ipq9670_enable(struct clk *clk)
+static int ipq9650_enable(struct clk *clk)
 {
 	struct msm_clk_priv *priv = dev_get_priv(clk->dev);
 
@@ -134,38 +134,38 @@ static int ipq9670_enable(struct clk *clk)
 		return 0;
 	}
 
-	debug("%s: clk %s\n", __func__, ipq9670_clks[clk->id].name);
+	debug("%s: clk %s\n", __func__, ipq9650_clks[clk->id].name);
 
 	qcom_gate_clk_en(priv, clk->id);
 
 	return 0;
 }
 
-static const struct qcom_reset_map ipq9670_gcc_resets[] = {
+static const struct qcom_reset_map ipq9650_gcc_resets[] = {
 	[GCC_SDCC_BCR] = {0x33000, 0},
 };
 
-static struct msm_clk_data ipq9670_gcc_data = {
-	.resets = ipq9670_gcc_resets,
-	.num_resets = ARRAY_SIZE(ipq9670_gcc_resets),
-	.clks = ipq9670_clks,
-	.num_clks = ARRAY_SIZE(ipq9670_clks),
-	.enable = ipq9670_enable,
-	.set_rate = ipq9670_set_rate,
+static struct msm_clk_data ipq9650_gcc_data = {
+	.resets = ipq9650_gcc_resets,
+	.num_resets = ARRAY_SIZE(ipq9650_gcc_resets),
+	.clks = ipq9650_clks,
+	.num_clks = ARRAY_SIZE(ipq9650_clks),
+	.enable = ipq9650_enable,
+	.set_rate = ipq9650_set_rate,
 };
 
-static const struct udevice_id gcc_ipq9670_of_match[] = {
+static const struct udevice_id gcc_ipq9650_of_match[] = {
 	{
-		.compatible = "qcom,ipq9670-gcc",
-		.data = (ulong)&ipq9670_gcc_data,
+		.compatible = "qcom,ipq9650-gcc",
+		.data = (ulong)&ipq9650_gcc_data,
 	},
 	{ }
 };
 
-U_BOOT_DRIVER(gcc_ipq9670) = {
-	.name		= "gcc_ipq9670",
+U_BOOT_DRIVER(gcc_ipq9650) = {
+	.name		= "gcc_ipq9650",
 	.id		= UCLASS_NOP,
-	.of_match	= gcc_ipq9670_of_match,
+	.of_match	= gcc_ipq9650_of_match,
 	.bind		= qcom_cc_bind,
 	.flags		= DM_FLAG_PRE_RELOC | DM_FLAG_DEFAULT_PD_CTRL_OFF,
 };

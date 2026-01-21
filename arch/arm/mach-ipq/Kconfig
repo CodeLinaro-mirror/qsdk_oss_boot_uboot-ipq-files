@@ -57,7 +57,7 @@ config IPQ_I2C
         bool "Enable I2C support in IPQ SOC"
         select I2C
         select DM_I2C
-        select SYS_I2C_GENI if (TARGET_IPQ5424 || TARGET_IPQ5210 || TARGET_IPQ9670)
+        select SYS_I2C_GENI if (TARGET_IPQ5424 || TARGET_IPQ5210 || TARGET_IPQ9650)
 	select SYS_I2C_QUP if (TARGET_IPQ5332 || TARGET_IPQ9574)
         select CMD_I2C
 
@@ -143,7 +143,7 @@ config IPQ_SPI_NOR
 	select SPI
 	select MISC
 	select SPI_QUP if TARGET_IPQ9574 || TARGET_IPQ5332
-	select MSM_GENI_SPI if TARGET_IPQ5424 || TARGET_IPQ5210 || TARGET_IPQ9670
+	select MSM_GENI_SPI if TARGET_IPQ5424 || TARGET_IPQ5210 || TARGET_IPQ9650
 	select DM_SPI
 	select DM_SPI_FLASH
 	select SPI_FLASH_STMICRO
@@ -258,7 +258,7 @@ config SOC_HW_VERSION_REG
 config SHARED_IPC_INTERRUPT_REG
 	hex "Shared IPC interrupt register"
 	default 0xF40000C if TARGET_IPQ5424
-	default 0xF40000C if TARGET_IPQ9670
+	default 0xF40000C if TARGET_IPQ9650
 	default 0xB111008 if TARGET_IPQ5210
 	default 0
 	help
@@ -338,6 +338,12 @@ config SECURE_AUTH_V1
 	  This config provides support to authenticate secure images
 
 config SECURE_AUTH_V2
+	bool "Secure authentication command"
+	default n
+	help
+	  This config provides support to authenticate secure images
+
+config SECURE_AUTH_V3
 	bool "Secure authentication command"
 	default n
 	help
@@ -808,7 +814,11 @@ config TARGET_IPQ5210
 	imply ARMV8_SWITCH_TO_EL1
 	imply LIST_FUSE
 	imply IPQ_TMEL_IPC_SUPPORT
+	imply SHA384
+	imply SCM_V2
+	imply IPQ_SECURE
 	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
+	imply SECURE_AUTH_V2 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
 
 	help
 	  Support for IPQ5210 SoC.
@@ -819,8 +829,8 @@ config TARGET_IPQ5210
 	  - USB 3.0/I2C/UART/PCIe Gen3 2Lane
 	  - 2.5G/10G Ethernet Ports
 
-config TARGET_IPQ9670
-	bool "QTI IPQ9670"
+config TARGET_IPQ9650
+	bool "QTI IPQ9650"
 	imply QCOM_GENI_SE
 	imply IPQ_MULTI_DTB_SUPPORT
 	imply NOR_BLK
@@ -834,8 +844,11 @@ config TARGET_IPQ9670
 	imply IPQ_TMEL_IPC_SUPPORT
 	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
 	imply IPQ_I2C
+	imply SCM_V2
+	imply IPQ_SECURE
+	imply SECURE_AUTH_V3 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
 	help
-	  Support for IPQ9670 SoC.
+	  Support for IPQ9650 SoC.
 	  - Board Open Platform Specifications.
 	  - Quad Cores A55, Nom@1.9G + Single core A78, Nom@2.05G
 	  - L1@32KB L2@512KB

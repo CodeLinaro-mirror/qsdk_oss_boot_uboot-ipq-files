@@ -52,8 +52,8 @@
 #if defined(CONFIG_TARGET_IPQ5210)
 #include <asm/arch/ipq5210.h>
 #endif
-#if defined(CONFIG_TARGET_IPQ9670)
-#include <asm/arch/ipq9670.h>
+#if defined(CONFIG_TARGET_IPQ9650)
+#include <asm/arch/ipq9650.h>
 #endif
 
 #ifndef __IPQ_H__
@@ -274,8 +274,29 @@ enum {
 	SDX_POWER_CYCLE	= 0,		/* Power cycle the SDX in crash path */
 };
 
+enum cmd_function_id {
+	FUNC_LIST_FUSE,
+	FUNC_DUMP_FUSE,
+	FUNC_CHECK_SECURE_BOOT,
+	FUNC_SECURE_AUTH,
+	FUNC_FUSE_IPQ,
+	FUNC_TZT_OPERATIONS,
+	FUNC_AES_ENCRYPT,
+	FUNC_AES_DECRYPT,
+	FUNC_AES_DERIVE_KEY,
+	FUNC_AES_CLEAR_KEY,
+	FUNC_IMAGE_AUTH,
+	FUNC_AUTH_ROOTFS_ELF,
+	FUNC_MAX
+};
 
-#ifdef CONFIG_DTB_RESELECT
+/* Communication types */
+enum comm_type_id {
+	COMM_TYPE_TME,
+	COMM_TYPE_SCM,
+	COMM_TYPE_MAX
+};
+
 struct machid_dts_map {
 	int machid;
 	char *dts;
@@ -290,7 +311,6 @@ struct multidtb_config {
 	char dts_base[BOARD_DTS_MAX_NAMELEN];
 	char dts_name[BOARD_DTS_MAX_NAMELEN];
 };
-#endif /* CONFIG_DTB_RESELECT */
 
 #if defined(CONFIG_MMC) || defined(CONFIG_NOR_BLK)
 struct gpt_pte_info {
@@ -314,6 +334,7 @@ struct ipq_board_info {
 	struct gpt_pte_info mmc_gpt_pte;
 	struct gpt_pte_info nor_gpt_pte;
 #endif
+	const u8 *comm_type_map;  /* Board-specific communication type mapping */
 };
 
 #if IS_ENABLED(CONFIG_MMC) || IS_ENABLED(CONFIG_NOR_BLK)
@@ -463,6 +484,40 @@ struct cal_dt_config {
 	struct list_head list;
 };
 #endif
+
+/* All CMD-related parameters should be declared below*/
+struct list_fuse_params {
+	struct fuse_payload *fuse;
+	u8 fuse_read_cnt;
+	size_t size;
+	size_t fuse_payload_size;
+};
+
+struct dump_fuse_params {
+	struct fuse_payload *fuse;
+	size_t size;
+	size_t fuse_payload_size;
+};
+
+struct check_secure_boot_params {
+	struct fuse_payload *fuse;
+	size_t size;
+	size_t fuse_payload_size;
+	bool *result;
+};
+
+struct secure_auth_params {
+	u32 type;
+	u32 addr;
+	u32 size;
+	u32 load_seg_info_size;
+	struct load_seg_info *load_seg_buff;
+	u8 load_seg_cnt;
+	u32 relocate;
+#ifdef CONFIG_SECURE_AUTH_V3
+	u32 flags;
+#endif
+};
 
 /*********************************************************************
  * Function declaration
@@ -1021,3 +1076,11 @@ void print_error_code(uintptr_t bar0_base, bool pbl_log);
 void qcn92xx_global_soc_reset(uintptr_t bar0_base, bool force_reset);
 #endif
 #endif
+/**
+ * ipq_comm_handler() - Handle communication requests based on function ID
+ * @func_id: Function ID from enum cmd_function_id
+ * @params: Parameters for the communication function
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+int ipq_comm_handler(enum cmd_function_id func_id, void *params);

@@ -8,6 +8,7 @@ obj-y += cmd_flutility.o
 obj-y += cmd_ipq.o
 obj-y += fdt_fixup.o
 obj-$(CONFIG_SCM) += scm.o
+obj-$(CONFIG_IPQ_TMEL_IPC_SUPPORT) += qcom_tmel_ipc.o
 obj-$(CONFIG_IPQ_SMP_CMD_SUPPORT) += smp.o
 obj-$(CONFIG_IPQ_SMP64_CMD_SUPPORT) += smp64.o
 obj-$(CONFIG_IPQ_INLINE_ENCRYPTION) += ice.o

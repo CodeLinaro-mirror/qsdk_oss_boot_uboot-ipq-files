@@ -88,9 +88,9 @@ enum boot_stage {
 };
 
 enum boot_error {
-	KERNEL_AUTH_FAILED,
-	ROOTFS_AUTH_FAILED,
-	INVALID_KERNEL_IMAGE
+	KERNEL_AUTH_FAILED = -1,
+	ROOTFS_AUTH_FAILED = -2,
+	INVALID_KERNEL_IMAGE = -3
 };
 
 struct boot_config {
@@ -738,7 +738,6 @@ get_img_config:
 		if (fit_conf_get_node((void *)request, config) >= 0)
 			goto exit;
 	} else {
-#ifdef CONFIG_DTB_RESELECT
 		/*
 		 * In upstream dts config_name entry not available
 		 * so referring  statically declared config from table
@@ -766,7 +765,7 @@ get_img_config:
 				}
 			}
 		}
-#endif
+
 		for (i = 0;
 			(config = fdt_stringlist_get(gd->fdt_blob, 0,
 					"config_name", i, &len)); ++i) {
@@ -929,8 +928,8 @@ static int authenticate_rootfs(uintptr_t kernel_addr,
 		ret = ipq_scm_call(&param);
 	} while (0);
 
-	memset((void *) (uintptr_t)kernel_img_info.kernel_load_addr,  0,
-						sizeof(struct mbn_header));
+	memset((void *)(uintptr_t)kernel_img_info.kernel_load_addr,  0,
+	       sizeof(struct mbn_header));
 
 	memset(mbn_ptr,  0,
 		(sizeof(struct mbn_header) + mbn_ptr->signature_size +
@@ -944,7 +943,7 @@ static int authenticate_rootfs(uintptr_t kernel_addr,
 	return ret ? CMD_RET_FAILURE : CMD_RET_SUCCESS;
 }
 #else
-static int authenticate_rootfs_elf(uint32_t rootfs_hdr)
+static int authenticate_rootfs_elf_scm(uint32_t rootfs_hdr)
 {
 	int ret = -1;
 	uint32_t request;
@@ -1012,7 +1011,7 @@ static int authenticate_rootfs_elf(uint32_t rootfs_hdr)
 		goto exit;
 	}
 
-#if IS_ENABLED(CONFIG_SCM_V2)
+#if IS_ENABLED(CONFIG_SCM_V2) && IS_ENABLED(CONFIG_SHA384)
 	do {
 		ret = -ENOTSUPP;
 		IPQ_SCM_VERIFY_HASH(param, rootfs_img_info.type,
@@ -1026,7 +1025,6 @@ static int authenticate_rootfs_elf(uint32_t rootfs_hdr)
 			printf("Rootfs integrity check filed\n");
 			ret = CMD_RET_FAILURE;
 		}
-
 	} while (0);
 
 	if (ret == -ENOTSUPP) {
@@ -1035,12 +1033,125 @@ static int authenticate_rootfs_elf(uint32_t rootfs_hdr)
 	}
 #endif
 exit:
-	memset((void *) (uintptr_t)rootfs_hdr, 0, img_info.img_offset);
+	memset((void *)(uintptr_t)rootfs_hdr, 0, img_info.img_offset);
 
 	return ret == CMD_RET_FAILURE ? ret : CMD_RET_SUCCESS;
 }
+
+#ifdef CONFIG_IPQ_TMEL_IPC_SUPPORT
+#ifdef CONFIG_SECURE_AUTH_V2
+static int authenticate_rootfs_elf_ipc_v2(uint32_t rootfs_hdr)
+{
+	int ret;
+	u32 request;
+	struct ipq_image_info img_info;
+	struct secure_auth_params auth_params = {0};
+
+	if (parse_elf_image_phdr(&img_info, rootfs_hdr))
+		return CMD_RET_FAILURE;
+
+	request = img_info.img_load_addr - img_info.img_offset;
+
+	memcpy((void *)(uintptr_t)request, (void *)(uintptr_t)rootfs_hdr,
+	       img_info.img_offset);
+
+	request += img_info.img_offset;
+
+	copy_rootfs(request, img_info.img_size);
+
+	auth_params.type = ROOTFS_SEC_AUTH_SW_ID;
+	auth_params.addr = img_info.img_load_addr - img_info.img_offset;
+	auth_params.size = img_info.img_offset - 1;
+	auth_params.load_seg_buff = NULL;
+	auth_params.load_seg_cnt = 0;
+	auth_params.load_seg_info_size = 0;
+	auth_params.relocate = 0;
+
+	ret = ipq_comm_handler(FUNC_SECURE_AUTH, &auth_params);
+	memset((void *)(uintptr_t)rootfs_hdr, 0, img_info.img_offset);
+	if (ret) {
+		printf("Rootfs Authentication is failed\n");
+		ret = CMD_RET_FAILURE;
+	} else {
+		ret = CMD_RET_SUCCESS;
+	}
+
+	return ret;
+}
+#endif /* CONFIG_SECURE_AUTH_V2 */
+
+#ifdef CONFIG_SECURE_AUTH_V3
+static int authenticate_rootfs_elf_ipc_v3(uint32_t rootfs_hdr)
+{
+	int ret;
+	u32 request;
+	struct ipq_image_info img_info;
+	struct secure_auth_params auth_params = {0};
+
+	if (parse_elf_image_phdr(&img_info, rootfs_hdr))
+		return CMD_RET_FAILURE;
+
+	request = img_info.img_load_addr - img_info.img_offset;
+
+	memcpy((void *)(uintptr_t)request, (void *)(uintptr_t)rootfs_hdr,
+	       img_info.img_offset);
+
+	request += img_info.img_offset;
+
+	copy_rootfs(request, img_info.img_size);
+
+	auth_params.type = ROOTFS_SEC_AUTH_SW_ID;
+	auth_params.addr = img_info.img_load_addr - img_info.img_offset;
+	auth_params.size = img_info.img_offset - 1;
+	auth_params.load_seg_buff = NULL;
+	auth_params.load_seg_cnt = 0;
+	auth_params.load_seg_info_size = 0;
+	auth_params.relocate = 0;
+	auth_params.flags = 1;
+
+	ret = ipq_comm_handler(FUNC_SECURE_AUTH, &auth_params);
+	memset((void *)(uintptr_t)rootfs_hdr, 0, img_info.img_offset);
+	if (ret) {
+		printf("Rootfs Authentication is failed\n");
+		ret = CMD_RET_FAILURE;
+	} else {
+		ret = CMD_RET_SUCCESS;
+	}
+	return ret;
+}
+#endif /* CONFIG_SECURE_AUTH_V3 */
+#endif /* CONFIG_IPQ_TMEL_IPC_SUPPORT */
+
+/* Wrapper implementations for comm_handler */
+int ipq_auth_rootfs_elf_tme_impl(void *params)
+{
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT) && defined(CONFIG_SECURE_AUTH_V2)
+	u32 rootfs_hdr = *(u32 *)params;
+
+	return authenticate_rootfs_elf_ipc_v2(rootfs_hdr);
+#elif defined(CONFIG_IPQ_TMEL_IPC_SUPPORT) && defined(CONFIG_SECURE_AUTH_V3)
+	u32 rootfs_hdr = *(u32 *)params;
+
+	return authenticate_rootfs_elf_ipc_v3(rootfs_hdr);
+#else
+	(void)params;
+	return -EOPNOTSUPP;
 #endif
-#endif
+}
+
+int ipq_auth_rootfs_elf_scm_impl(void *params)
+{
+	u32 rootfs_hdr = *(u32 *)params;
+
+	return authenticate_rootfs_elf_scm(rootfs_hdr);
+}
+
+static int authenticate_rootfs_elf(uint32_t rootfs_hdr)
+{
+	return ipq_comm_handler(FUNC_AUTH_ROOTFS_ELF, &rootfs_hdr);
+}
+#endif /* CONFIG_IPQ_ELF_AUTH */
+#endif /* CONFIG_IPQ_SECURE */
 
 int ipq_check_rootfs_authentication(void)
 {
@@ -1055,31 +1166,16 @@ int ipq_check_rootfs_authentication(void)
 }
 
 #ifdef CONFIG_IPQ_SECURE
-int image_authentication(void)
+static int image_authentication_scm(void)
 {
 	int ret;
+	struct scm_param param;
 	struct kernel_img_info kernel_img_info = {0, 0, 0};
 #ifdef CONFIG_VERSION_ROLLBACK_PARTITION_INFO
 	int active_part = (boot_info.active_bank == 1) ?
 				SECONDARY_PARTITION : PRIMARY_PARTITION;
 #endif
 	int secure_boot = is_board_support_image_auth();
-#ifndef CONFIG_IPQ_TMEL_IPC_SUPPORT
-	struct scm_param param;
-#else
-	struct tmelcom *tmelcom_priv;
-	struct udevice *tmelcom_udev;
-	struct tmel_qmp_msg tmsg;
-	struct tmel_sec_auth smsg;
-
-	ret = uclass_get_device_by_name(UCLASS_MISC, "qcom,tmelcom",
-					&tmelcom_udev);
-	if (ret) {
-		printf("Failed to find TMELCOM node %d\n", ret);
-		return CMD_RET_FAILURE;
-	}
-	tmelcom_priv = dev_get_priv(tmelcom_udev);
-#endif
 
 	boot_info.stage = BOOT_STAGE_AUTH;
 
@@ -1121,22 +1217,12 @@ int image_authentication(void)
 
 	do {
 		ret = -ENOTSUPP;
-#ifdef CONFIG_IPQ_TMEL_IPC_SUPPORT
-		smsg.pas_id = KERNEL_SEC_AUTH_SW_ID;
-		smsg.data = (void *)(uintptr_t)kernel_img_info.kernel_load_addr;
-		smsg.size = kernel_img_info.kernel_meta_data_size;
-
-		tmsg.msg_id = TMEL_MSG_UID_SECBOOT_SEC_AUTH;
-		tmsg.msg = &smsg;
-
-		ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
-#else
 		IPQ_SCM_AUTHENTICATE_KERNEL(param,
 					kernel_img_info.kernel_load_addr,
 					kernel_img_info.kernel_meta_data_size,
 					KERNEL_SEC_AUTH_SW_ID, 0, 0);
+
 		ret = ipq_scm_call(&param);
-#endif
 	} while (0);
 
 #ifdef CONFIG_VERSION_ROLLBACK_PARTITION_INFO
@@ -1144,12 +1230,12 @@ clear_mem:
 #endif
 #ifndef CONFIG_IPQ_ELF_AUTH
 	if (mbn_ptr->signature_ptr)
-		memset((void *) (uintptr_t)mbn_ptr->signature_ptr, 0,
-			(mbn_ptr->signature_size + mbn_ptr->cert_chain_size));
+		memset((void *)(uintptr_t)mbn_ptr->signature_ptr, 0,
+		       (mbn_ptr->signature_size + mbn_ptr->cert_chain_size));
 #else
 	if (kernel_img_info.kernel_load_addr)
-		memset((void *) (uintptr_t)kernel_img_info.kernel_load_addr,  0,
-			img_info.img_offset);
+		memset((void *)(uintptr_t)kernel_img_info.kernel_load_addr,  0,
+		       img_info.img_offset);
 #endif
 
 	if (ret == -ENOTSUPP) {
@@ -1193,6 +1279,209 @@ clear_mem:
 	}
 
 	return 0;
+}
+
+#ifdef CONFIG_IPQ_TMEL_IPC_SUPPORT
+
+#ifdef CONFIG_SECURE_AUTH_V2
+static int image_authenticate_ipc_v2(void)
+{
+	int ret;
+	struct kernel_img_info kernel_img_info = {0, 0, 0};
+	struct secure_auth_params auth_params = {0};
+	int secure_boot = is_board_support_image_auth();
+
+	boot_info.stage = BOOT_STAGE_AUTH;
+
+	if (!secure_boot)
+		return CMD_RET_SUCCESS;
+
+	if (boot_info.debug)
+		printf("[debug]Authenticating Image with TME V2\n");
+
+	kernel_img_info.kernel_load_addr = boot_info.load_address;
+	kernel_img_info.kernel_load_size = boot_info.size;
+	kernel_img_info.kernel_meta_data_size = boot_info.meta_data_size;
+
+#ifndef CONFIG_IPQ_ELF_AUTH
+	struct mbn_header *mbn_ptr = (struct mbn_header *)boot_info.load_address;
+
+	boot_info.load_address += sizeof(struct mbn_header);
+#else
+	boot_info.load_address = img_info.img_load_addr;
+#endif
+
+	/* Set up kernel authentication parameters */
+	auth_params.type = KERNEL_SEC_AUTH_SW_ID;
+	auth_params.addr = kernel_img_info.kernel_load_addr;
+	auth_params.size = kernel_img_info.kernel_meta_data_size;
+	auth_params.load_seg_buff = NULL;
+	auth_params.load_seg_cnt = 0;
+	auth_params.load_seg_info_size = 0;
+	auth_params.relocate = 0;
+
+	ret = ipq_comm_handler(FUNC_SECURE_AUTH, &auth_params);
+
+#ifndef CONFIG_IPQ_ELF_AUTH
+	if (mbn_ptr->signature_ptr)
+		memset((void *)(uintptr_t)mbn_ptr->signature_ptr, 0,
+		       (mbn_ptr->signature_size + mbn_ptr->cert_chain_size));
+#else
+	if (kernel_img_info.kernel_load_addr)
+		memset((void *)(uintptr_t)kernel_img_info.kernel_load_addr,  0,
+		       img_info.img_offset);
+#endif
+
+	if (ret) {
+		printf("Kernel image authentication failed\n");
+		return KERNEL_AUTH_FAILED;
+	}
+
+	gd->board_type |= KERNEL_AUTH_SUCCESS;
+
+	if (boot_info.debug)
+		printf("[debug]Kernel authenticated successfully with TME V2\n");
+
+	if (ipq_check_rootfs_authentication()) {
+#ifdef CONFIG_IPQ_ELF_AUTH
+		if (authenticate_rootfs_elf(img_info.img_load_addr +
+			img_info.img_size) != CMD_RET_SUCCESS) {
+			printf("Rootfs elf image authentication failed\n");
+			return ROOTFS_AUTH_FAILED;
+		}
+#else
+		/* Rootfs's header and certificate at end of kernel image,
+		 * copy from there and pack with rootfs image and
+		 * authenticate rootfs
+		 */
+		if (authenticate_rootfs(boot_info.load_address, kernel_img_info)
+			!= CMD_RET_SUCCESS) {
+			printf("Rootfs image authentication failed\n");
+			return ROOTFS_AUTH_FAILED;
+		}
+
+#endif
+		gd->board_type |= ROOTFS_AUTH_SUCCESS;
+
+		if (boot_info.debug)
+			printf("[debug]Rootfs authenticated successfully with TME V2\n");
+	}
+
+	return 0;
+}
+#endif /* CONFIG_SECURE_AUTH_V2 */
+
+#ifdef CONFIG_SECURE_AUTH_V3
+static int image_authenticate_ipc_v3(void)
+{
+	int ret;
+	struct kernel_img_info kernel_img_info = {0, 0, 0};
+	struct secure_auth_params auth_params = {0};
+	int secure_boot = is_board_support_image_auth();
+
+	boot_info.stage = BOOT_STAGE_AUTH;
+
+	if (!secure_boot)
+		return CMD_RET_SUCCESS;
+
+	if (boot_info.debug)
+		printf("[debug]Authenticating Image with TME V3\n");
+
+	kernel_img_info.kernel_load_addr = boot_info.load_address;
+	kernel_img_info.kernel_load_size = boot_info.size;
+	kernel_img_info.kernel_meta_data_size = boot_info.meta_data_size;
+
+#ifndef CONFIG_IPQ_ELF_AUTH
+	struct mbn_header *mbn_ptr = (struct mbn_header *)boot_info.load_address;
+
+	boot_info.load_address += sizeof(struct mbn_header);
+#else
+	boot_info.load_address = img_info.img_load_addr;
+#endif
+
+	/* Set up kernel authentication parameters */
+	auth_params.type = KERNEL_SEC_AUTH_SW_ID;
+	auth_params.addr = kernel_img_info.kernel_load_addr;
+	auth_params.size = kernel_img_info.kernel_meta_data_size;
+	auth_params.load_seg_buff = NULL;
+	auth_params.load_seg_cnt = 0;
+	auth_params.load_seg_info_size = 0;
+	auth_params.relocate = 0;
+	auth_params.flags = 1;
+
+	ret = ipq_comm_handler(FUNC_SECURE_AUTH, &auth_params);
+
+#ifndef CONFIG_IPQ_ELF_AUTH
+	if (mbn_ptr->signature_ptr)
+		memset((void *)(uintptr_t)mbn_ptr->signature_ptr, 0,
+		       (mbn_ptr->signature_size + mbn_ptr->cert_chain_size));
+#else
+	if (kernel_img_info.kernel_load_addr)
+		memset((void *)(uintptr_t)kernel_img_info.kernel_load_addr,  0,
+		       img_info.img_offset);
+#endif
+
+	if (ret) {
+		printf("Kernel image authentication failed\n");
+		return KERNEL_AUTH_FAILED;
+	}
+
+	gd->board_type |= KERNEL_AUTH_SUCCESS;
+
+	if (boot_info.debug)
+		printf("[debug]Kernel authenticated successfully with TME V3\n");
+
+	if (ipq_check_rootfs_authentication()) {
+#ifdef CONFIG_IPQ_ELF_AUTH
+		if (authenticate_rootfs_elf(img_info.img_load_addr +
+			img_info.img_size) != CMD_RET_SUCCESS) {
+			printf("Rootfs elf image authentication failed\n");
+			return ROOTFS_AUTH_FAILED;
+		}
+#else
+		/* Rootfs's header and certificate at end of kernel image,
+		 * copy from there and pack with rootfs image and
+		 * authenticate rootfs
+		 */
+		if (authenticate_rootfs(boot_info.load_address, kernel_img_info)
+			!= CMD_RET_SUCCESS) {
+			printf("Rootfs image authentication failed\n");
+			return ROOTFS_AUTH_FAILED;
+		}
+
+#endif
+		gd->board_type |= ROOTFS_AUTH_SUCCESS;
+
+		if (boot_info.debug)
+			printf("[debug]Rootfs authenticated successfully with TME V3\n");
+	}
+
+	return 0;
+}
+#endif /* CONFIG_SECURE_AUTH_V3 */
+#endif /* CONFIG_IPQ_TMEL_IPC_SUPPORT */
+
+/* Wrapper implementations for comm_handler */
+int ipq_image_auth_tme_impl(void *params)
+{
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT) && defined(CONFIG_SECURE_AUTH_V2)
+	return image_authenticate_ipc_v2();
+#elif defined(CONFIG_IPQ_TMEL_IPC_SUPPORT) && defined(CONFIG_SECURE_AUTH_V3)
+	return image_authenticate_ipc_v3();
+#else
+	return -EOPNOTSUPP;
+#endif
+}
+
+int ipq_image_auth_scm_impl(void *params)
+{
+	return image_authentication_scm();
+}
+
+/* Wrapper function to call appropriate version based on config */
+int image_authentication(void)
+{
+	return ipq_comm_handler(FUNC_IMAGE_AUTH, NULL);
 }
 #endif
 

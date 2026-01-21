@@ -5,13 +5,13 @@
 
 /dts-v1/;
 
-#include <asm/arch/dt-bindings/clock/qcom,ipq5200-gcc.h>
-#include <asm/arch/dt-bindings/reset/qcom,ipq5200-gcc.h>
+#include <asm/arch/dt-bindings/clock/qcom,ipq5210-gcc.h>
+#include <asm/arch/dt-bindings/reset/qcom,ipq5210-gcc.h>
 #include <dt-bindings/gpio/gpio.h>
 
 / {
 	bootph-all;
-	compatible = "qcom,ipq5200";
+	compatible = "qcom,ipq5210";
 
 	#address-cells = <2>;
 	#size-cells = <2>;
@@ -50,7 +50,7 @@
 
 		tlmm: pinctrl@1000000 {
 			bootph-all;
-			compatible = "qcom,ipq5200-tlmm";
+			compatible = "qcom,ipq5210-tlmm";
 			reg = <0 0x01000000 0 0x300000>;
 			gpio-controller;
 			#gpio-cells = <2>;
@@ -131,7 +131,7 @@
 
 		gcc: clock-controller@1800000 {
 			bootph-all;
-			compatible = "qcom,ipq5200-gcc";
+			compatible = "qcom,ipq5210-gcc";
 			reg = <0 0x01800000 0 0x40000>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
@@ -165,7 +165,7 @@
 
 			uart1_fw: uart_firmware@0 {
 				bootph-all;
-				compatible = "qcom,ipq5200-geni-uart-fw-v1",
+				compatible = "qcom,ipq5210-geni-uart-fw-v1",
 					     "qcom,geni-uart-fw-v1";
 				reg = <0 0x01a84000 0 0x4000>;
 				status = "okay";
@@ -173,7 +173,7 @@
 
 			spi0: spi@1a80000 {
 				bootph-all;
-				compatible = "qcom-ipq5200-geni-spi";
+				compatible = "qcom-ipq5210-geni-spi";
 				reg = <0 0x1a80000 0 0x4000>;
 				reg-names = "se_phys";
 				clocks = <&gcc GCC_QUPV3_SPI0_CLK>;
@@ -198,7 +198,7 @@
 
 			spi0_fw: spi_firmware@0 {
 				bootph-all;
-				compatible = "qcom,ipq5200-geni-spi-fw-v1",
+				compatible = "qcom,ipq5210-geni-spi-fw-v1",
 					     "qcom,geni-spi-fw-v1";
 				reg = <0 0x1a80000 0 0x4000>;
 				reg-names = "se_phys";
@@ -207,7 +207,7 @@
 
 		sdhc: mmc@7804000 {
 			bootph-all;
-			compatible = "qcom,ipq5200-sdhci", "qcom,sdhci-msm-v5";
+			compatible = "qcom,ipq5210-sdhci", "qcom,sdhci-msm-v5";
 			reg = <0 0x07804000 0 0x1000>, <0 0x07805000 0 0x1000>;
 			reg-names = "hc", "cqhci";
 

@@ -38,6 +38,7 @@
  * Action IDs for TMEL_MSG_SECBOOT
  */
 #define TMEL_ACTION_SECBOOT_SEC_AUTH		0x04
+#define TMEL_ACTION_SECBOOT_SEC_AUTH_V2		0x0F
 #define TMEL_ACTION_SECBOOT_SS_TEAR_DOWN	0x0a
 
 /*
@@ -60,6 +61,9 @@
 #define TMEL_MSG_UID_SECBOOT_SEC_AUTH	TMEL_MSG_UID_CREATE(TMEL_MSG_SECBOOT,\
 					TMEL_ACTION_SECBOOT_SEC_AUTH)
 
+#define TMEL_MSG_UID_SECBOOT_SEC_AUTH_V2	TMEL_MSG_UID_CREATE(TMEL_MSG_SECBOOT,\
+						TMEL_ACTION_SECBOOT_SEC_AUTH_V2)
+
 #define TMEL_MSG_UID_SECBOOT_SS_TEAR_DOWN	TMEL_MSG_UID_CREATE(TMEL_MSG_SECBOOT,\
 						TMEL_ACTION_SECBOOT_SS_TEAR_DOWN)
 
@@ -78,12 +82,6 @@ struct tmel_qmp_msg {
 	void *msg;
 	u32 msg_id;
 	size_t size;
-};
-
-struct tmel_sec_auth {
-	void *data;
-	u32 size;
-	u32 pas_id;
 };
 
 struct tmel_add_val {
@@ -108,6 +106,24 @@ struct tmel_msg_param_type_buf_in_out {
 	u32 out_buf_len;
 };
 
+struct tmel_sec_auth {
+	u32 sw_id;
+	struct tmel_msg_param_type_buf_in elf_buf;
+	struct tmel_msg_param_type_buf_in region_list;
+	u32 relocate;
+};
+
+struct tmel_sec_auth_v2 {
+	u32 sw_id;
+	struct tmel_msg_param_type_buf_in elf_buf;
+	struct tmel_msg_param_type_buf_in region_list;
+	u32 relocate;
+	u32 nsIntegrityCheck:1;
+	u32 reservedBits:31;
+	struct tmel_msg_param_type_buf_in reservedBuf;
+	u32 keyHandle;
+};
+
 struct tmel_fuse_payload {
 	u32 fuse_addr;
 	u32 lsb_val;
@@ -124,5 +140,7 @@ struct tmelcom {
 };
 
 void tmel_secboot_sec_free(void *ptr);
+
+int ipq_get_tmelcom_device(struct tmelcom **tmelcom_priv);
 
 #endif  /* _LINUX_TMELCOM_QMP_H */

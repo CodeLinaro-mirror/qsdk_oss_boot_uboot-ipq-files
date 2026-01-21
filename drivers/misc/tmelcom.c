@@ -46,6 +46,22 @@ static const struct udevice_id tmelcom_ids[] = {
 	{ }
 };
 
+int ipq_get_tmelcom_device(struct tmelcom **tmelcom_priv)
+{
+	struct udevice *tmelcom_udev;
+	int ret;
+
+	ret = uclass_get_device_by_name(UCLASS_MISC, "qcom,tmelcom",
+					&tmelcom_udev);
+	if (ret) {
+		printf("Failed to find TMELCOM node %d\n", ret);
+		return ret;
+	}
+
+	*tmelcom_priv = dev_get_priv(tmelcom_udev);
+	return 0;
+}
+
 U_BOOT_DRIVER(tmelcom) = {
 	.name		= "tmelcom",
 	.id		= UCLASS_MISC,

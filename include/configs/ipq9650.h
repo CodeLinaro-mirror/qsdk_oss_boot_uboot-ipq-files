@@ -3,8 +3,8 @@
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 
-#ifndef _IPQ9670_H_
-#define _IPQ9670_H_
+#ifndef _IPQ9650_H_
+#define _IPQ9650_H_
 
 #ifndef __ASSEMBLY__
 #include <linux/types.h>
@@ -49,4 +49,4 @@ extern uint32_t g_env_offset;
 #define CFG_SYS_HZ_CLOCK			CONFIG_COUNTER_FREQUENCY
 #endif
 
-#endif /* _IPQ9670_H_ */
+#endif /* _IPQ9650_H_ */
