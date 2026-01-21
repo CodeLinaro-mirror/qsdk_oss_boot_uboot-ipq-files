@@ -533,7 +533,7 @@ config IPQ_PCIE
 	bool "Enable PCIE support in IPQ SOC"
 	select PCI
 	select PCIE_DW_QCOM
-	select PHY_QCOM_QMP_PCIE if TARGET_IPQ9574 || TARGET_IPQ5424 || TARGET_IPQ5210
+	select PHY_QCOM_QMP_PCIE if TARGET_IPQ9574 || TARGET_IPQ5424 || TARGET_IPQ5210 || TARGET_IPQ9650
 	select PHY_QCOM_UNIPHY_PCIE if TARGET_IPQ5332
 	select CMD_PCI
 	select PHY
@@ -547,6 +547,7 @@ config IPQ_MAX_PCIE
 	default 3 if TARGET_IPQ5332
 	default 4 if TARGET_IPQ9574
 	default 4 if TARGET_IPQ5424
+	default 5 if TARGET_IPQ9650
 	help
 	   This config declare maximum PCIE in SoC.
 
@@ -848,6 +849,7 @@ config TARGET_IPQ9650
 	imply DMA
 	imply DMA_CHANNELS
 	imply IPQ_USB
+	imply IPQ_PCIE
 	imply LIST_FUSE
 	imply IPQ_TMEL_IPC_SUPPORT
 	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
