@@ -1055,7 +1055,6 @@ struct port_info {
 	bool xgmac;
 	bool isconfigured;
 	bool phy_25mhz;
-	bool fw_loaded;
 	int i2c_bus;
 } __aligned(8);
 

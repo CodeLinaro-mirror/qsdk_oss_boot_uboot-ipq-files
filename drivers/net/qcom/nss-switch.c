@@ -3134,11 +3134,8 @@ static int ipq_eth_probe(struct udevice *dev)
 
 #ifdef CONFIG_PHY_AQUANTIA
 		if (port->phy_id == AQ_PHY_TYPE) {
-			if (!ipq_aquantia_load_fw(port->phydev)) {
-				port->fw_loaded = true;
-				mdelay(100);
-			} else
-				port->fw_loaded = false;
+			ipq_aquantia_load_fw(port->phydev);
+			mdelay(100);
 		}
 #endif
 
@@ -3315,41 +3312,28 @@ U_BOOT_DRIVER(eth_ipq) = {
 #ifdef CONFIG_PHY_AQUANTIA
 static int do_aqloadfw(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
 {
-	static struct udevice *dev;
-	static struct ipq_eth_dev *priv;
+	struct udevice *dev = NULL;
+	struct ipq_eth_dev *priv = NULL;
 	int i;
-	bool reload = false;
-	bool debug = false;
 	u8 phyaddr;
 
-	if (argc < 2 || argc > 3)
+	if (argc != 2)
 		return CMD_RET_USAGE;
 
-	if (argc == 3) {
-		char opt = argv[2][0];
-		if (opt == 'r')
-			reload = true;
-		else if (opt == 'd')
-			debug = true;
-		else
-			return CMD_RET_USAGE;
-	}
-
-	phyaddr = simple_strtoul(argv[1], NULL, 16);
-
 #if defined(CONFIG_CMD_NET) && defined(CONFIG_ETH_SKIP_INIT_R)
-	initr_net();
+	if (!initr_net())
+		return CMD_RET_SUCCESS;
 #endif
 
-	if (!dev && !(dev = eth_get_dev_by_name("nss-switch"))) {
-		printf("Failed to find nss-switch device\n");
+	dev = eth_get_dev_by_name("nss-switch");
+	if (!dev)
 		return CMD_RET_FAILURE;
-	}
 
-	if (!priv && !(priv = dev_get_priv(dev))) {
-		printf("Failed to find priv pointer\n");
+	priv = dev_get_priv(dev);
+	if (!priv)
 		return CMD_RET_FAILURE;
-	}
+
+	phyaddr = simple_strtoul(argv[1], NULL, 16);
 
 	for (i = 0; i < CONFIG_ETH_MAX_MAC; ++i) {
 		struct port_info *port = priv->port[i];
@@ -3363,20 +3347,8 @@ static int do_aqloadfw(struct cmd_tbl *cmdtp, int flag, int argc, char *const ar
 		if (port->phyaddr != phyaddr)
 			continue;
 
-		if (reload)
-			port->fw_loaded = false;
-
-		if (port->fw_loaded) {
-			if (debug)
-				printf("AQ port %d FW already loaded\n",
-					phyaddr);
-			continue;
-		}
-
-		if (!ipq_aquantia_load_fw(port->phydev)) {
-			port->fw_loaded = true;
+		if (!ipq_aquantia_load_fw(port->phydev))
 			mdelay(100);
-		}
 
 		break;
 	}
@@ -3384,8 +3356,7 @@ static int do_aqloadfw(struct cmd_tbl *cmdtp, int flag, int argc, char *const ar
 	return CMD_RET_SUCCESS;
 }
 
-U_BOOT_CMD(aq_load_fw, 3, 0, do_aqloadfw,
+U_BOOT_CMD(aq_load_fw, 2, 0, do_aqloadfw,
 	   "Load firmware to AQ port",
-	   "phy_addr --> phy address of AQ port\n"
-	   "[r|d] - Optional: 'r' for reload, 'd' for debug logs\n");
+	   "phy_addr --> phy address of AQ port\n");
 #endif /* CONFIG_PHY_AQUANTIA */
