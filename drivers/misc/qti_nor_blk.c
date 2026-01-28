@@ -168,7 +168,7 @@ U_BOOT_DRIVER(nor_blk) = {
 	.flags		= DM_FLAG_PRE_RELOC,
 };
 
-static int do_nor_blk(struct cmd_tbl *cmdtp, int flag, int argc,
+static int __maybe_unused do_nor_blk(struct cmd_tbl *cmdtp, int flag, int argc,
 			char *const argv[])
 {
 	const char *cmd;
@@ -195,7 +195,7 @@ static int do_nor_blk(struct cmd_tbl *cmdtp, int flag, int argc,
 	return CMD_RET_SUCCESS;
 }
 
-static const char help[] =
+static const char __maybe_unused help[] =
 	"part - dispaly GPT partition table\n"
 	;
 

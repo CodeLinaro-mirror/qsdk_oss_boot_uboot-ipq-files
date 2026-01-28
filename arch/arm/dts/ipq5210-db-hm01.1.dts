@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+
+#include "ipq5210-u-boot.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. IPQ5210 DB-HM01.1";
+	compatible = "qcom,ipq5210-db-hm01.1", "qcom,ipq5210";
+};

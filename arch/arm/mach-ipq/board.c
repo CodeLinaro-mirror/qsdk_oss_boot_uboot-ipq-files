@@ -110,6 +110,155 @@ struct smem_ptable *ipq_get_part_table(void)
 }
 #endif
 
+#if defined(CONFIG_SPL)
+/**
+ * ipq_spl_mem_map - Memory map for SPL
+ *
+ * This memory map is used by the SPL to configure the MMU. It defines
+ * regions of memory that are mapped into the virtual address space.
+ * The memory map includes device registers, GIC registers, TME-L IPC
+ * registers, BOOTIMEM, OCIMEM, and DDR regions.
+ *
+ * Each region is defined with its virtual address, physical address,
+ * size, and memory attributes.
+ */
+static struct mm_region ipq_spl_mem_map[] = {
+	{
+		/*
+		 * Device registers
+		 */
+		.virt = IPQ_SPL_DEVICE_REG_BASE,
+		.phys = IPQ_SPL_DEVICE_REG_BASE,
+		.size = IPQ_SPL_DEVICE_REG_SIZE,
+		.attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) |
+			 PTE_BLOCK_NON_SHARE |
+			 PTE_BLOCK_PXN | PTE_BLOCK_UXN
+	}, {
+		/*
+		 * Device registers 2
+		 */
+		.virt = IPQ_SPL_DEVICE_REG2_BASE,
+		.phys = IPQ_SPL_DEVICE_REG2_BASE,
+		.size = IPQ_SPL_DEVICE_REG2_SIZE,
+		.attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) |
+			 PTE_BLOCK_NON_SHARE |
+			 PTE_BLOCK_PXN | PTE_BLOCK_UXN
+	}, {
+		/*
+		 * OCIMEM Region
+		 */
+		.virt = IPQ_SPL_OCIMEM_REG_BASE,
+		.phys = IPQ_SPL_OCIMEM_REG_BASE,
+		.size = IPQ_SPL_OCIMEM_REG_SIZE,
+		.attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) |
+			 PTE_BLOCK_INNER_SHARE |
+			 PTE_BLOCK_PXN | PTE_BLOCK_UXN
+	}, {
+		/*
+		 * USB registers
+		 */
+		.virt = IPQ_SPL_USB_PRIM_REG_BASE,
+		.phys = IPQ_SPL_USB_PRIM_REG_BASE,
+		.size = IPQ_SPL_USB_PRIM_REG_SIZE,
+		.attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) |
+			 PTE_BLOCK_NON_SHARE |
+			 PTE_BLOCK_PXN | PTE_BLOCK_UXN
+	}, {
+		/*
+		 * BOOTIMEM Region
+		 */
+		.virt = IPQ_SPL_BOOTIMEM_REG_BASE,
+		.phys = IPQ_SPL_BOOTIMEM_REG_BASE,
+		.size = IPQ_SPL_BOOTIMEM_REG_SIZE,
+		.attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) |
+			 PTE_BLOCK_INNER_SHARE |
+			 PTE_BLOCK_PXN | PTE_BLOCK_UXN
+	}, {
+		/*
+		 * TME-L IPC registers
+		 */
+		.virt = IPQ_SPL_TMEL_MBOX_REG_BASE,
+		.phys = IPQ_SPL_TMEL_MBOX_REG_BASE,
+		.size = IPQ_SPL_TMEL_MBOX_REG_SIZE,
+		.attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) |
+			 PTE_BLOCK_NON_SHARE |
+			 PTE_BLOCK_PXN | PTE_BLOCK_UXN
+	}, {
+		/*
+		 * DDR Region
+		 */
+		.virt = IPQ_SPL_DDR_MEM_BASE,
+		.phys = IPQ_SPL_DDR_MEM_BASE,
+		.size = IPQ_SPL_DDR_MEM_SIZE,
+		.attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) |
+			 PTE_BLOCK_INNER_SHARE |
+			 PTE_BLOCK_PXN | PTE_BLOCK_UXN
+	}, {
+		/*
+		 * SPL Text Region
+		 */
+		.virt = CONFIG_SPL_TEXT_BASE,
+		.phys = CONFIG_SPL_TEXT_BASE,
+		.size = CONFIG_SPL_TEXT_SIZE,
+		.attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) |
+			 PTE_BLOCK_INNER_SHARE
+	}, {
+		/*
+		 * QCLIB Text Region
+		 */
+		.virt = IPQ_SPL_QCLIB_TEXT_BASE,
+		.phys = IPQ_SPL_QCLIB_TEXT_BASE,
+		.size = IPQ_SPL_QCLIB_TEXT_SIZE,
+		.attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) |
+			 PTE_BLOCK_INNER_SHARE
+	}, {
+		/*
+		 * QCLIB DSF Text Region
+		 */
+		.virt = IPQ_SPL_QCLIB_DSF_TEXT_BASE,
+		.phys = IPQ_SPL_QCLIB_DSF_TEXT_BASE,
+		.size = IPQ_SPL_QCLIB_DSF_TEXT_SIZE,
+		.attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) |
+			 PTE_BLOCK_INNER_SHARE
+	}, {
+		/*
+		 * TFA Text Region
+		 */
+		.virt = IPQ_SPL_TFA_TEXT_BASE,
+		.phys = IPQ_SPL_TFA_TEXT_BASE,
+		.size = IPQ_SPL_TFA_TEXT_SIZE,
+		.attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) |
+			 PTE_BLOCK_INNER_SHARE
+	}, {
+		/*
+		 * List terminator
+		 */
+		0,
+	}
+};
+
+/*
+ * Assign the mem_map instance to ipq_spl_mem_map,
+ * which defines the SPL memory map
+ */
+struct mm_region *mem_map = ipq_spl_mem_map;
+
+/**
+ * get_page_table_size() - Get the size of the page table.
+ *
+ * This function returns the size of the page table used by the MMU.
+ * It is used by the U-Boot framework to allocate appropriate memory for
+ * page table structures.
+ *
+ * Returns:
+ *	Size of the page table in bytes.
+ */
+u64 get_page_table_size(void)
+{
+	return SZ_64K;
+}
+
+#else
 static void check_recovery_mode(void)
 {
 	if (g_recovery_path == 1)
@@ -287,6 +436,7 @@ void enable_caches(void)
 	board_cache_init();
 }
 #endif
+#endif /* !CONFIG_SPL */
 
 int dram_init(void)
 {
@@ -461,6 +611,35 @@ int arch_setup_dest_addr(void)
 	return 0;
 }
 
+#if defined(CONFIG_SPL)
+/**
+ * arm_reserve_mmu() - Reserve space for MMU page tables.
+ *
+ * This function reserves memory for the MMU page tables, ensuring that
+ * sufficient space is allocated for the translation tables required by
+ * the MMU. The reserved space is stored in global data structures for later use.
+ *
+ * Returns:
+ *	0 on success, negative error code on failure.
+ */
+int arm_reserve_mmu(void)
+{
+#if !(CONFIG_IS_ENABLED(SYS_ICACHE_OFF) && CONFIG_IS_ENABLED(SYS_DCACHE_OFF))
+	/* reserve TLB table */
+	gd->arch.tlb_size = PGTABLE_SIZE;
+
+	gd->arch.tlb_addr = (unsigned long)(memalign(SZ_64K,
+							gd->arch.tlb_size));
+	if (!gd->arch.tlb_addr) {
+		pr_err("%s No enough Space for pagetable\n", __func__);
+		return -ENOMEM;
+	}
+
+#endif
+
+	return 0;
+}
+#else
 int arm_reserve_mmu(void)
 {
 	/* reserve TLB table */
@@ -470,6 +649,7 @@ int arm_reserve_mmu(void)
 	gd->arch.tlb_addr &= ~(0x10000 - 1);
 	return 0;
 }
+#endif
 
 #ifdef CONFIG_DTB_RESELECT
 int embedded_dtb_select(void)
