@@ -140,7 +140,10 @@ struct tmelcom {
 };
 
 void tmel_secboot_sec_free(void *ptr);
-
 int ipq_get_tmelcom_device(struct tmelcom **tmelcom_priv);
+int ipq_list_fuse_tme_impl(void *params);
+int ipq_dump_fuse_tme_impl(void *params);
+int ipq_check_secure_boot_tme_impl(void *params);
+int ipq_secure_auth_tme_impl(void *params);
 
 #endif  /* _LINUX_TMELCOM_QMP_H */
