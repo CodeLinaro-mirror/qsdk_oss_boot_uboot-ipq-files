@@ -268,3 +268,57 @@ int ipq_get_tme_version_impl(void *params)
 
 	return ret;
 }
+
+#ifdef CONFIG_IPQ_TMEL_PRNG_IPC_SUPPORT
+/* TME PRNG get implementation */
+int ipq_prng_get_tme_impl(void *params)
+{
+	int ret;
+	struct tmel_get_prng *prng_params;
+	struct tmelcom *tmelcom_priv;
+	struct tmel_qmp_msg tmsg;
+
+	/* Validate params before using */
+	if (!params) {
+		printf("Error: Invalid params pointer\n");
+		return -EINVAL;
+	}
+
+	prng_params = (struct tmel_get_prng *)params;
+
+	/* Validate prng_params members */
+	if (!prng_params->pdata) {
+		printf("Error: Invalid pdata pointer\n");
+		return -EINVAL;
+	}
+
+	if (prng_params->length == 0) {
+		printf("Error: Invalid length value\n");
+		return -EINVAL;
+	}
+
+	ret = ipq_get_tmelcom_device(&tmelcom_priv);
+	if (ret || !tmelcom_priv) {
+		printf("Failed to find TMELCOM node %d\n", ret);
+		return -ENODEV;
+	}
+
+	/* Build TME PRNG get message */
+	memset(&tmsg, 0, sizeof(struct tmel_qmp_msg));
+	tmsg.msg_id = TMEL_MSG_UID_HCS_PRNG_GET;
+	tmsg.msg = prng_params;
+	tmsg.size = sizeof(struct tmel_get_prng);
+
+	ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
+
+	/* Invalidate cache after receiving */
+	invalidate_dcache_range((unsigned long)prng_params->pdata,
+				(unsigned long)prng_params->pdata +
+				prng_params->length);
+
+	if (ret)
+		debug("Failed to send TME mailbox message: %d\n", ret);
+
+	return ret;
+}
+#endif /* CONFIG_IPQ_TMEL_PRNG_IPC_SUPPORT */
