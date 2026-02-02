@@ -635,6 +635,16 @@ config IPQ_TMEL_IPC_SUPPORT
 	select QCOM_TMELCOM
 	default n
 
+config IPQ_TMEL_PRNG_IPC_SUPPORT
+	bool "Enable TMEL PRNG IPC Support"
+	depends on IPQ_TMEL_IPC_SUPPORT
+	default n
+	help
+	  Enable support for getting random data from TME PRNG (Pseudo Random
+	  Number Generator) via TMEL IPC. This feature allows the bootloader
+	  to request cryptographically secure random data from the TME-L
+	  firmware during the boot process.
+
 config IPQ_BOARD_DEFAULT
 	bool "Enable default config for all SoC"
 	default y

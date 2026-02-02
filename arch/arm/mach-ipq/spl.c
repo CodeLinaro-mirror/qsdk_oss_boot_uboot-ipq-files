@@ -1695,6 +1695,54 @@ static void ipq_spl_get_tme_patch_version(void)
 	free(version_buffer);
 }
 
+#if defined(CONFIG_IPQ_TMEL_PRNG_IPC_SUPPORT)
+/**
+ * ipq_spl_get_tme_prng_data() - Get TME PRNG data and copy to destination.
+ *
+ * This function retrieves random data from TME PRNG and copies it to the
+ * destination address for use by TF-A.
+ * Return: 0 on success, or a negative error code on failure.
+ */
+static int ipq_spl_get_tme_prng_data(void)
+{
+	int ret;
+	struct tmel_get_prng prng_msg;
+	u8 *random_buffer;
+	u8 *dest_addr = (u8 *)IPQ_SPL_TFA_PRNG_DATA_DEST_ADDR;
+
+	random_buffer = memalign(ARCH_DMA_MINALIGN, IPQ_SPL_TFA_PRNG_DATA_SIZE);
+	if (!random_buffer) {
+		pr_err("Failed to allocate memory for PRNG buffer\n");
+		return -ENOMEM;
+	}
+
+	memset(random_buffer, 0, IPQ_SPL_TFA_PRNG_DATA_SIZE);
+
+	prng_msg.pdata = (u32)(uintptr_t)random_buffer;
+	prng_msg.length = IPQ_SPL_TFA_PRNG_DATA_SIZE;
+
+	ret = ipq_prng_get_tme_impl(&prng_msg);
+	if (ret == 0) {
+		printf("Successfully retrieved %u bytes of random data from TME PRNG\n",
+		       prng_msg.length);
+
+		/* Copy PRNG data to destination address 0x8600900 */
+		memcpy(dest_addr, random_buffer, IPQ_SPL_TFA_PRNG_DATA_SIZE);
+
+		/* Flush cache to ensure TF-A can read the PRNG data */
+		flush_dcache_range((unsigned long)dest_addr,
+				   (unsigned long)dest_addr + IPQ_SPL_TFA_PRNG_DATA_SIZE);
+	} else {
+		pr_err("Failed to get random data from TME PRNG (ret=%d)\n", ret);
+		free(random_buffer);
+		return ret;
+	}
+
+	free(random_buffer);
+	return 0;
+}
+#endif /* CONFIG_IPQ_TMEL_PRNG_IPC_SUPPORT */
+
 /**
  * ipq_spl_auth_image() - Authenticate an image using TME.
  * @p_img_entry: Pointer to the image context.
@@ -2189,6 +2237,9 @@ void board_init_f(ulong dummy)
 		ipq_spl_list_tme_fuse(tme_fuse_info_array,
 					ARRAY_SIZE(tme_fuse_info_array));
 		ipq_spl_get_tme_patch_version();
+#if defined(CONFIG_IPQ_TMEL_PRNG_IPC_SUPPORT)
+                ipq_spl_get_tme_prng_data();
+#endif
 	} else {
 		printf("TME fuse listing skipped (tmel_bypass=1)\n");
 	}
