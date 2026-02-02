@@ -216,3 +216,55 @@ int ipq_secure_auth_tme_impl(void *params)
 	return CMD_RET_FAILURE;
 #endif
 }
+
+/* TME get_version implementation */
+int ipq_get_tme_version_impl(void *params)
+{
+	int ret;
+	struct tmel_get_tme_version *version_params;
+	struct tmelcom *tmelcom_priv;
+	struct tmel_qmp_msg tmsg;
+
+	/* Validate params before using */
+	if (!params) {
+		printf("Error: Invalid params pointer\n");
+		return -EINVAL;
+	}
+
+	version_params = (struct tmel_get_tme_version *)params;
+
+	/* Validate version_params members */
+	if (!version_params->pdata) {
+		printf("Error: Invalid pdata pointer\n");
+		return -EINVAL;
+	}
+
+	if (version_params->length == 0) {
+		printf("Error: Invalid length value\n");
+		return -EINVAL;
+	}
+
+	ret = ipq_get_tmelcom_device(&tmelcom_priv);
+	if (ret || !tmelcom_priv) {
+		printf("Failed to find TMELCOM node %d\n", ret);
+		return -ENODEV;
+	}
+
+	/* Build TME get version message */
+	memset(&tmsg, 0, sizeof(struct tmel_qmp_msg));
+	tmsg.msg_id = TMEL_MSG_UID_SECBOOT_GET_STATE;
+	tmsg.msg = version_params;
+	tmsg.size = sizeof(struct tmel_get_tme_version);
+
+	ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
+
+	/* Invalidate cache after receiving */
+	invalidate_dcache_range((unsigned long)version_params->pdata,
+				(unsigned long)version_params->pdata +
+				version_params->length);
+
+	if (ret)
+		debug("Failed to send TME mailbox message: %d\n", ret);
+
+	return ret;
+}
