@@ -2902,7 +2902,7 @@ static int ipq_eth_probe(struct udevice *dev)
 	struct reset_ctl_bulk resets;
 	int clk_itr, clk_cnt, ret, i, configured = 0;
 	const char **clk_names = NULL;
-#ifdef CONFIG_PHY_QCA_8X8X
+#if defined(CONFIG_PHY_QCA_8X8X) || defined(CONFIG_PHY_QCE_1204)
 	int phy_no = 0;
 #endif
 
@@ -3107,14 +3107,15 @@ static int ipq_eth_probe(struct udevice *dev)
 		if (ofnode_valid(port->node))
 			port->phydev->node = port->node;
 
-#ifdef CONFIG_PHY_QCA_8X8X
+#if defined(CONFIG_PHY_QCA_8X8X) || defined(CONFIG_PHY_QCE_1204)
 		/*
 		 * configure UQXGMII for pure PHY mode since MHT PHY requires
 		 * uniphy pre-init before configuring uniphy mode, which has
 		 * to be configured by default to UQXGMII mode regardless of
 		 * speed link up.
 		 */
-		if (port->phy_id == QCA8x8x_PHY_TYPE) {
+		if (port->phy_id == QCA8x8x_PHY_TYPE  ||
+			port->phy_id == QCE1204_PHY_TYPE) {
 			port->uniphy_mode = PORT_WRAPPER_UQXGMII;
 			port->cur_uniphy_mode = PORT_WRAPPER_UQXGMII;
 			port->gmac_type = XGMAC;
