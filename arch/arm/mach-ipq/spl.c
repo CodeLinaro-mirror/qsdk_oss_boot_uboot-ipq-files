@@ -259,7 +259,7 @@ static struct ipq_spl_fuse_info tme_fuse_info_array[] = {
 struct ipq_spl_img_ctx img_tbl_fit[] = {
 	{
 		.img_name = "qcconfig-meta",
-		.sw_id = IPQ_SPL_QCLIB_DDR_SEC_AUTH_SWID,
+		.sw_id = IPQ_SPL_QCCONFIG_SEC_AUTH_SWID,
 		.auth = true,
 		.fixup = ipq_spl_xcfg_fixup,
 	}, {
