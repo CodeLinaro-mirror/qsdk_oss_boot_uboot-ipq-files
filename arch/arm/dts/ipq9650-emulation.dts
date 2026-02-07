@@ -29,6 +29,46 @@
                         };
 
 		};
+
+		pcie0: pcie@70000000 {
+			max-link-speed = <1>;
+			phys = <>;
+			phy-names = "";
+			perst-gpios = <&tlmm 25 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+
+		pcie4: pcie@60000000 {
+			max-link-speed = <1>;
+			phys = <>;
+			phy-names = "";
+			perst-gpios = <&tlmm 31 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+
+		pcie3: pcie@30000000 {
+			max-link-speed = <1>;
+			phys = <>;
+			phy-names = "";
+			perst-gpios = <&tlmm 41 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+
+		pcie1: pcie@50000000 {
+			max-link-speed = <1>;
+			phys = <>;
+			phy-names = "";
+			perst-gpios = <&tlmm 28 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+
+		pcie2: pcie@40000000 {
+			max-link-speed = <1>;
+			phys = <>;
+			phy-names = "";
+			perst-gpios = <&tlmm 52 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
 	};
 };
 
