@@ -540,12 +540,6 @@ void setup_arch_cntfreq(void)
 
 int board_init(void)
 {
-#if defined(CONFIG_ARM64) && defined(CFG_EMUL_FREQUENCY_DIVIDER)
-	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
-	if ((current_el() == 3) && (sfi->flash_type != SMEM_BOOT_NO_FLASH))
-		setup_arch_cntfreq();
-#endif
-
 	/*
 	 * create device pointer
 	 */
@@ -562,6 +556,11 @@ int board_init(void)
 	ipq_board_read_smem_info(ipq_bdinfo);
 #endif
 
+#if defined(CONFIG_ARM64) && defined(CFG_EMUL_FREQUENCY_DIVIDER)
+	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
+	if (sfi && (current_el() == 3) && (sfi->flash_type != SMEM_BOOT_NO_FLASH))
+		setup_arch_cntfreq();
+#endif
 	/*
 	 * update Global bdinfo table
 	 */
