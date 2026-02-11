@@ -82,6 +82,8 @@
 #define IF_TABLE_VERSION		0x1
 #define QCCONFIG			"qc_config"
 #define QCSDI				"qcsdi"
+#define QCDAREKEY			"qc_dare_key"
+
 /*
  * Image version table definitions
  */
@@ -94,6 +96,15 @@
 /*******************************************************************************
  * Structure enum and static
  ******************************************************************************/
+
+/*
+ * LCP region keys per slot structure
+ */
+struct lcp_region_keys_per_slot {
+	u32 encrypt_key[4];		/* 128-bit encryption key */
+	u32 sha3_key[4];		/* 128-bit SHA3 key */
+	u32 encrypt_alpha_key[2];	/* 64-bit alpha key */
+} __packed;
 /*
  * Global variable to store TME-L patch version
  * Explicitly initialized to empty string
@@ -1272,6 +1283,75 @@ out_skip_smem_mibib_update:
 	return 0;
 }
 
+#if defined(CONFIG_IPQ_LCP_DARE)
+/**
+ * ipq_spl_get_lcp_dare_key() - Get LCP DARE key from TME PRNG
+ * @pctx:      Pointer to the global SPL context
+ * @entry_idx: Current interface table entry index
+ *
+ * This function retrieves the LCP DARE key from TME using PRNG IPC
+ * and adds it to the QCLib interface table.
+ *
+ * Return: 0 on success, or a negative error code on failure.
+ */
+static int ipq_spl_get_lcp_dare_key(struct ipq_spl_ctx *pctx, int entry_idx)
+{
+	int ret;
+	struct lcp_region_keys_per_slot *lcp_keys;
+	struct tmel_get_prng prng_msg;
+
+	if (!pctx) {
+		pr_err("Invalid SPL context\n");
+		return -EINVAL;
+	}
+
+	/*
+	 * Add QCDAREKEY entry to the interface table
+	 */
+	memcpy(pctx->if_tbl.if_table_entries[entry_idx].entry_name,
+		QCDAREKEY,
+		strlen(QCDAREKEY));
+
+	pctx->if_tbl.if_table_entries[entry_idx].attributes = 0;
+	pctx->if_tbl.num_entries = entry_idx + 1;
+
+	/*
+	 * Allocate memory for LCP region keys
+	 */
+	lcp_keys = memalign(ARCH_DMA_MINALIGN,
+			    sizeof(struct lcp_region_keys_per_slot));
+	if (!lcp_keys) {
+		pr_err("Failed to allocate memory for LCP keys\n");
+		return -ENOMEM;
+	}
+	memset(lcp_keys, 0, sizeof(struct lcp_region_keys_per_slot));
+
+	/*
+	 * Get LCP PRNG key from TME
+	 */
+	prng_msg.pdata = (u32)(uintptr_t)lcp_keys;
+	prng_msg.length = sizeof(struct lcp_region_keys_per_slot);
+
+	ret = ipq_prng_get_tme_impl(&prng_msg);
+	if (ret) {
+		printf("PRNG request failed. ret = %d\n", ret);
+		free(lcp_keys);
+		return ret;
+	}
+
+	printf("Successfully retrieved LCP PRNG key (size: %u bytes)\n",
+	       prng_msg.length);
+
+	/*
+	 * Store the LCP keys address in the interface table entry
+	 */
+	pctx->if_tbl.if_table_entries[entry_idx].address = (u64)(uintptr_t)lcp_keys;
+	pctx->if_tbl.if_table_entries[entry_idx].size = sizeof(struct lcp_region_keys_per_slot);
+
+	return 0;
+}
+#endif /* CONFIG_IPQ_LCP_DARE */
+
 /**
  * ipq_spl_get_iftbl_entry_by_name() - Get an interface table entry by name.
  * @if_tbl:	Pointer to the QCLIB interface table.
@@ -1425,6 +1505,17 @@ static int ipq_spl_xcfg_fixup(void *ctx)
 	memset((void *)IPQ_SPL_QCLIB_TEXT_BASE,
 		0x0,
 		IPQ_SPL_QCLIB_TEXT_SIZE - (SZ_8K + SZ_2K));
+#if defined(CONFIG_IPQ_LCP_DARE)
+	/*
+	 * Get LCP DARE key from TME PRNG
+	 */
+	entry_idx++;
+	ret = ipq_spl_get_lcp_dare_key(pctx, entry_idx);
+	if (ret) {
+		pr_err("Failed to get LCP DARE key (ret=%d)\n", ret);
+		return ret;
+	}
+#endif /* CONFIG_IPQ_LCP_DARE */
 
 	return 0;
 }
