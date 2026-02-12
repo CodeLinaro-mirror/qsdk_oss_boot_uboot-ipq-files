@@ -85,9 +85,6 @@
 #define IPO_ACTION_ADDRESS          0x8000
 #define IPO_ACTION_INC              0x20
 
-/* IPE (Ingress Packet Engine) Base Address */
-#define IPE_L2_BASE_ADDR            0x540000
-
 /* CST (Common Spanning Tree) State Register */
 #define CST_STATE_ADDRESS           0x100
 #define CST_STATE_INC               0x4

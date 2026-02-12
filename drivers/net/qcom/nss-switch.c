@@ -876,7 +876,7 @@ static void ipq_ppe_enable_port_counter(phys_addr_t reg_base)
  * ipq_vsi_setup()
  */
 static void ipq_vsi_setup(phys_addr_t reg_base, u32 vsi,
-			  u8 group_mask)
+			  u32 group_mask)
 {
 	u32 val = (group_mask << 24 | group_mask << 16 |
 				group_mask << 8 | group_mask);
@@ -891,7 +891,7 @@ static void ipq_vsi_setup(phys_addr_t reg_base, u32 vsi,
 void ipq_ppe_tdm_configuration(struct ppe_info *ppe)
 {
 	u32 i;
-	u8 *config_values = &tdm_config[ppe->tdm_mode].val[0];
+	u32 *config_values = &tdm_config[ppe->tdm_mode].val[0];
 
 	for (i = 0; i < ppe->no_reg; ++i) {
 		writel(config_values[i],
