@@ -81,25 +81,6 @@
 			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
 			#address-cells = <1>;
 			#size-cells = <1>;
-			ranges = <0 0x0b00c000 0x3000>;
-
-			v2m0: v2m@0 {
-				compatible = "arm,gic-v2m-frame";
-				reg = <0x00000000 0xffd>;
-				msi-controller;
-			};
-
-			v2m1: v2m@1000 {
-				compatible = "arm,gic-v2m-frame";
-				reg = <0x00001000 0xffd>;
-				msi-controller;
-			};
-
-			v2m2: v2m@2000 {
-				compatible = "arm,gic-v2m-frame";
-				reg = <0x00002000 0xffd>;
-				msi-controller;
-			};
 		};
 
 		tmel_qmp: tmel-qmp@32090000 {
