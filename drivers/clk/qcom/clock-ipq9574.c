@@ -306,7 +306,7 @@ static ulong ipq9574_set_rate(struct clk *clk, ulong rate)
 	case GCC_SDCC1_ICE_CORE_CLK:
 		/* ICE Core Clock: 300 MHz */
 		clk_rcg_set_rate_mnd(priv->base, GCC_SDCC1_ICE_CORE_CMD_RCGR,
-				     7, 0, 0, CFG_CLK_SRC_GPLL2, 16);
+				     7, 0, 0, CFG_CLK_SRC_GPLL2, 8);
 		break;
 	case GCC_BLSP1_QUP1_SPI_APPS_CLK:
 		/* QUP1 SPI APPS CLK: 50MHz */
