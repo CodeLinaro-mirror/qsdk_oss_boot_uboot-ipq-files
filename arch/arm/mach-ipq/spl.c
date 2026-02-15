@@ -387,6 +387,7 @@ struct ipq_spl_img_ctx {
 	u8 load;
 	u8 auth;
 	u8 optional;
+	u8 img_arch;
 	int fit_node;
 	int (*fixup)(void *ctx);
 };
@@ -876,6 +877,33 @@ static int ipq_spl_get_iftbl_entry_by_name(struct interface_table *if_tbl,
 }
 
 /**
+ * ipq_spl_get_img_ctx_by_name() - Get image table entry by name.
+ * @img_name:	Name of the image to find.
+ *
+ * This function searches the img_tbl_fit for any entry matching the given name
+ * and returns the pointer to the matching image entry from the table.
+ *
+ * Return: pointer to maching image table entry on success, or NULL on failure.
+ */
+
+struct ipq_spl_img_ctx *ipq_spl_get_img_ctx_by_name(char *img_name)
+{
+	u8 uc_index;
+	u8 uc_size;
+
+	if (!img_name)
+		return NULL;
+
+	uc_size = ARRAY_SIZE(img_tbl_fit);
+	for (uc_index = 0; uc_index < uc_size; uc_index++) {
+		if (strcmp(img_name, img_tbl_fit[uc_index].img_name) == 0)
+			return &img_tbl_fit[uc_index];
+	}
+
+	return NULL;
+}
+
+/**
  * ipq_spl_xcfg_fixup() - Perform fixups for qcconfig-meta image.
  * @ctx:	Pointer to the global SPL context.
  *
@@ -1238,6 +1266,7 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 	int ret;
 	u8 uc_index;
 	u8 uc_size;
+	u8 img_arch;
 	u64 load_addr;
 	void *load_ptr;
 	const char *img_name = fit_get_name(fit, node, NULL);
@@ -1297,6 +1326,12 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 			img_tbl_fit[uc_index].fit_node = node;
 			img_tbl_fit[uc_index].load_addr = (u64)(*p_image);
 			img_tbl_fit[uc_index].img_sz = *p_size;
+
+			if (fit_image_get_arch(fit, node, &img_arch)) {
+				pr_err("Failed to get architecture for %s\n", img_name);
+				goto fail;
+			}
+			img_tbl_fit[uc_index].img_arch = img_arch;
 
 #if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
 			/*
@@ -1360,6 +1395,7 @@ struct bl_params *bl2_plat_get_bl31_params_v2(uintptr_t bl32_entry,
 	struct interface_table_entry if_tbl_entry;
 	int ret;
 	struct ipq_spl_ctx *ctx = U_BOOT_GET_IPQ_SPL_CTX(ipq_default_ctx);
+	struct ipq_spl_img_ctx *img_tbl;
 
 	/*
 	 * Populate the bl31 params with default values.
@@ -1400,6 +1436,13 @@ struct bl_params *bl2_plat_get_bl31_params_v2(uintptr_t bl32_entry,
 			 * If found, populate arg0 with the QCSDI address.
 			 */
 			node->ep_info->args.arg0 = if_tbl_entry.address;
+		} else if (node->image_id == ATF_BL33_IMAGE_ID) {
+			img_tbl = ipq_spl_get_img_ctx_by_name("uboot-meta");
+
+			if (img_tbl && img_tbl->img_arch == IH_ARCH_ARM) {
+				/* SPSR = 0x1D3 for 32-bit Mode */
+				node->ep_info->spsr = SPSR_32_SVC_ARM_MASKED_LE;
+			}
 		}
 	}
 
