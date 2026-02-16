@@ -108,9 +108,7 @@ uint8_t *board_dump_entries = &dump_entries_n;
 struct dts_fixup ipq9650_mmc_fixup [] = {
 	{ "/soc@0/nand@79b0000/", {"/soc@0/nand@79b0000/%status%?disabled"},1},
 	{ "/soc@0/mmc@7804000/", {"/soc@0/mmc@7804000/%status%?okay"}, 1},
-	{ "/soc/nand@79b0000/", {"/soc/nand@79b0000/%status%?disabled"},1},
-	{ "/soc/sdhci@7804000/", {"/soc/sdhci@7804000/%status%?okay"}, 1},
-	{}
+	{NULL}
 };
 
 struct dts_fixup *mmc_fixup = ipq9650_mmc_fixup;
@@ -120,11 +118,7 @@ struct dts_fixup ipq9650_usb_fixup [] = {
 		{"/soc@0/usb3@8a00000/dwc3@8a00000%dr_mode%?peripheral",
 		"/soc@0/usb3@8a00000/dwc3@8a00000%maximum-speed%?high-speed"},
 		2},
-	{ "/soc/usb3@8A00000/dwc3@8A00000/",
-		{ "/soc/usb3@8A00000/dwc3@8A00000%dr_mode%?peripheral",
-		"/soc/usb3@8A00000/dwc3@8A00000%maximum-speed%?high-speed"},
-		2},
-	{}
+	{NULL}
 };
 
 struct dts_fixup *usb_fixup = ipq9650_usb_fixup;
