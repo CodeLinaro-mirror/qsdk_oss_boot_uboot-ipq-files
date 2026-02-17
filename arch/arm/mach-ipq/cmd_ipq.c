@@ -2447,3 +2447,22 @@ U_BOOT_CMD(
 	"mmc_protect start_blk cnt_blk\n"
 );
 #endif
+
+#if defined(CONFIG_EDL_SUPPORT)
+int do_edl_reset(struct cmd_tbl *cmdtp, int flag, int argc, char *const argv[])
+{
+	puts ("resetting to EDL...\n");
+	flush();
+
+#ifdef CONFIG_IPQ_CRASHDUMP
+	reset_crashdump(RESET_V2);
+#endif
+	psci_sys_reset(SYSRESET_VENDOR);
+
+	/*NOTREACHED*/
+	return 0;
+}
+
+U_BOOT_CMD(edl_reset, 1, 0, do_edl_reset,
+	   "Reset to Emergency download mode\n", "");
+#endif /* CONFIG_EDL_SUPPORT */
