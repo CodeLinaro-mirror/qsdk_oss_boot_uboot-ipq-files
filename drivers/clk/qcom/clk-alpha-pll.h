@@ -145,15 +145,15 @@ struct alpha_pll_config {
 };
 
 /**
- * struct aplha_pll_ops - PLL operations
+ * struct alpha_pll_ops - PLL operations
  * @enable: enable the PLL
  * @disable: disable the PLL
  * @is_enabled: check if PLL is enabled
  * @set_rate: set the PLL rate
- * @get_rate: get the PLL rate
  * @prepare: prepare the PLL for use
+ * @configure: configure the PLL with given parameters
  */
-struct aplha_pll_ops {
+struct alpha_pll_ops {
 	int (*enable)(struct clk_alpha_pll *pll);
 	void (*disable)(struct clk_alpha_pll *pll);
 	int (*is_enabled)(struct clk_alpha_pll *pll);
@@ -167,8 +167,48 @@ struct aplha_pll_ops {
 				const struct alpha_pll_config *config);
 };
 
-extern const struct aplha_pll_ops clk_alpha_pll_ops;
-extern const struct aplha_pll_ops clk_alpha_pll_huayra_ops;
-extern const struct aplha_pll_ops clk_alpha_pll_huayra_v2_ops;
+/**
+ * struct clk_alpha_pll_desc - PLL description
+ * @name: name of the PLL
+ * @pll: pointer to the PLL structure
+ * @pll_config: pointer to the PLL configuration
+ * @pll_ops: pointer to the PLL operations
+ * @rate: rate of the PLL
+ * @prate: parent rate of the PLL
+ */
+struct clk_alpha_pll_desc {
+	char name[16];
+	struct clk_alpha_pll		*pll;
+	const struct alpha_pll_config	*pll_config;
+	const struct alpha_pll_ops	*pll_ops;
+	unsigned long			rate;
+	unsigned long			prate;
+};
+
+/**
+ * struct clk_alpha_pll_tbl - PLL table
+ * @pll_desc_base: pointer to the PLL description table base
+ * @num_plls: number of PLLs in the table
+ */
+struct clk_alpha_pll_tbl {
+	const struct clk_alpha_pll_desc *pll_desc_base;
+	u32 num_plls;
+};
+
+/**
+ * struct clk_alpha_pll_priv - PLL driver private data
+ * @pll_desc: pointer to the PLL description
+ * @base: base address of the PLL registers in memory
+ * @fsm_vote_addr: base address of the PLL vote registers in memory
+ * @fsm_vote_mask: mask for the PLL vote register
+ * @configured: flag to indicate if the PLL is configured
+ */
+struct clk_alpha_pll_priv {
+	const struct clk_alpha_pll_desc *pll_desc;
+	void __iomem *base;
+	void __iomem *fsm_vote_addr;
+	u32 fsm_vote_mask;
+	bool configured;
+};
 
 #endif

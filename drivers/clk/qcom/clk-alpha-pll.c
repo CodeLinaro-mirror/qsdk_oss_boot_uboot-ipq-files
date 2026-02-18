@@ -3,8 +3,9 @@
  * Copyright (c) 2015, 2018, The Linux Foundation. All rights reserved.
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
-
-#include <dm/device.h>
+#include <clk-uclass.h>
+#include <dm.h>
+#include <dm/device-internal.h>
 #include <linux/delay.h>
 #include <linux/math64.h>
 #include <div64.h>
@@ -1116,7 +1117,7 @@ static int clk_huayra_pll_set_rate(struct clk_alpha_pll *pll,
  * @set_rate: set the pll rate
  * @prepare: prepare the pll
  */
-const struct aplha_pll_ops clk_alpha_pll_ops = {
+const struct alpha_pll_ops clk_alpha_pll_ops = {
 	.enable = clk_alpha_pll_enable,
 	.disable = clk_alpha_pll_disable,
 	.is_enabled = clk_alpha_pll_is_enabled,
@@ -1125,7 +1126,7 @@ const struct aplha_pll_ops clk_alpha_pll_ops = {
 	.configure = clk_alpha_pll_configure,
 };
 
-const struct aplha_pll_ops clk_alpha_pll_huayra_ops = {
+const struct alpha_pll_ops clk_alpha_pll_huayra_ops = {
 	.enable = clk_huayra_pll_enable,
 	.disable = clk_alpha_pll_disable,
 	.is_enabled = clk_alpha_pll_is_enabled,
@@ -1134,11 +1135,494 @@ const struct aplha_pll_ops clk_alpha_pll_huayra_ops = {
 	.configure = clk_huayra_pll_configure,
 };
 
-const struct aplha_pll_ops clk_alpha_pll_huayra_v2_ops = {
+const struct alpha_pll_ops clk_alpha_pll_huayra_v2_ops = {
 	.enable = clk_huayra_pll_enable,
 	.disable = clk_alpha_pll_disable,
 	.is_enabled = clk_alpha_pll_is_enabled,
 	.set_rate = clk_huayra_pll_set_rate,
 	.prepare = clk_alpha_pll_prepare,
 	.configure = clk_huayra_v2_pll_configure,
+};
+
+/**
+ * List of Target specific PLL offsets
+ */
+static const u8 ipq5424_pll_offsets[][PLL_OFF_MAX_REGS] = {
+	[CLK_ALPHA_PLL_TYPE_DEFAULT] =  {
+		[PLL_OFF_L_VAL] = 0x04,
+		[PLL_OFF_ALPHA_VAL] = 0x08,
+		[PLL_OFF_ALPHA_VAL_U] = 0x0c,
+		[PLL_OFF_TEST_CTL] = 0x10,
+		[PLL_OFF_TEST_CTL_U] = 0x14,
+		[PLL_OFF_USER_CTL] = 0x18,
+		[PLL_OFF_USER_CTL_U] = 0x1c,
+		[PLL_OFF_CONFIG_CTL] = 0x20,
+		[PLL_OFF_STATUS] = 0x24,
+	},
+	[CLK_ALPHA_PLL_TYPE_HUAYRA] =  {
+		[PLL_OFF_L_VAL] = 0x04,
+		[PLL_OFF_ALPHA_VAL] = 0x08,
+		[PLL_OFF_TEST_CTL] = 0x0c,
+		[PLL_OFF_TEST_CTL_U] = 0x10,
+		[PLL_OFF_USER_CTL] = 0x14,
+		[PLL_OFF_CONFIG_CTL] = 0x18,
+		[PLL_OFF_CONFIG_CTL_U] = 0x1c,
+		[PLL_OFF_STATUS] = 0x20,
+	},
+	[CLK_ALPHA_PLL_TYPE_HUAYRA_V2] =  {
+		[PLL_OFF_L_VAL] = 0x04,
+		[PLL_OFF_ALPHA_VAL] = 0x08,
+		[PLL_OFF_USER_CTL] = 0x0c,
+		[PLL_OFF_CONFIG_CTL] = 0x10,
+		[PLL_OFF_CONFIG_CTL_U] = 0x14,
+		[PLL_OFF_CONFIG_CTL_U1] = 0x18,
+		[PLL_OFF_TEST_CTL] = 0x1c,
+		[PLL_OFF_TEST_CTL_U] = 0x20,
+		[PLL_OFF_TEST_CTL_U1] = 0x24,
+		[PLL_OFF_STATUS] = 0x38,
+	},
+};
+
+/**
+ * List of Target specific PLLs
+ */
+static struct clk_alpha_pll ipq5424_gpll0 = {
+	.regs = ipq5424_pll_offsets[CLK_ALPHA_PLL_TYPE_DEFAULT],
+};
+
+static struct clk_alpha_pll ipq5424_gpll2 = {
+	.regs = ipq5424_pll_offsets[CLK_ALPHA_PLL_TYPE_HUAYRA],
+};
+
+static struct clk_alpha_pll ipq5424_gpll4 = {
+	.regs = ipq5424_pll_offsets[CLK_ALPHA_PLL_TYPE_DEFAULT],
+};
+
+static struct clk_alpha_pll ipq5424_apss_pll = {
+	.regs = ipq5424_pll_offsets[CLK_ALPHA_PLL_TYPE_HUAYRA_V2],
+};
+
+static struct clk_alpha_pll ipq5424_l3_pll = {
+	.regs = ipq5424_pll_offsets[CLK_ALPHA_PLL_TYPE_HUAYRA_V2],
+};
+
+static struct clk_alpha_pll ipq5210_gpll0 = {
+	.regs = ipq5424_pll_offsets[CLK_ALPHA_PLL_TYPE_DEFAULT],
+};
+
+static struct clk_alpha_pll ipq5210_gpll2 = {
+	.regs = ipq5424_pll_offsets[CLK_ALPHA_PLL_TYPE_DEFAULT],
+};
+
+static struct clk_alpha_pll ipq5210_gpll4 = {
+	.regs = ipq5424_pll_offsets[CLK_ALPHA_PLL_TYPE_DEFAULT],
+};
+
+/**
+ * List of Target specific PLL Configs
+ */
+static const struct alpha_pll_config ipq5424_gpll0_config = {
+	.alpha = 0x55555555,
+	.alpha_hi = 0x55,
+	.l = 0x21,
+	.config_ctl_val = 0x4001055b,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.user_ctl_val = 0x1200003,
+	.user_ctl_hi_val = 0x4,
+	.early_output_mask = BIT(3),
+	.aux2_output_mask = BIT(2),
+	.aux_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+};
+
+static const struct alpha_pll_config ipq5424_gpll2_config = {
+	.alpha = 0x0,
+	.l = 0x30,
+	.config_ctl_val = 0x4001055b,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.user_ctl_val = 0x3,
+	.early_output_mask = BIT(3),
+	.aux2_output_mask = BIT(2),
+	.aux_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+	.post_div_val = 0x2,
+};
+
+static const struct alpha_pll_config ipq5424_gpll4_config = {
+	.alpha = 0x0,
+	.l = 0x32,
+	.config_ctl_val = 0x4001055b,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.user_ctl_val = 0x3,
+	.user_ctl_hi_val = 0x4,
+	.early_output_mask = BIT(3),
+	.aux2_output_mask = BIT(2),
+	.aux_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+};
+
+static const struct alpha_pll_config ipq5424_apss_pll_config = {
+	.alpha = 0x0,
+	.l = 0x3b,
+	.config_ctl_val = 0x08200920,
+	.config_ctl_hi_val = 0x05008001,
+	.config_ctl_hi1_val = 0x04000000,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.test_ctl_hi1_val = 0x0,
+	.user_ctl_val = 0xF,
+	.early_output_mask = BIT(3),
+	.aux2_output_mask = BIT(2),
+	.aux_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+};
+
+static const struct alpha_pll_config ipq5424_l3_pll_config = {
+	.alpha = 0x0,
+	.l = 0x29,
+	.config_ctl_val = 0x08200920,
+	.config_ctl_hi_val = 0x05008001,
+	.config_ctl_hi1_val = 0x04000000,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.test_ctl_hi1_val = 0x0,
+	.user_ctl_val = 0xF,
+	.early_output_mask = BIT(3),
+	.aux2_output_mask = BIT(2),
+	.aux_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+};
+
+static const struct alpha_pll_config ipq5210_gpll0_config = {
+	.alpha = 0x55555555,
+	.alpha_hi = 0x55,
+	.l = 0x21,
+	.config_ctl_val = 0x4001055b,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.user_ctl_val = 0x1200003,
+	.user_ctl_hi_val = 0x4,
+	.early_output_mask = BIT(3),
+	.aux2_output_mask = BIT(2),
+	.aux_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+};
+
+static const struct alpha_pll_config ipq5210_gpll2_config = {
+	.alpha = 0x0,
+	.l = 0x30,
+	.config_ctl_val = 0x4001055b,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.user_ctl_val = 0x3,
+	.user_ctl_hi_val = 0x4,
+	.early_output_mask = BIT(3),
+	.aux2_output_mask = BIT(2),
+	.aux_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+};
+
+static const struct alpha_pll_config ipq5210_gpll4_config = {
+	.alpha = 0x0,
+	.l = 0x32,
+	.config_ctl_val = 0x4001055b,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.user_ctl_val = 0x3,
+	.user_ctl_hi_val = 0x4,
+	.early_output_mask = BIT(3),
+	.aux2_output_mask = BIT(2),
+	.aux_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+};
+
+/**
+ * List of Target specific PLL descriptors
+ */
+static const struct clk_alpha_pll_desc ipq5424_plls[] = {
+	{
+		.name = "gpll0",
+		.pll = &ipq5424_gpll0,
+		.pll_config = &ipq5424_gpll0_config,
+		.pll_ops = &clk_alpha_pll_ops,
+	}, {
+		.name = "gpll2",
+		.pll = &ipq5424_gpll2,
+		.pll_config = &ipq5424_gpll2_config,
+		.pll_ops = &clk_alpha_pll_huayra_ops,
+	}, {
+		.name = "gpll4",
+		.pll = &ipq5424_gpll4,
+		.pll_config = &ipq5424_gpll4_config,
+		.pll_ops = &clk_alpha_pll_ops,
+	}, {
+		.name = "apssll",
+		.pll = &ipq5424_apss_pll,
+		.pll_config = &ipq5424_apss_pll_config,
+		.pll_ops = &clk_alpha_pll_huayra_v2_ops,
+	}, {
+		.name = "l3pll",
+		.pll = &ipq5424_l3_pll,
+		.pll_config = &ipq5424_l3_pll_config,
+		.pll_ops = &clk_alpha_pll_huayra_v2_ops,
+	}, {
+		/**
+		 * List Terminator
+		 */
+	}
+};
+
+static const struct clk_alpha_pll_desc ipq5210_plls[] = {
+	{
+		.name = "gpll0",
+		.pll = &ipq5210_gpll0,
+		.pll_config = &ipq5210_gpll0_config,
+		.pll_ops = &clk_alpha_pll_ops,
+	}, {
+		.name = "gpll2",
+		.pll = &ipq5210_gpll2,
+		.pll_config = &ipq5210_gpll2_config,
+		.pll_ops = &clk_alpha_pll_ops,
+	}, {
+		.name = "gpll4",
+		.pll = &ipq5210_gpll4,
+		.pll_config = &ipq5210_gpll4_config,
+		.pll_ops = &clk_alpha_pll_ops,
+	}, {
+		/**
+		 * List Terminator
+		 */
+	}
+};
+
+/**
+ * List of Target specific PLL table information
+ */
+const struct clk_alpha_pll_tbl ipq5424_pll_tbl = {
+	.pll_desc_base = ipq5424_plls,
+	.num_plls = ARRAY_SIZE(ipq5424_plls),
+};
+
+const struct clk_alpha_pll_tbl ipq5210_pll_tbl = {
+	.pll_desc_base = ipq5210_plls,
+	.num_plls = ARRAY_SIZE(ipq5210_plls),
+};
+
+/**
+ * ipq_clk_pll_lookup() - lookup a PLL by name
+ * @dev: device pointer
+ * @name: name of the PLL to look up
+ *
+ * Return: pointer to PLL descriptor or NULL if not found
+ */
+static const struct
+clk_alpha_pll_desc *ipq_clk_pll_lookup(struct udevice *dev, const char *name)
+{
+	const struct clk_alpha_pll_tbl *pll_tbl;
+	const struct clk_alpha_pll_desc *pll_desc;
+	u8 index;
+
+	if (!name) {
+		pr_err("pll lookup: invalid name\n");
+		return NULL;
+	}
+
+	pll_tbl = (const struct clk_alpha_pll_tbl *)dev_get_driver_data(dev);
+
+	if (!pll_tbl || !pll_tbl->pll_desc_base || !pll_tbl->num_plls) {
+		pr_err("pll lookup: invalid pll table\n");
+		return NULL;
+	}
+
+	/**
+	 * Walk through the list of PLLs available in the device data
+	 */
+	for (index = 0; index < pll_tbl->num_plls; index++) {
+		pll_desc = &pll_tbl->pll_desc_base[index];
+
+		if (!strcmp(pll_desc->name, name))
+			return pll_desc;
+	}
+
+	pr_err("pll lookup: no matching pll for %s\n", name);
+
+	return NULL;
+}
+
+/**
+ * ipq_clk_pll_init - enable the PLL
+ * @dev: device pointer
+ *
+ * Return: 0 on success, negative error code otherwise
+ */
+static int ipq_clk_pll_init(struct udevice *dev)
+{
+	int ret;
+	const struct clk_alpha_pll_desc *pll_desc;
+	struct clk_alpha_pll *pll;
+	const struct alpha_pll_config *config;
+	const struct alpha_pll_ops *ops;
+	struct clk_alpha_pll_priv *priv = dev_get_priv(dev);
+	bool is_pll_enabled;
+
+	if (!priv) {
+		pr_err("Invalid pll priv info\n");
+		return -EINVAL;
+	}
+
+	pll_desc = priv->pll_desc;
+	if (!pll_desc) {
+		pr_err("Invalid pll descriptor\n");
+		return -EINVAL;
+	}
+
+	pll = pll_desc->pll;
+	config = pll_desc->pll_config;
+	ops = pll_desc->pll_ops;
+
+	if (!pll || !config || !ops) {
+		pr_err("Invalid pll desc info\n");
+		return -EINVAL;
+	}
+
+	if (!priv->base) {
+		pr_err("Invalid pll base address\n");
+		return -EINVAL;
+	}
+
+	pll->offset	= (phys_addr_t)priv->base;
+	pll->vote_addr	= (phys_addr_t)priv->fsm_vote_addr;
+	pll->vote_mask	= priv->fsm_vote_mask;
+
+	/**
+	 * If PLL has FSM vote address, enable the FSM support flag.
+	 */
+	if (pll->vote_addr)
+		pll->flags = SUPPORTS_FSM_MODE;
+
+	if (ops->prepare)
+		ops->prepare(pll, config);
+
+	if (ops->is_enabled)
+		is_pll_enabled = ops->is_enabled(pll);
+	else
+		is_pll_enabled = false;
+
+	if (!is_pll_enabled) {
+		if (ops->configure)
+			ops->configure(pll, config);
+
+		if (ops->set_rate) {
+			ret = ops->set_rate(pll, config, 0, 0);
+			if (ret) {
+				pr_err("Failed to set rate for %s\n",
+					pll_desc->name);
+				return ret;
+			}
+		}
+
+		if (ops->enable) {
+			ret = ops->enable(pll);
+			if (ret) {
+				pr_err("Failed to enable %s\n",
+					pll_desc->name);
+				return ret;
+			}
+		}
+	}
+
+	return 0;
+}
+
+/**
+ * ipq_clk_pll_probe - probe function for the PLL driver
+ * @pdev: platform device pointer
+ *
+ * Return: 0 on success, negative error code otherwise
+ */
+static int ipq_clk_pll_probe(struct udevice *dev)
+{
+	struct clk_alpha_pll_priv *priv = dev_get_priv(dev);
+	phys_addr_t addr, fsm_vote_addr;
+	u32 fsm_vote_mask;
+	const char *outname;
+
+	addr = dev_read_addr(dev);
+	if (addr == FDT_ADDR_T_NONE)
+		return -EINVAL;
+
+	priv->base = (void __iomem *)addr;
+
+	/*
+	 * vote-addr and vote-mask are optional
+	 */
+	fsm_vote_addr = (phys_addr_t)
+				dev_read_u32_default(dev, "fsm-vote-addr", 0);
+	fsm_vote_mask  = dev_read_u32_default(dev, "fsm-vote-mask", 0);
+
+	if (fsm_vote_addr && fsm_vote_mask) {
+		priv->fsm_vote_addr = (void __iomem *)(uintptr_t)fsm_vote_addr;
+		priv->fsm_vote_mask = fsm_vote_mask;
+
+	} else {
+		priv->fsm_vote_addr = NULL;
+		priv->fsm_vote_mask = 0;
+	}
+
+	/*
+	 * Identify PLL instance by clock-output-names
+	 */
+	outname = dev_read_string(dev, "clock-output-names");
+	if (!outname) {
+		pr_err("missing clock-output-names\n");
+		return -EINVAL;
+	}
+
+	/*
+	 * Populate the PLL description based on the output name
+	 * to the device priv
+	 */
+	priv->pll_desc = ipq_clk_pll_lookup(dev, outname);
+	if (!priv->pll_desc) {
+		pr_err("Failed to find PLL descriptor for '%s'\n", outname);
+		return -EINVAL;
+	}
+
+	/*
+	 * Validate PLL descriptor has required fields
+	 */
+	if (!priv->pll_desc->pll || !priv->pll_desc->pll_config ||
+		!priv->pll_desc->pll_ops) {
+		pr_err("Invalid PLL descriptor for '%s'\n", outname);
+		return -EINVAL;
+	}
+
+	return ipq_clk_pll_init(dev);
+}
+
+static const struct udevice_id ipq_clk_pll_of_match[] = {
+	{
+		.compatible = "qcom,ipq-clk-pll"
+	}, {
+		.compatible = "qcom,ipq5424-clk-pll",
+		.data = (ulong)&ipq5424_pll_tbl
+	}, {
+		.compatible = "qcom,ipq5210-clk-pll",
+		.data = (ulong)&ipq5210_pll_tbl
+	}, {
+		/**
+		 * List Terminator
+		 */
+	}
+};
+
+U_BOOT_DRIVER(ipq_clk_pll) = {
+	.name		= "ipq-clk-pll",
+	.id		= UCLASS_MISC,
+	.of_match	= ipq_clk_pll_of_match,
+	.probe		= ipq_clk_pll_probe,
+	.priv_auto	= sizeof(struct clk_alpha_pll_priv),
 };
