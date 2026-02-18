@@ -23,6 +23,9 @@
 
 	chosen {
 		stdout-path = "serial0:115200n8";
+#ifdef CONFIG_BOOT_BANK_FIXUP
+		u-boot,booted-bank = "unknown,bootbank";
+#endif
 	};
 
 	reserved-memory {

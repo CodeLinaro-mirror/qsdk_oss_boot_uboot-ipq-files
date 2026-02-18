@@ -241,7 +241,10 @@ enum {
 
 enum fixup_type{
 	UBOOT_FIXUP_SMEM,
-	UBOOT_FIXUP_USB
+	UBOOT_FIXUP_USB,
+#ifdef CONFIG_BOOT_BANK_FIXUP
+	UBOOT_FIXUP_BOOTED_BANK,
+#endif
 };
 
 enum debug_component {
@@ -1038,6 +1041,12 @@ uint32_t get_nand_block_size(uint8_t dev_id);
 #define ROOTFS_INACTIVE_LABEL  "rootfs_1"
 #endif
 
+#ifdef CONFIG_BOOT_BANK_FIXUP
+/* Booted bank enum values from SBL */
+#define BOOTED_BANK_ACTIVE          1
+#define BOOTED_BANK_INACTIVE        2
+#define BOOTED_BANK_INACTIVE_FORCED 3
+#endif
 
 #ifdef CONFIG_CB_CALIB
 /**
@@ -1084,3 +1093,32 @@ void qcn92xx_global_soc_reset(uintptr_t bar0_base, bool force_reset);
  * Return: 0 on success, negative error code on failure
  */
 int ipq_comm_handler(enum cmd_function_id func_id, void *params);
+#ifdef CONFIG_BOOT_BANK_FIXUP
+/**
+ * ipq_get_booted_bank_info - Fetch the booted bank information from IMEM
+ *
+ * @booted_bank_str: Output pointer for booted bank string
+ * Return: 0 on success, negative error code on failure
+ */
+
+int ipq_get_booted_bank_info(const char **booted_bank_str);
+
+/**
+ * append_partlabel_bootargs - Append bootargs with partlabel information
+ *
+ * @bootargs: Bootargs to append the partlabel information
+ * @buflen: Buffer length
+ * Return: 0 on success, negative error code on failure
+ */
+
+int append_partlabel_bootargs(char *bootargs, size_t buflen);
+
+/**
+ * fdt_set_booted_bank_property - Set booted-bank property in device tree
+ *
+ * @blob: Pointer to device tree blob
+ * Return: 0 on success, negative error code on failure
+ */
+
+int fdt_set_booted_bank_property(void *blob);
+#endif /* CONFIG_BOOT_BANK_FIXUP */

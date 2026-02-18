@@ -52,8 +52,11 @@
 #define ROOT_FS_PART_NAME			"rootfs"
 #define ROOT_FS_ATL_PART_NAME			"rootfs_1"
 
-
 #define CRASH_DUMP_ADDR_IMEM			0x8600658
+
+#ifdef CONFIG_BOOT_BANK_FIXUP
+#define BOOTED_BANK_ADDR_IMEM			0x86000D0
+#endif
 
 #if defined(CONFIG_SPL)
 #define IPQ_SPL_FEATURE_CONFIG2_REG_ADDR	0xA600C

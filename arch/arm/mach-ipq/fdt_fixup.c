@@ -306,6 +306,12 @@ __weak void ipq_fdt_fixup_smem(void *blob) {}
 
 __weak void ipq_fdt_fixup_atf(void *blob) {}
 
+#ifdef CONFIG_BOOT_BANK_FIXUP
+__weak void ipq_fdt_fixup_booted_bank(void *blob)
+{
+	fdt_set_booted_bank_property(blob);
+}
+#endif
 __weak void ipq_fdt_fixup_flash(void *blob)
 {
 #ifdef CONFIG_MMC
@@ -940,6 +946,9 @@ static const fdt_fixup_t fixup_functions[] = {
 #endif
 	ipq_fdt_fixup_socinfo,
 	ipq_fdt_fixup_smem,
+#ifdef CONFIG_BOOT_BANK_FIXUP
+	ipq_fdt_fixup_booted_bank,
+#endif
 #ifdef CONFIG_FDT_FIXUP_PARTITIONS
 	ipq_fdt_fixup_mtdparts,
 #endif

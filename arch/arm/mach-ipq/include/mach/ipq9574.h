@@ -46,6 +46,10 @@ struct fuse_payload {
 #define CRASH_DUMP_ADDR_IMEM			0x8600658
 #define CFG_QTI_KERN_WDT_ADDR			*((unsigned int *)0x08600658)
 
+#ifdef CONFIG_BOOT_BANK_FIXUP
+#define BOOTED_BANK_ADDR_IMEM			0x86000D0
+#endif
+
 #if defined(CONFIG_IPQ_MINIDUMP_VERSION_V2)
 #define TLV_BUF_OFFSET				(489 * 1024) - TME_CTXT_SIZE
 #define CFG_TLV_DUMP_SIZE			(23 * 1024)
