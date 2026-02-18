@@ -428,6 +428,13 @@ int set_bootargs(void)
 	}
 #endif /* CONFIG_IPQ_CRASHDUMP_TO_NVMEMORY */
 
+#ifdef CONFIG_BOOT_BANK_FIXUP
+	/* Append PARTLABEL based on booted bank */
+	ret = append_partlabel_bootargs(cmd_line, CONFIG_SYS_CBSIZE);
+	if (ret)
+		printf("Failed to append PARTLABEL to bootargs\n");
+#endif /* CONFIG_BOOT_BANK_FIXUP */
+
 	set_fs_bootargs(cmd_line);
 	env_set("bootargs", NULL);
 	env_set("bootargs", cmd_line);

@@ -610,6 +610,13 @@ config CB_CALIB
 	  Enable starting of coldboot calibration for QCN9224 PCIe EP
 	  from U-boot.
 
+config BOOT_BANK_FIXUP
+	bool "Enable the fixup of booted bank information"
+	default n
+	help
+	  Enable this config to fixup u-boot and kernel device tree with
+	  booted bank information.
+
 choice
 	prompt "IPQ board select"
 
@@ -698,6 +705,7 @@ config TARGET_IPQ9574
 	imply PHY_QCOM_QMP_USB3 if IPQ_USB
 	imply SDX_ATTACH_SUPPORT
 	imply CB_CALIB
+	imply BOOT_BANK_FIXUP
 	help
 	  Support for IPQ95xx SoC.
 	  - Board Open Platform Specifications.

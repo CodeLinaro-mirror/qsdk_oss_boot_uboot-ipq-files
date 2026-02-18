@@ -1933,6 +1933,138 @@ int write_tcsr_boot_misc_reg(uint32_t mask, uint32_t value)
 
 	return ret;
 }
+#ifdef CONFIG_BOOT_BANK_FIXUP
+/* ipq_get_booted_bank_info() - Get booted bank string from IMEM
+ * @bank_str: Output pointer for bank string
+ *
+ * Reads booted bank enum from IMEM and converts to string:
+ * - 0 -> "active"
+ * - 1 -> "inactive"
+ * - 2 -> "inactive,forced"
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+int ipq_get_booted_bank_info(const char **booted_bank_str)
+{
+	static const char *booted_bank[] = {
+		[BOOTED_BANK_ACTIVE] = "active",
+		[BOOTED_BANK_INACTIVE] = "inactive",
+		[BOOTED_BANK_INACTIVE_FORCED] = "inactive,forced",
+	};
+	uint32_t booted_bank_value;
+
+	if (!booted_bank_str)
+		return -EINVAL;
+
+	booted_bank_value = readl(BOOTED_BANK_ADDR_IMEM);
+
+	/* Validate enum value */
+	if (booted_bank_value < BOOTED_BANK_ACTIVE ||
+		booted_bank_value > BOOTED_BANK_INACTIVE_FORCED) {
+		debug("Invalid booted bank value: %u\n", booted_bank_value);
+		return -EINVAL;
+	}
+
+	*booted_bank_str = booted_bank[booted_bank_value];
+	debug("Booted bank: %s (enum=%u)\n", *booted_bank_str, booted_bank_value);
+
+	return 0;
+}
+
+/* append_partlabel_bootargs() - Append bootargs with partlabel information
+ * @bootargs: bootargs to append the partlabel information
+ * @buflen: Buffer length
+ *
+ * Reads booted bank info from IMEM and append the corresponding partlabel:
+ * - "active" -> rootfs-active
+ * - "inactive" / "inactive,forced" -> rootfs-inactive
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+
+int append_partlabel_bootargs(char *bootargs, size_t buflen)
+{
+	const char *booted_bank_str;
+	const char *part_name;
+	char append_str[64];
+	size_t current_len, append_len, required_len;
+	int ret;
+
+	if (!bootargs || buflen == 0)
+		return -EINVAL;
+
+	ret = ipq_get_booted_bank_info(&booted_bank_str);
+	if (ret)
+		return ret;
+
+	/* Determine partition name based on booted bank */
+	if (strcmp(booted_bank_str, "inactive") == 0 ||
+	    strcmp(booted_bank_str, "inactive,forced") == 0) {
+		part_name = "rootfs-inactive";
+	} else if (strcmp(booted_bank_str, "active") == 0) {
+		part_name = "rootfs-active";
+	} else {
+		printf("Booted bank information not found\n");
+		return -EINVAL;
+	}
+
+	/* Append PARTLABEL=<partition> to bootargs */
+	snprintf(append_str, sizeof(append_str), " PARTLABEL=%s", part_name);
+
+	/* Check if we have enough space before appending */
+	current_len = strlen(bootargs);
+	append_len = strlen(append_str);
+	required_len = current_len + append_len + 1; /* +1 for null terminator */
+
+	if (required_len > buflen) {
+		printf("ERROR: bootargs buffer overflow!\n");
+		debug("required: %zu, available:%zu\n", required_len, buflen);
+		return -ENOSPC;
+	}
+
+	strlcat(bootargs, append_str, buflen);
+
+	return 0;
+}
+
+/**
+ * fdt_set_booted_bank_property() - Set booted-bank property in device tree
+ * @blob: Pointer to device tree blob
+ *
+ * Reads booted bank information from SMEM and sets the u-boot,booted-bank
+ * property under /chosen node.Creates the /chosen node if it doesn't exist.
+ * This helper function is used by both kernel and U-Boot device tree
+ * fixup functions.
+ *
+ * Return: 0 on success, -EFAULT on failure
+ */
+int fdt_set_booted_bank_property(void *blob)
+{
+	int ret;
+	const char *booted_bank_str;
+
+	if (!blob) {
+		printf("Invalid FDT blob pointer\n");
+		return -EINVAL;
+	}
+
+	ret = ipq_get_booted_bank_info(&booted_bank_str);
+	if(ret)
+		return ret;
+
+	/* patch the booted-bank information in dt blob */
+	ret = fdt_find_and_setprop(blob, "/chosen", "u-boot,booted-bank",
+			booted_bank_str, strlen(booted_bank_str) + 1,
+			1);
+	if (ret) {
+		printf("Failed to update u-boot,booted-bank: %d\n", ret);
+		return ret;
+	}
+
+	debug("Successfully set u-boot,booted-bank = %s\n", booted_bank_str);
+	return 0;
+}
+#endif /* CONFIG_BOOT_BANK_FIXUP */
 
 #if defined(CONFIG_LMB)
 void ipq_update_lmb_reservation(void)

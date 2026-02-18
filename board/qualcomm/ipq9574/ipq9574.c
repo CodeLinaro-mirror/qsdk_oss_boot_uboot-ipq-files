@@ -646,6 +646,28 @@ void ipq_fdt_fixup_atf(void *blob)
 #endif
 }
 
+#ifdef CONFIG_BOOT_BANK_FIXUP
+int ipq_uboot_fdt_fixup_booted_bank(void *blob)
+{
+	return fdt_set_booted_bank_property(blob);
+}
+#endif
+
+int ipq_uboot_fdt_fixup(void *blob, enum fixup_type type)
+{
+	switch(type) {
+#ifdef CONFIG_BOOT_BANK_FIXUP
+	case UBOOT_FIXUP_BOOTED_BANK:
+		ipq_uboot_fdt_fixup_booted_bank(blob);
+		break;
+#endif
+	default:
+		break;
+	}
+
+	return 0;
+}
+
 uint32_t is_board_support_image_auth(void)
 {
 	uint32_t board_type = gd->board_type;
