@@ -247,3 +247,93 @@ void ipq_update_comm_type(void)
 	if (bdinfo)
 		bdinfo->comm_type_map = comm_type_map;
 }
+
+int board_get_smem_target_info(struct ipq_smem_target_info *smem_tinfo_ptr)
+{
+	uint32_t tcsr_wonce0_val = readl(TCSR_TZ_WONCE0);
+	uint32_t tcsr_wonce1_val = readl(TCSR_TZ_WONCE1);
+	uint64_t ipq_smem_target_info_addr;
+	struct ipq_smem_target_info *ipq_smem_target_info_ptr;
+
+	if (!smem_tinfo_ptr)
+		return -EINVAL;
+
+	ipq_smem_target_info_addr = tcsr_wonce0_val |
+		(((uint64_t)(tcsr_wonce1_val)) << 32);
+
+	if (!ipq_smem_target_info_addr)
+		return -EFAULT;
+
+	ipq_smem_target_info_ptr = (struct ipq_smem_target_info*)
+		(uintptr_t)ipq_smem_target_info_addr;
+
+	if (ipq_smem_target_info_ptr->identifier !=
+			IPQ_SMEM_TARGET_INFO_IDENTIFIER)
+		return -EFAULT;
+
+	memcpy((void*)smem_tinfo_ptr,
+			(void*)(uintptr_t)ipq_smem_target_info_ptr,
+			sizeof(struct ipq_smem_target_info));
+
+	return 0;
+}
+
+void ipq_fdt_fixup_smem(void *blob)
+{
+	uint32_t reg[4];
+	struct ipq_smem_target_info ipq_smem_target_info;
+	struct ipq_smem_target_info *smem_tinfo_ptr = &ipq_smem_target_info;
+
+	if (board_get_smem_target_info(&ipq_smem_target_info))
+		return;
+
+	reg[0] = 0;
+	reg[1] = cpu_to_fdt32((uint32_t)smem_tinfo_ptr->smem_base_addr);
+	reg[2] = 0;
+	reg[3] = cpu_to_fdt32(smem_tinfo_ptr->smem_size);
+
+	int ret = fdt_find_and_setprop(blob, "/reserved-memory/smem@8a500000/",
+					"reg", reg, sizeof(reg), 0);
+	if (ret < 0)
+		debug("Warning: Failed to update SMEM FDT node: %d\n", ret);
+}
+
+int ipq_uboot_fdt_fixup_smem(void *blob)
+{
+	uint32_t reg[4];
+	struct ipq_smem_target_info ipq_smem_target_info;
+	struct ipq_smem_target_info *smem_tinfo_ptr = &ipq_smem_target_info;
+
+	if (board_get_smem_target_info(&ipq_smem_target_info))
+		return -EFAULT;
+
+	reg[0] = 0;
+	reg[1] = cpu_to_fdt32((uint32_t)smem_tinfo_ptr->smem_base_addr);
+	reg[2] = 0;
+	reg[3] = cpu_to_fdt32(smem_tinfo_ptr->smem_size);
+
+	fdt_find_and_setprop(blob, "/reserved-memory/smem_region@8a500000",
+			"reg", reg, sizeof(reg), 0);
+	return 0;
+}
+
+void ipq_uboot_fdt_fixup_usb(void *blob)
+{
+	return;
+}
+
+int ipq_uboot_fdt_fixup(void *blob, enum fixup_type type)
+{
+	switch(type) {
+	case UBOOT_FIXUP_SMEM:
+		ipq_uboot_fdt_fixup_smem(blob);
+		break;
+	case UBOOT_FIXUP_USB:
+		ipq_uboot_fdt_fixup_usb(blob);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
