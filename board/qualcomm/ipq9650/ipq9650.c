@@ -218,7 +218,7 @@ void reset_cpu(void)
 void reset_cpu(void)
 {
 #ifdef CONFIG_IPQ_CRASHDUMP
-	reset_crashdump(RESET_V1);
+	reset_crashdump(RESET_V2);
 #endif
 	psci_sys_reset(SYSRESET_COLD);
 }
