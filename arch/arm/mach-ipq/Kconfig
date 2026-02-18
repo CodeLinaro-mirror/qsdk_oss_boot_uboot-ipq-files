@@ -839,6 +839,7 @@ config TARGET_IPQ5210
 	imply DMA_CHANNELS
 	select BAM_DMA if DMA
 	imply IPQ_USB
+	imply EDL_SUPPORT
 	imply GPT_UPDATE_PARAMS
 	imply IPQ_I2C
 	imply IPQ_PCIE
@@ -873,6 +874,7 @@ config TARGET_IPQ9650
 	imply DMA_CHANNELS
 	imply IPQ_USB
 	imply IPQ_PCIE
+	imply EDL_SUPPORT
 	imply LIST_FUSE
 	imply IPQ_TMEL_IPC_SUPPORT
 	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
