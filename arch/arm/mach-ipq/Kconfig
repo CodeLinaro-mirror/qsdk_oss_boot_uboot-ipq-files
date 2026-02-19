@@ -746,6 +746,8 @@ config TARGET_IPQ9574
 	imply PHY_QCA_8075
 	imply PHY_QCA_8081
 	imply PHY_AQUANTIA
+	imply PHY_QCE_1204
+	imply CLK_QCOM_NSSCC_QCE2204
 	select CMD_CACHE
 	imply IPQ_I2C
 	imply FUSE_IPQ
