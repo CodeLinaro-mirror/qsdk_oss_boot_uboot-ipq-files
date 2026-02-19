@@ -160,5 +160,6 @@
 #define NSS_CC_PORT6_MAC_CLK_ARES		144
 #define GCC_NSS_PARTIAL_RESET			145
 #define GCC_NSS_BCR				146
+#define NSS_CC_PPE_EDMA_ARES			147
 
 #endif
