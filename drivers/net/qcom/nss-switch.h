@@ -44,6 +44,39 @@ enum ppe_bridge_ctrl_layout {
 	PPE_V4,
 };
 
+/*
+ * ========================================================================
+ * CSR Version/Method Definitions
+ * ========================================================================
+ */
+
+enum csr_version {
+	CSR_VERSION_V1 = 1,
+	CSR_VERSION_V2 = 2,
+};
+
+/* UNIPHY_MODE_CTRL (CSR0: 0x46c) */
+union uniphy_mode_ctrl_u {
+	u32 val;
+	struct {
+		u32 newaddedfromhere_ch0_autoneg_mode:1;    /* [0] Autoneg mode enable */
+		u32 newaddedfromhere_ch1_ch0_sgmii:1;       /* [1] CH1/CH0 SGMII select */
+		u32 newaddedfromhere_ch4_ch1_0_sgmii:1;     /* [2] CH4/CH1_0 SGMII select */
+		u32 newaddedfromhere_sgmii_even_low:1;      /* [3] SGMII even low */
+		u32 newaddedfromhere_ch0_mode_ctrl_25m:3;   /* [6:4] CH0 mode control */
+		u32 newaddedfromhere_xpcs_mode_12p5g:1;     /* [7] XPCS 12.5G mode */
+		u32 newaddedfromhere_ch0_qsgmii_sgmii:1;    /* [8] CH0 QSGMII/SGMII select */
+		u32 newaddedfromhere_ch0_psgmii_qsgmii:1;   /* [9] CH0 PSGMII/QSGMII select */
+		u32 newaddedfromhere_sg_mode:1;             /* [10] SG mode enable */
+		u32 newaddedfromhere_sgplus_mode:1;         /* [11] SGMII+ mode enable */
+		u32 newaddedfromhere_xpcs_mode:1;           /* [12] XPCS mode enable */
+		u32 newaddedfromhere_usxg_en:1;             /* [13] USXGMII enable */
+		u32 newaddedfromhere_xlgpcs_en:1;           /* [14] XLGPCS enable */
+		u32 newaddedfromhere_sw_v17_v18:1;          /* [15] SW version select */
+		u32 _reserved0:16;                          /* [31:16] Reserved */
+	} bf;
+};
+
 #define UPDATE_EDMA_CONFIG(_src, _dest)					\
 	do {								\
 		typeof(_src) __src = (_src);				\
@@ -129,6 +162,50 @@ enum ppe_bridge_ctrl_layout {
 #define EDMA_RXDESC_DESC(R, i)	EDMA_GET_DESC(R, i, struct ipq_edma_rxdesc_desc)
 #define EDMA_TXDESC_DESC(R, i)	EDMA_GET_DESC(R, i, struct ipq_edma_txdesc_desc)
 #define EDMA_TXCMPL_DESC(R, i)	EDMA_GET_DESC(R, i, struct ipq_edma_txcmpl_desc)
+
+/*
+ * ========================================================================
+ * CSR Address Encoding Macros
+ * ========================================================================
+ */
+
+#define UNIPHY_CSR_BLOCK_SHIFT		24
+#define UNIPHY_CSR_BLOCK_MASK		0xFF000000
+#define UNIPHY_REG_ADDR_MASK		0x00FFFFFF
+
+/* CSR type encoding */
+#define CSR0_ADDR(addr)		((0x00 << UNIPHY_CSR_BLOCK_SHIFT) | (addr))
+#define CSR1_ADDR(addr)		((0x01 << UNIPHY_CSR_BLOCK_SHIFT) | (addr))
+#define CSR2_ADDR(addr)		((0x02 << UNIPHY_CSR_BLOCK_SHIFT) | (addr))
+/* uniphy CSR details*/
+#define UNIPHY_PHY_SHIFT	16
+
+/*
+ * ========================================================================
+ * V2 (New) CSR Constants
+ * ========================================================================
+ */
+
+/* V2 CSR indirect registers */
+#define V2_CSR1_INDIRECT_REG	0x43FC
+#define V2_CSR2_INDIRECT_REG	0x83FC
+
+/* V2 CSR data offsets */
+#define V2_CSR1_DATA_OFFSET	0x10
+#define V2_CSR2_DATA_OFFSET	0x20
+
+/*
+ * ========================================================================
+ * V1 (Legacy) CSR Constants
+ * ========================================================================
+ */
+
+/* V1 uses CSR2 method (0x83FC, 0x20) - this is what old u-boot used */
+#define V1_CSR_INDIRECT_REG	0x83FC
+#define V1_CSR_DATA_OFFSET	0x20
+
+/* Low address mask for indirect access */
+#define CSR_INDIRECT_LOW_ADDR	0xFF
 
 /* EDMA register structures - configurable register layout */
 struct edma_global_regs {
@@ -1565,4 +1642,51 @@ u16 ipq_get_ac_group_total_buf(void);
 u32 ppe_port_bridge_txmac_mask(void);
 u32 ppe_port_bridge_promisc_mask(void);
 u32 ppe_port_bridge_isolation_mask(unsigned int nos_iports);
+/* ========================================================================
+ * Main API - Works for Both V1 and V2
+ * ========================================================================
+ */
+/**
+ * uniphy_get_csr_version - Get current CSR version
+ * Return: CSR_VERSION_V1 or CSR_VERSION_V2
+ */
+enum csr_version uniphy_get_csr_version(void);
+
+/**
+ * uniphy_set_base_addr - Set UNIPHY base address
+ * @base_addr: Physical base address for UNIPHY registers
+ *
+ * Must be called to configure the base address before CSR access
+ */
+void uniphy_set_base_addr(phys_addr_t base_addr);
+
+/**
+ * uniphy_get_base_addr - Get current UNIPHY base address
+ * Return: Physical base address for UNIPHY registers
+ */
+phys_addr_t uniphy_get_base_addr(void);
+
+/**
+ * csr_write - Write UNIPHY CSR register
+ * @uniphy_index: UNIPHY instance (0, 1, or 2)
+ * @addr: Register address (should be CSR1 encoded)
+ * @value: Value to write
+ *
+ * Works for both V1 and V2 CSR methods. Address should be encoded with CSR1_ADDR().
+ * V2: Uses csr_write_v2() with type detection
+ * V1: Strips encoding and uses csr_write_v1()
+ */
+void csr_write(int uniphy_index, u32 addr, u32 value);
+
+/**
+ * csr_read - Read UNIPHY CSR register
+ * @uniphy_index: UNIPHY instance (0, 1, or 2)
+ * @addr: Register address (should be CSR1 encoded)
+ * Return: Register value
+ *
+ * Works for both V1 and V2 CSR methods. Address should be encoded with CSR1_ADDR().
+ * V2: Uses csr_read_v2() with type detection
+ * V1: Strips encoding and uses csr_read_v1()
+ */
+u32 csr_read(int uniphy_index, u32 addr);
 #endif /* __NSS_SWITCH_H__ */

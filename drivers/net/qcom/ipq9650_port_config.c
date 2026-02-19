@@ -1198,3 +1198,8 @@ u16 ipq_get_ac_group_total_buf(void)
 {
 	return PPE_AC_GROUP_TOTAL_BUF;
 }
+
+enum csr_version uniphy_get_csr_version(void)
+{
+	return CSR_VERSION_V2;
+}
