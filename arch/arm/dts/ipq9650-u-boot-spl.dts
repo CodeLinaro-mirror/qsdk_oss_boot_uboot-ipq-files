@@ -63,10 +63,21 @@
 
 			uart1_pins: uart1-state {
 				bootph-all;
-				pins = "gpio38", "gpio39";
-				function = "uart1";
-				drive-strength = <8>;
-				bias-pull-up;
+				rx-pins {
+					bootph-all;
+					pins = "gpio43";
+					function = "qup_se4_l3";
+					drive-strength = <8>;
+					bias-pull-down;
+				};
+
+				tx-pins {
+					bootph-all;
+					pins = "gpio44";
+					function = "qup_se4_l2";
+					drive-strength = <8>;
+					bias-pull-down;
+				};
 			};
 
 			sdc_default_state: sdc-default-state {
@@ -111,7 +122,7 @@
 					pins = "gpio7";
 					function = "spi0_cs";
 					drive-strength = <8>;
-					bias-pull-up;
+					bias-pull-down;
 				};
 
 				spi0_miso {
@@ -313,11 +324,11 @@
 
 			status = "okay";
 
-			uart1: serial@1a84000 {
+			uart1: serial@1a98000 {
 				bootph-all;
 				compatible = "qcom,geni-debug-uart";
-				reg = <0 0x01a84000 0 0x4000>;
-				clocks = <&gcc GCC_QUPV3_UART1_CLK>;
+				reg = <0 0x1a98000 0 0x4000>;
+				clocks = <&gcc GCC_QUPV3_UART2_CLK>;
 				clock-names = "se";
 				pinctrl-0 = <&uart1_pins>;
 				pinctrl-names = "default";
@@ -329,7 +340,7 @@
 				bootph-all;
 				compatible = "qcom,ipq9650-geni-uart-fw-v1",
 					     "qcom,geni-uart-fw-v1";
-				reg = <0 0x01a84000 0 0x4000>;
+				reg = <0 0x01a98000 0 0x4000>;
 				status = "okay";
 			};
 
