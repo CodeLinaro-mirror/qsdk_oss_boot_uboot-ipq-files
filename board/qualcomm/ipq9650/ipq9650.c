@@ -17,6 +17,13 @@
 /* MACH IDs for various RDPs */
 #define MACH_TYPE_IPQ9650_EMULATION		0xF060000
 
+#define TIMEOUT_MS				30000
+#define CLK_SRC					32000
+#define WDT_ENABLE_REG				0xF410008
+#define WDT_RST_REG				0xf410004
+#define WDT_BARK_TIME_REG			0xf410010
+#define WDT_BITE_TIME_REG			0xf410014
+
 static struct crashdump_infos dumpinfo_n[] = {
 	{
 		/* DDR Bank 0 */
@@ -136,6 +143,32 @@ int ipq_fnode_entires = ARRAY_SIZE(ipq_fnodes);
 struct node_info * fnodes = ipq_fnodes ;
 int * fnode_entires = &ipq_fnode_entires;
 #endif
+
+#ifdef CONFIG_IPQ_EARLY_WDT
+void ipq_enable_non_sec_watchdog(void)
+{
+	/*
+	 * Enabling non-secure WDT for early failure recovery support
+	 */
+	ulong bark_timeout_s = ((TIMEOUT_MS - 1)  * CLK_SRC) / 1000;
+	ulong bite_timeout_s = (TIMEOUT_MS * CLK_SRC) / 1000;
+
+	writel(0, WDT_ENABLE_REG);
+	writel(BIT(0), WDT_RST_REG);
+	writel(bark_timeout_s, WDT_BARK_TIME_REG);
+	writel(bite_timeout_s, WDT_BITE_TIME_REG);
+	writel(BIT(0), WDT_ENABLE_REG);
+}
+#endif
+
+#if !defined(CONFIG_SPL)
+void lowlevel_init(void)
+{
+#ifdef CONFIG_IPQ_EARLY_WDT
+	ipq_enable_non_sec_watchdog();
+#endif
+}
+#endif /* !CONFIG_SPL */
 
 struct machid_dts_map machid_dts[] = {
 	{
