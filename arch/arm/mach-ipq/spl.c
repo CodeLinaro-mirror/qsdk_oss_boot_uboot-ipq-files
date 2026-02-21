@@ -1049,7 +1049,7 @@ static int ipq_spl_populate_smem(void *ctx)
 	 */
 	size = sizeof(u32);
 	ret = smem_alloc(smem, -1, SMEM_BOOT_FLASH_TYPE, size);
-	if (ret) {
+	if (ret && ret != -EEXIST) {
 		pr_err("Failed to alloc item: SMEM_BOOT_FLASH_TYPE (ret=%d)\n",
 			ret);
 		return ret;
@@ -1088,7 +1088,7 @@ static int ipq_spl_populate_smem(void *ctx)
 	 */
 	size = sizeof(u32);
 	ret = smem_alloc(smem, -1, SMEM_TRY_MODE_INPROGRESS, size);
-	if (ret) {
+	if (ret && ret != -EEXIST) {
 		pr_err(
 		"Failed to alloc item: SMEM_TRY_MODE_INPROGRESS (ret=%d)\n",
 		ret);
@@ -1107,7 +1107,7 @@ static int ipq_spl_populate_smem(void *ctx)
 	 */
 	size = sizeof(u32);
 	ret = smem_alloc(smem, -1, SMEM_ATF_ENABLE, size);
-	if (ret) {
+	if (ret && ret != -EEXIST) {
 		pr_err("Failed to alloc item: SMEM_ATF_ENABLE (ret=%d)\n",
 			ret);
 		return ret;
@@ -1187,7 +1187,7 @@ static int ipq_spl_populate_smem(void *ctx)
 
 	size = sizeof(struct flash_partition_table);
 	ret = smem_alloc(smem, -1, SMEM_AARM_PARTITION_TABLE, size);
-	if (ret) {
+	if (ret && ret != -EEXIST) {
 		pr_err("SMEM AARM partition alloc failed (ret=%d)\n", ret);
 		return ret;
 	}
