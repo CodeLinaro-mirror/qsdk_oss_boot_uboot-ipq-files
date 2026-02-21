@@ -51,4 +51,12 @@ extern uint32_t g_env_offset;
 #define CFG_SYS_HZ_CLOCK			CONFIG_COUNTER_FREQUENCY
 #endif
 
+#define UBOOT_TEXT_END_ADDRESS			CONFIG_TEXT_BASE + \
+							CONFIG_TEXT_SIZE
+#ifndef CONFIG_ETH_LOW_MEM
+#define NONCACHED_MEM_REGION_ADDR		((UBOOT_TEXT_END_ADDRESS + \
+						SZ_1M - 1) & ~(SZ_1M - 1))
+#define NONCACHED_MEM_REGION_SIZE		SZ_1M
+#endif /* ifndef CONFIG_ETH_LOW_MEM */
+
 #endif /* _IPQ5210_H_ */
