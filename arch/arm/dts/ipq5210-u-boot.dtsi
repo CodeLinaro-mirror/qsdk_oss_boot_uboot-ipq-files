@@ -7,6 +7,7 @@
 #include <asm/arch/dt-bindings/clock/qcom,ipq5210-gcc.h>
 #include <asm/arch/dt-bindings/reset/qcom,ipq5210-gcc.h>
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/net/qcom_ipqsoc.h>
 / {
 	#address-cells = <2>;
 	#size-cells = <2>;
