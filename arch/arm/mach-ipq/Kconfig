@@ -880,6 +880,7 @@ config TARGET_IPQ9650
 	imply SCM_V2
 	imply IPQ_SECURE
 	imply SECURE_AUTH_V3 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
+	imply RUNTIME_SF_ENV_UPDATE if ENV_IS_IN_SPI_FLASH
 	help
 	  Support for IPQ9650 SoC.
 	  - Board Open Platform Specifications.
