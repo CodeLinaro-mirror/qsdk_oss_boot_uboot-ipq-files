@@ -482,6 +482,8 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 			compatible = "qcom,ipq4019-mdio";
+			pinctrl-0 = <&mdio_pins>;
+			pinctrl-names = "default";
 			reg = <0x00000000 0x00090000 0x00000000 0x00000064>;
 			clocks = <&gcc GCC_MDIO_AHB_CLK>;
 			clk_div = /bits/ 8 <15>;
@@ -1053,6 +1055,22 @@
 			pins = "gpio9";
 			function = "spi0_mosi";
 			drive-strength = <8>;
+			bias-pull-down;
+		};
+	};
+
+	mdio_pins: mdio-state {
+		mux_0 {
+			pins = "gpio26";
+			function = "mdc";
+			drive-strength = <6>;
+			bias-pull-down;
+		};
+
+		mux_1 {
+			pins = "gpio27";
+			function = "mdio";
+			drive-strength = <6>;
 			bias-pull-down;
 		};
 	};
