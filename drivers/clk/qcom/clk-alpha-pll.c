@@ -1323,6 +1323,7 @@ static const struct alpha_pll_config ipq5210_gpll2_config = {
 	.aux2_output_mask = BIT(2),
 	.aux_output_mask = BIT(1),
 	.main_output_mask = BIT(0),
+	.post_div_val = 0x2,
 };
 
 static const struct alpha_pll_config ipq5210_gpll4_config = {
