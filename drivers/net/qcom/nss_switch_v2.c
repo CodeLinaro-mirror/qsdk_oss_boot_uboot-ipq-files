@@ -5189,11 +5189,17 @@ static void ipq_parse_single_port_scheduler_resource(ofnode port_node)
 }
 
 /*
- * Helper function to get clock with alternative naming
+ * Helper function to get clock with fallback naming
+ * Supports both 2-level and 3-level fallback based on parameters
  */
-static int ipq_get_clock_alt(struct udevice *dev, const char *fmt1,
-			     const char *fmt2, struct clk *clk,
-			     const char *desc, u32 port_id, u32 uniphy_id)
+static int ipq_get_clock_with_fallback(struct udevice *dev,
+				       const char *fmt1,
+				       const char *fmt2,
+				       const char *fmt3,
+				       struct clk *clk,
+				       const char *desc,
+				       u32 port_id,
+				       u32 uniphy_id)
 {
 	char clk_name[64];
 	int ret, len;
@@ -5202,6 +5208,9 @@ static int ipq_get_clock_alt(struct udevice *dev, const char *fmt1,
 	if (fmt1[0] == 'u') {
 		/* Format with two parameters: uniphy%d_port%d_... */
 		len = snprintf(clk_name, sizeof(clk_name), fmt1, uniphy_id, port_id);
+	} else if (strstr(fmt1, "uniphy")) {
+		/* Special format: nss_port%d_uniphy%d_... */
+		len = snprintf(clk_name, sizeof(clk_name), fmt1, port_id, uniphy_id);
 	} else {
 		/* Format with one parameter: nss_port%d_... */
 		len = snprintf(clk_name, sizeof(clk_name), fmt1, port_id);
@@ -5216,7 +5225,7 @@ static int ipq_get_clock_alt(struct udevice *dev, const char *fmt1,
 	if (!ret)
 		return 0;
 
-	/* Try alternative clock name format */
+	/* Try second clock name format */
 	len = snprintf(clk_name, sizeof(clk_name), fmt2, port_id);
 	if (len >= sizeof(clk_name)) {
 		debug("Clock name too long for %s port %d\n", desc, port_id);
@@ -5224,6 +5233,20 @@ static int ipq_get_clock_alt(struct udevice *dev, const char *fmt1,
 	}
 
 	ret = clk_get_by_name(dev, clk_name, clk);
+	if (!ret)
+		return 0;
+
+	/* Try third clock name format if provided */
+	if (fmt3) {
+		len = snprintf(clk_name, sizeof(clk_name), fmt3, port_id);
+		if (len >= sizeof(clk_name)) {
+			debug("Clock name too long for %s port %d\n", desc, port_id);
+			return -ENAMETOOLONG;
+		}
+
+		ret = clk_get_by_name(dev, clk_name, clk);
+	}
+
 	if (ret)
 		debug("Failed to get %s for port %d: %d\n", desc, port_id, ret);
 
@@ -5235,29 +5258,73 @@ static int ipq_get_clock_alt(struct udevice *dev, const char *fmt1,
  */
 static void ipq_port_clock_init(struct udevice *dev, struct port_info *port)
 {
-	/* Initialize RX rate clock */
-	ipq_get_clock_alt(dev, "nss_port%d_rx_clk",
-			  "nss_cc_port%d_rx_clk",
-			  &port->rx_clk_rate, "RX rate clock",
-			  port->id, port->uniphy_id);
+	bool mp;
 
-	/* Initialize TX rate clock */
-	ipq_get_clock_alt(dev, "nss_port%d_tx_clk",
-			  "nss_cc_port%d_tx_clk",
-			  &port->tx_clk_rate, "TX rate clock",
-			  port->id, port->uniphy_id);
+	/*
+	 * Determine if this port requires special clock naming:
+	 * - port 4 with uniphy != 0
+	 * - port 5 with uniphy == 0
+	 */
+	if ((port->id == 4) && port->uniphy_id != 0)
+		mp = true;
+	else if ((port->id == 5) && port->uniphy_id == 0)
+		mp = true;
+	else
+		mp = false;
+
+	/*
+	 * For special cases, use three-level fallback:
+	 * 1. nss_port{id}_uniphy{uniphy_id}_{rx|tx}_clk
+	 * 2. nss_port{id}_{rx|tx}_clk
+	 * 3. nss_cc_port{id}_{rx|tx}_clk
+	 *
+	 * For normal cases, use two-level fallback (fmt3 = NULL):
+	 * 1. nss_port{id}_{rx|tx}_clk
+	 * 2. nss_cc_port{id}_{rx|tx}_clk
+	 */
+	if (mp) {
+		/* Initialize RX rate clock with three-level fallback */
+		ipq_get_clock_with_fallback(dev, "nss_port%d_uniphy%d_rx_clk",
+					     "nss_port%d_rx_clk",
+					     "nss_cc_port%d_rx_clk",
+					     &port->rx_clk_rate, "RX rate clock",
+					     port->id, port->uniphy_id);
+
+		/* Initialize TX rate clock with three-level fallback */
+		ipq_get_clock_with_fallback(dev, "nss_port%d_uniphy%d_tx_clk",
+					     "nss_port%d_tx_clk",
+					     "nss_cc_port%d_tx_clk",
+					     &port->tx_clk_rate, "TX rate clock",
+					     port->id, port->uniphy_id);
+	} else {
+		/* Initialize RX rate clock with two-level fallback */
+		ipq_get_clock_with_fallback(dev, "nss_port%d_rx_clk",
+					     "nss_cc_port%d_rx_clk",
+					     NULL,
+					     &port->rx_clk_rate, "RX rate clock",
+					     port->id, port->uniphy_id);
+
+		/* Initialize TX rate clock with two-level fallback */
+		ipq_get_clock_with_fallback(dev, "nss_port%d_tx_clk",
+					     "nss_cc_port%d_tx_clk",
+					     NULL,
+					     &port->tx_clk_rate, "TX rate clock",
+					     port->id, port->uniphy_id);
+	}
 
 	/* Initialize RX enable clock */
-	ipq_get_clock_alt(dev, "uniphy%d_port%d_rx_clk",
-			  "nss_cc_uniphy_port%d_rx_clk",
-			  &port->rx_clk, "RX enable clock",
-			  port->id, port->uniphy_id);
+	ipq_get_clock_with_fallback(dev, "uniphy%d_port%d_rx_clk",
+				     "nss_cc_uniphy_port%d_rx_clk",
+				     NULL,
+				     &port->rx_clk, "RX enable clock",
+				     port->id, port->uniphy_id);
 
 	/* Initialize TX enable clock */
-	ipq_get_clock_alt(dev, "uniphy%d_port%d_tx_clk",
-			  "nss_cc_uniphy_port%d_tx_clk",
-			  &port->tx_clk, "TX enable clock",
-			  port->id, port->uniphy_id);
+	ipq_get_clock_with_fallback(dev, "uniphy%d_port%d_tx_clk",
+				     "nss_cc_uniphy_port%d_tx_clk",
+				     NULL,
+				     &port->tx_clk, "TX enable clock",
+				     port->id, port->uniphy_id);
 }
 
 /*
