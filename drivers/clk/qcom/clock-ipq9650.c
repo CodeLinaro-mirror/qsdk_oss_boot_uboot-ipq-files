@@ -65,6 +65,7 @@
 #define IO_MACRO_CLK_228_MHZ				(228000000)
 #define IO_MACRO_CLK_200_MHZ				(200000000)
 #define IO_MACRO_CLK_100_MHZ				(100000000)
+#define IO_MACRO_CLK_50_MHZ				(50000000)
 #define IO_MACRO_CLK_24_MHZ				(24000000)
 
 int msm_set_parent(struct clk *clk, struct clk *parent)
@@ -114,6 +115,9 @@ static ulong ipq9650_set_rate(struct clk *clk, ulong rate)
 		case IO_MACRO_CLK_24_MHZ:
 			src = CFG_CLK_SRC_CXO;
 			div = 0;
+			break;
+		case IO_MACRO_CLK_50_MHZ:
+			div = 31;
 			break;
 		case IO_MACRO_CLK_100_MHZ:
 			div = 15;
