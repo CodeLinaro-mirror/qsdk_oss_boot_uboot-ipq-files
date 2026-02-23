@@ -204,14 +204,79 @@
 			#power-domain-cells = <1>;
 		};
 
+		gpll0: pll@1820000 {
+			bootph-all;
+			compatible = "qcom,ipq5210-clk-pll",
+					"qcom,ipq-clk-pll";
+			reg = <0 0x01820000 0 0x1000>;
+			#clock-cells = <0>;
+			clock-output-names = "gpll0";
+			fsm-vote-addr = <0x0180B000>;
+			fsm-vote-mask = <0x1>;
+			status = "okay";
+		};
+
+		gpll2: pll@1821000 {
+			bootph-all;
+			compatible = "qcom,ipq5210-clk-pll",
+					"qcom,ipq-clk-pll";
+			reg = <0 0x01821000 0 0x1000>;
+			#clock-cells = <0>;
+			clock-output-names = "gpll2";
+			fsm-vote-addr = <0x0180B000>;
+			fsm-vote-mask = <0x2>;
+			status = "okay";
+		};
+
+		gpll4: pll@1822000 {
+			bootph-all;
+			compatible = "qcom,ipq5210-clk-pll",
+					"qcom,ipq-clk-pll";
+			reg = <0 0x01822000 0 0x1000>;
+			#clock-cells = <0>;
+			clock-output-names = "gpll4";
+			fsm-vote-addr = <0x0180B000>;
+			fsm-vote-mask = <0x4>;
+			status = "okay";
+		};
+
+		pll_init: qcom,ipq-init-plls {
+			bootph-all;
+			compatible = "qcom,ipq-init-plls";
+			plls = <&gpll0 &gpll2 &gpll4>;
+			status = "okay";
+		};
+
+		board_init_clks: qcom,ipq-init-clks {
+			bootph-all;
+			compatible = "qcom,ipq-init-clks";
+
+			clocks = <&gcc GCC_APCS_CLOCK_BRANCH_ENA_VOTE>;
+
+			assigned-clocks = <&gcc GCC_PCNOC_BFDCD_CLK>,
+					  <&gcc GCC_SYSTEM_NOC_BFDCD_CLK>;
+			assigned-clock-rates = <100000000 266666666>;
+
+			clock-names = "apcs_branch_vote",
+					"pcnoc_bfdcd",
+					"sysnoc_bfdcd";
+
+			status = "okay";
+		};
+
 		qupv3: geniqup@1ac0000 {
 			bootph-all;
 			compatible = "qcom,geni-se-qup";
 			reg = <0 0x01ac0000 0 0x2000>;
-			clocks = <&gcc GCC_QUPV3_AHB_MST_CLK>,
-				 <&gcc GCC_QUPV3_AHB_SLV_CLK>;
-			clock-names = "m-ahb", "s-ahb";
 			ranges;
+			clocks = <&gcc GCC_QUPV3_2X_CORE_CLK>,
+				 <&gcc GCC_QUPV3_AHB_MST_CLK>,
+				 <&gcc GCC_QUPV3_AHB_SLV_CLK>,
+				 <&gcc GCC_QUPV3_CORE_CLK>,
+				 <&gcc GCC_QUPV3_SLEEP_CLK>;
+			clock-names = "2x-core", "m-ahb", "s-ahb",
+					"core", "sleep";
+
 			#address-cells = <2>;
 			#size-cells = <2>;
 

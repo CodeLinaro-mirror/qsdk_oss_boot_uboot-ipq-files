@@ -55,6 +55,7 @@
 #include <linux/mtd/mtd.h>
 #include <nand.h>
 #include <u-boot/crc.h>
+#include <dm/device-internal.h>
 
 /*******************************************************************************
  * Globals constant & typedef
@@ -590,6 +591,120 @@ void ipq_spl_malloc_init_f(void)
 	gd->flags |= GD_FLG_FULL_MALLOC_INIT;
 }
 #endif
+
+#if defined(CONFIG_CLK_QCOM_PLL)
+/**
+ * ipq_spl_probe_and_enable_plls() - Probe and enable all PLLs.
+ *
+ * This function probes and enables all available PLLs in the system.
+ * Return: 0 on success, or a negative error code on failure.
+ */
+int ipq_spl_probe_and_enable_plls(void)
+{
+	int ret;
+	ofnode node, p_handle;
+	struct udevice *pll_dev;
+	u32 index, num_plls;
+
+	node = ofnode_by_compatible(ofnode_null(), "qcom,ipq-init-plls");
+	if (!ofnode_valid(node)) {
+		pr_debug("Failed to get qcom,ipq-init-plls node\n");
+		/**
+		 * No PLL node is available in device tree.
+		 * Return success.
+		 */
+		return 0;
+	}
+
+	/**
+	 * Get the number of phandles are in "plls"
+	 */
+	num_plls = ofnode_count_phandle_with_args(node, "plls", NULL, 0);
+	if (num_plls < 0) {
+		pr_debug("No plls found %d", num_plls);
+		/**
+		 * No PLLs available in device tree to be initialized.
+		 * Return success.
+		 */
+		return 0;
+	}
+
+	/**
+	 * Probe and enable all the PLL devices.
+	 */
+	for (index = 0; index < num_plls; index++) {
+		p_handle = ofnode_parse_phandle(node, "plls", index);
+		if (!ofnode_valid(p_handle)) {
+			pr_debug(" No more PLL phandles\n");
+			/**
+			 * If no more PLL phandles, break the loop with Success.
+			 */
+			break;
+		}
+
+		/* Convert the ofnode p_handle to a udevice and probe it.
+		 * The probe step initializes the PLL hardware.
+		 */
+		ret = uclass_get_device_by_ofnode(UCLASS_MISC, p_handle,
+							&pll_dev);
+		if (ret) {
+			pr_err("Failed to get PLL[%d] device: %d\n",
+				index, ret);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+#endif /* CONFIG_CLK_QCOM_PLL */
+
+/**
+ * ipq_spl_board_init_clk() - Initialize board clocks.
+ *
+ * This function initializes the board-specific clocks.
+ * Return: 0 on success, or a negative error code on failure.
+ */
+int ipq_spl_board_init_clk(void)
+{
+	struct udevice *dev;
+	struct clk_bulk bulk;
+	int ret;
+
+	ret = uclass_get_device_by_name(UCLASS_NOP,
+						"qcom,ipq-init-clks", &dev);
+	if (ret) {
+		pr_debug("Failed to get qcom,ipq-init-clks device\n");
+		/**
+		 * No board init clks are in device tree to be initialized.
+		 * Return success.
+		 */
+		return 0;
+	}
+
+	/*
+	 * Enable listed clocks (gates/votes) in SPL/U-Boot
+	 * via standard bulk clock API.
+	 */
+	ret = clk_get_bulk(dev, &bulk);
+	if (!ret) {
+		ret = clk_enable_bulk(&bulk);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static const struct udevice_id ipq_init_clk_of_match[] = {
+	{ .compatible = "qcom,ipq-init-clks" },
+	{ }
+};
+
+U_BOOT_DRIVER(ipq_init_clk) = {
+	.name		= "ipq-init-clk",
+	.id		= UCLASS_NOP,
+	.of_match	= ipq_init_clk_of_match,
+};
 
 /**
  * ipq_spl_list_fuse() - List all fuses.
@@ -1591,6 +1706,20 @@ void board_init_f(ulong dummy)
 	ret = spl_early_init();
 	if (ret) {
 		pr_debug("spl_early_init() failed (ret=%d)\n", ret);
+		goto fail;
+	}
+
+#if defined(CONFIG_CLK_QCOM_PLL)
+	ret = ipq_spl_probe_and_enable_plls();
+	if (ret) {
+		pr_err("Failed to enable PLLs (ret=%d)\n", ret);
+		goto fail;
+	}
+#endif /* CONFIG_CLK_QCOM_PLL */
+
+	ret = ipq_spl_board_init_clk();
+	if (ret) {
+		pr_err("Failed to initialize board clocks (ret=%d)\n", ret);
 		goto fail;
 	}
 
