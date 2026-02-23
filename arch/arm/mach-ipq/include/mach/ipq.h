@@ -481,6 +481,7 @@ struct cal_dt_config {
 	u32 caldata_offset;
 	u32 pci_slot_id;
 	u32 caldb_offset;
+	u32 caldb_size;
 	struct list_head list;
 };
 #endif

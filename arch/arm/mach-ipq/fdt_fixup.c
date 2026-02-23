@@ -829,11 +829,6 @@ static int ipq_fdt_create_cal_config(void *blob, int node)
 	config->rmem_base_addr = (uint32_t)carveout.start;
 	config->rmem_size = (uint32_t)(carveout.end - carveout.start + 1);
 
-	if (gd->ram_size == SZ_512M)
-		config->caldb_offset = (20 * SZ_1M);
-	else
-		config->caldb_offset = (28 * SZ_1M);
-
 	pval = fdt_getprop(blob, node, "qcom,board_id", &len);
 	if (pval)
 		config->board_id = fdt32_to_cpu(*pval);
@@ -841,6 +836,29 @@ static int ipq_fdt_create_cal_config(void *blob, int node)
 	pval = fdt_getprop(blob, node, "qcom,caldata_offset", &len);
 	if (pval)
 		config->caldata_offset = fdt32_to_cpu(*pval);
+
+	/* Read caldb_offset from DT with fallback logic */
+	pval = fdt_getprop(blob, node, "qcom,caldb_offset", &len);
+	if (pval) {
+		config->caldb_offset = fdt32_to_cpu(*pval);
+		printf("Fetching caldb_offset from DT: 0x%x\n",
+		       config->caldb_offset);
+	} else {
+		if (gd->ram_size == SZ_512M)
+			config->caldb_offset = (20 * SZ_1M);  /* 0x1400000 */
+		else
+			config->caldb_offset = (28 * SZ_1M);  /* 0x1C00000 */
+	}
+
+	/* Read caldb_size from DT with 8M fallback */
+	pval = fdt_getprop(blob, node, "qcom,caldb_size", &len);
+	if (pval) {
+		config->caldb_size = fdt32_to_cpu(*pval);
+		printf("Fetching caldb_size from DT: 0x%x\n",
+		       config->caldb_size);
+	} else {
+		config->caldb_size = (8 * SZ_1M);  /* 0x800000 */
+	}
 
 	ep_node = fdt_parent_offset(blob, node);
 	if (ep_node <= 0) {
