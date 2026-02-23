@@ -69,5 +69,5 @@ U_BOOT_DRIVER(tmelcom) = {
 	.probe		= tmelcom_probe,
 	.remove		= tmelcom_remove,
 	.priv_auto	= sizeof(struct tmelcom),
-	.flags  = DM_FLAG_PRE_RELOC,
+	.flags  = DM_FLAG_PRE_RELOC | DM_FLAG_OS_PREPARE,
 };
