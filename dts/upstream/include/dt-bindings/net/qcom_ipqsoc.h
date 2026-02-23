@@ -34,6 +34,7 @@
 #define QCA8x8x_SWITCH_TYPE		10
 #define QCA8x8x_BYPASS_TYPE		11
 #define QCA81xx_PHY_TYPE		12
+#define QCE1204_PHY_TYPE		13
 #define UNUSED_PHY_TYPE			0xFF
 
 #endif
