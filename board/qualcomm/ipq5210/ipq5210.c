@@ -16,6 +16,13 @@
 /* MACH IDs for various RDPs */
 #define MACH_TYPE_IPQ5210_EMULATION		0xf060000
 
+#define TIMEOUT_MS				30000
+#define CLK_SRC					32000
+#define WDT_ENABLE_REG				0xb017008
+#define WDT_RST_REG				0xb017004
+#define WDT_BARK_TIME_REG			0xb017010
+#define WDT_BITE_TIME_REG			0xb017014
+
 struct dts_fixup ipq5210_mmc_fixup [] = {
 	{ "/soc@0/nand@79b0000/", {"/soc@0/nand@79b0000/%status%?disabled"},1},
 	{ "/soc@0/mmc@7804000/", {"/soc@0/mmc@7804000/%status%?okay"}, 1},
@@ -39,6 +46,30 @@ struct dts_fixup ipq5210_usb_fixup [] = {
 };
 
 struct dts_fixup *usb_fixup = ipq5210_usb_fixup;
+
+#ifdef CONFIG_IPQ_EARLY_WDT
+void ipq_enable_non_sec_watchdog(void)
+{
+	/*
+	 * Enabling non-secure WDT for early failure recovery support
+	 */
+	ulong bark_timeout_s = ((TIMEOUT_MS - 1)  * CLK_SRC) / 1000;
+	ulong bite_timeout_s = (TIMEOUT_MS * CLK_SRC) / 1000;
+
+	writel(0, WDT_ENABLE_REG);
+	writel(BIT(0), WDT_RST_REG);
+	writel(bark_timeout_s, WDT_BARK_TIME_REG);
+	writel(bite_timeout_s, WDT_BITE_TIME_REG);
+	writel(BIT(0), WDT_ENABLE_REG);
+}
+#endif
+
+#if !defined(CONFIG_SPL)
+void lowlevel_init(void)
+{
+
+}
+#endif /* !CONFIG_SPL */
 
 #if CONFIG_FDT_FIXUP_PARTITIONS
 struct node_info ipq_fnodes[] = {
