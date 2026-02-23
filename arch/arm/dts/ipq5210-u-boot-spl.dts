@@ -64,8 +64,8 @@
 				bootph-all;
 				pins = "gpio38", "gpio39";
 				function = "uart1";
-				drive-strength = <8>;
-				bias-pull-up;
+				drive-strength = <6>;
+				bias-pull-down;
 			};
 
 			sdc_default_state: sdc-default-state {
