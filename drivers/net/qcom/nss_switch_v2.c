@@ -34,33 +34,202 @@ int ipq_aquantia_load_fw(struct phy_device *phydev);
 extern int initr_net(void);
 #endif
 
-/*
- * Uniphy CSR access functions
+/* Base address for UNIPHY registers - configurable */
+static phys_addr_t uniphy_base_addr = 0x7A00000;  /* Default base address */
+
+/* Current CSR version - set at boot */
+static enum csr_version current_csr_version = CSR_VERSION_V1;
+
+/* ========================================================================
+ * CSR Version Management
+ * ========================================================================
  */
-void csr1_write(int phy_id, int addr, int value)
+void uniphy_set_base_addr(phys_addr_t base_addr)
+{
+	uniphy_base_addr = base_addr;
+}
+
+ /* ========================================================================
+ * V1 (Legacy) CSR Implementation
+ * ========================================================================
+ */
+
+/**
+ * csr_write_v1 - V1 CSR write
+ * Uses 0x83FC indirect register and 0x20 data offset
+ */
+static void csr_write_v1(int uniphy_index, u32 addr, u32 value)
 {
 	uintptr_t addr_h, addr_l, ahb_h, ahb_l, phy;
 
-	phy = phy_id << 0x10;
+	phy = uniphy_index << UNIPHY_PHY_SHIFT;
+
+	/* Step 1: Write high address bits to indirect register */
 	addr_h = (addr & 0xffffff) >> 8;
-	addr_l = ((addr & 0xff) << 2) | (0x20 << 0xa);
-	ahb_l = (addr_l & 0xffff) | (0x7A00000 | phy);
-	ahb_h = (0x7A083FC | phy);
+	ahb_h = (uniphy_base_addr | phy) + V1_CSR_INDIRECT_REG;
 	writel(addr_h, ahb_h);
+
+	/* Step 2: Write data via data offset */
+	addr_l = ((addr & CSR_INDIRECT_LOW_ADDR) << 2) |
+		 (V1_CSR_DATA_OFFSET << 0xa);
+	ahb_l = (addr_l & 0xffff) | (uniphy_base_addr | phy);
 	writel(value, ahb_l);
 }
 
-int csr1_read(int phy_id, int addr)
+/**
+ * csr_read_v1 - V1 CSR read
+ * Uses 0x83FC indirect register and 0x20 data offset
+ */
+static u32 csr_read_v1(int uniphy_index, u32 addr)
 {
 	uintptr_t addr_h, addr_l, ahb_h, ahb_l, phy;
 
-	phy = phy_id << 0x10;
+	phy = uniphy_index << UNIPHY_PHY_SHIFT;
+
+	/* Step 1: Write high address bits to indirect register */
 	addr_h = (addr & 0xffffff) >> 8;
-	addr_l = ((addr & 0xff) << 2) | (0x20 << 0xa);
-	ahb_l = (addr_l & 0xffff) | (0x7A00000 | phy);
-	ahb_h = (0x7A083FC | phy);
+	ahb_h = (uniphy_base_addr | phy) + V1_CSR_INDIRECT_REG;
 	writel(addr_h, ahb_h);
+
+	/* Step 2: Read data via data offset */
+	addr_l = ((addr & CSR_INDIRECT_LOW_ADDR) << 2) |
+		 (V1_CSR_DATA_OFFSET << 0xa);
+	ahb_l = (addr_l & 0xffff) | (uniphy_base_addr | phy);
 	return readl(ahb_l);
+}
+
+/* ========================================================================
+ * V2 (New) CSR Implementation
+ * ========================================================================
+ */
+
+/**
+ * csr_write_v2 - V2 new CSR write with type detection
+ * Handles CSR0 (direct), CSR1, and CSR2 (indirect) based on encoded address
+ */
+static void csr_write_v2(int uniphy_index, u32 reg_addr, u32 value)
+{
+	u32 csr_type, actual_addr;
+	uintptr_t addr_h, addr_l, ahb_h, ahb_l, phy;
+	u32 indirect_reg, data_offset;
+
+	/* Extract CSR type and actual address */
+	csr_type = (reg_addr & UNIPHY_CSR_BLOCK_MASK) >> UNIPHY_CSR_BLOCK_SHIFT;
+	actual_addr = reg_addr & UNIPHY_REG_ADDR_MASK;
+	phy = uniphy_index << UNIPHY_PHY_SHIFT;
+
+	switch (csr_type) {
+	case 0:  /* CSR0 - Direct access */
+		ahb_l = (uniphy_base_addr | phy) + actual_addr;
+		writel(value, ahb_l);
+		break;
+
+	case 1:  /* CSR1 - Indirect access */
+		indirect_reg = V2_CSR1_INDIRECT_REG;
+		data_offset = V2_CSR1_DATA_OFFSET;
+		goto indirect_access;
+
+	case 2:  /* CSR2 - Indirect access */
+		indirect_reg = V2_CSR2_INDIRECT_REG;
+		data_offset = V2_CSR2_DATA_OFFSET;
+
+indirect_access:
+		/* Step 1: Write high address bits */
+		addr_h = (actual_addr & 0xffffff) >> 8;
+		ahb_h = (uniphy_base_addr | phy) + indirect_reg;
+		writel(addr_h, ahb_h);
+
+		/* Step 2: Write data */
+		addr_l = ((actual_addr & CSR_INDIRECT_LOW_ADDR) << 2) |
+			 (data_offset << 0xa);
+		ahb_l = (addr_l & 0xffff) | (uniphy_base_addr | phy);
+		writel(value, ahb_l);
+		break;
+
+	default:
+		printf("UNIPHY CSR: Invalid CSR type %d\n", csr_type);
+		break;
+	}
+}
+
+/**
+ * csr_read_v2 - V2 new CSR read with type detection
+ * Handles CSR0 (direct), CSR1, and CSR2 (indirect) based on encoded address
+ */
+static u32 csr_read_v2(int uniphy_index, u32 reg_addr)
+{
+	u32 csr_type, actual_addr;
+	uintptr_t addr_h, addr_l, ahb_h, ahb_l, phy;
+	u32 indirect_reg, data_offset;
+
+	/* Extract CSR type and actual address */
+	csr_type = (reg_addr & UNIPHY_CSR_BLOCK_MASK) >> UNIPHY_CSR_BLOCK_SHIFT;
+	actual_addr = reg_addr & UNIPHY_REG_ADDR_MASK;
+	phy = uniphy_index << UNIPHY_PHY_SHIFT;
+
+	switch (csr_type) {
+	case 0:  /* CSR0 - Direct access */
+		ahb_l = (uniphy_base_addr | phy) + actual_addr;
+		return readl(ahb_l);
+
+	case 1:  /* CSR1 - Indirect access */
+		indirect_reg = V2_CSR1_INDIRECT_REG;
+		data_offset = V2_CSR1_DATA_OFFSET;
+		goto indirect_access;
+
+	case 2:  /* CSR2 - Indirect access */
+		indirect_reg = V2_CSR2_INDIRECT_REG;
+		data_offset = V2_CSR2_DATA_OFFSET;
+
+indirect_access:
+		/* Step 1: Write high address bits */
+		addr_h = (actual_addr & 0xffffff) >> 8;
+		ahb_h = (uniphy_base_addr | phy) + indirect_reg;
+		writel(addr_h, ahb_h);
+
+		/* Step 2: Read data */
+		addr_l = ((actual_addr & CSR_INDIRECT_LOW_ADDR) << 2) |
+			 (data_offset << 0xa);
+		ahb_l = (addr_l & 0xffff) | (uniphy_base_addr | phy);
+		return readl(ahb_l);
+
+	default:
+		printf("UNIPHY CSR: Invalid CSR type %d\n", csr_type);
+		return 0;
+	}
+}
+
+/* ========================================================================
+ * Unified API - Works for Both V1 and V2
+ * ========================================================================
+ */
+
+void csr_write(int uniphy_index, u32 addr, u32 value)
+{
+	if (current_csr_version == CSR_VERSION_V2) {
+		/* V2: Use new CSR flow with encoded address */
+		csr_write_v2(uniphy_index, addr, value);
+	} else {
+		/* V1: Strip encoding and use V1 method */
+		u32 raw_addr = addr & UNIPHY_REG_ADDR_MASK;
+
+		csr_write_v1(uniphy_index, raw_addr, value);
+	}
+}
+
+u32 csr_read(int uniphy_index, u32 addr)
+{
+	u32 raw_addr;
+
+	if (current_csr_version == CSR_VERSION_V2) {
+		/* V2: Use new CSR flow with encoded address */
+		return csr_read_v2(uniphy_index, addr);
+	}
+
+	/* V1: Strip encoding and use V1 method */
+	raw_addr = addr & UNIPHY_REG_ADDR_MASK;
+
+	return csr_read_v1(uniphy_index, raw_addr);
 }
 
 /*
@@ -161,6 +330,61 @@ static void ppe_uniphy_reset(struct port_info *port, bool issoft, bool set)
 	}
 }
 
+/* Helper functions for common UNIPHY_MODE_CTRL patterns */
+static inline u32 uniphy_mode_psgmii_25m(void)
+{
+	union uniphy_mode_ctrl_u mode = {0};
+
+	mode.bf.newaddedfromhere_ch0_psgmii_qsgmii = 1;
+	mode.bf.newaddedfromhere_ch0_mode_ctrl_25m = 0x2;
+	return mode.val; /* Expected: 0x220 */
+}
+
+static inline u32 uniphy_mode_qsgmii_25m(void)
+{
+	union uniphy_mode_ctrl_u mode = {0};
+
+	mode.bf.newaddedfromhere_ch0_qsgmii_sgmii = 1;
+	mode.bf.newaddedfromhere_ch0_mode_ctrl_25m = 0x2;
+	return mode.val; /* Expected: 0x120 */
+}
+
+static inline u32 uniphy_mode_sg_fiber(void)
+{
+	union uniphy_mode_ctrl_u mode = {0};
+
+	mode.bf.newaddedfromhere_sg_mode = 1;
+	return mode.val; /* Expected: 0x400 */
+}
+
+static inline u32 uniphy_mode_sg_25m(void)
+{
+	union uniphy_mode_ctrl_u mode = {0};
+
+	mode.bf.newaddedfromhere_sg_mode = 1;
+	mode.bf.newaddedfromhere_ch0_mode_ctrl_25m = 0x2;
+	return mode.val; /* Expected: 0x420 */
+}
+
+static inline u32 uniphy_mode_sgplus_25m(void)
+{
+	union uniphy_mode_ctrl_u mode = {0};
+
+	mode.bf.newaddedfromhere_sgplus_mode = 1;
+	mode.bf.newaddedfromhere_ch0_mode_ctrl_25m = 0x2;
+	return mode.val; /* Expected: 0x820 */
+}
+
+static inline u32 uniphy_mode_xpcs_autoneg_25m(void)
+{
+	union uniphy_mode_ctrl_u mode = {0};
+
+	mode.bf.newaddedfromhere_xpcs_mode = 1;
+	mode.bf.newaddedfromhere_ch0_mode_ctrl_25m = 0x2;
+	mode.bf.newaddedfromhere_ch0_autoneg_mode = 1;
+	return mode.val; /* Expected: 0x1021 */
+}
+
 /*
  * PSGMII mode configuration
  */
@@ -168,7 +392,7 @@ static void ppe_uniphy_psgmii_mode_set(struct port_info *port)
 {
 	ppe_uniphy_reset(port, false, true);
 
-	writel(0x220, port->uniphy_base + PPE_UNIPHY_MODE_CONTROL);
+	writel(uniphy_mode_psgmii_25m(), port->uniphy_base + PPE_UNIPHY_MODE_CONTROL);
 
 	ppe_uniphy_reset(port, true, true);
 	mdelay(RESET_DELAY);
@@ -183,7 +407,7 @@ static void ppe_uniphy_psgmii_mode_set(struct port_info *port)
  */
 static void ppe_uniphy_qsgmii_mode_set(struct port_info *port)
 {
-	writel(0x120, port->uniphy_base + PPE_UNIPHY_MODE_CONTROL);
+	writel(uniphy_mode_qsgmii_25m(), port->uniphy_base + PPE_UNIPHY_MODE_CONTROL);
 
 	ppe_uniphy_reset(port, true, true);
 	mdelay(RESET_DELAY);
@@ -248,15 +472,15 @@ static void ppe_uniphy_sgmii_mode_set(struct port_info *port)
 
 	switch (port->uniphy_mode) {
 	case PORT_WRAPPER_SGMII_FIBER:
-		writel(0x400, base + PPE_UNIPHY_MODE_CONTROL);
+		writel(uniphy_mode_sg_fiber(), base + PPE_UNIPHY_MODE_CONTROL);
 		break;
 	case PORT_WRAPPER_SGMII0_RGMII4:
 	case PORT_WRAPPER_SGMII1_RGMII4:
 	case PORT_WRAPPER_SGMII4_RGMII4:
-		writel(0x420, base + PPE_UNIPHY_MODE_CONTROL);
+		writel(uniphy_mode_sg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
 		break;
 	case PORT_WRAPPER_SGMII_PLUS:
-		writel(0x820, base + PPE_UNIPHY_MODE_CONTROL);
+		writel(uniphy_mode_sgplus_25m(), base + PPE_UNIPHY_MODE_CONTROL);
 		break;
 	default:
 		printf("SGMII Config. wrongly\n");
@@ -283,8 +507,8 @@ static int ppe_uniphy_10g_r_linkup(u32 uniphy_index)
 		mdelay(1);
 		if (retries-- == 0)
 			return -ETIMEDOUT;
-		reg_value = csr1_read(uniphy_index,
-				      SR_XS_PCS_KR_STS1_ADDRESS);
+		reg_value = csr_read(uniphy_index,
+				     CSR1_ADDR(SR_XS_PCS_KR_STS1_ADDRESS));
 		linkup = (reg_value >> 12) & UNIPHY_10GR_LINKUP;
 	}
 	mdelay(REG_DELAY);
@@ -298,7 +522,7 @@ static void ppe_uniphy_10g_r_mode_set(struct port_info *port)
 {
 	ppe_uniphy_reset(port, false, true);
 
-	writel(0x1021, port->uniphy_base + PPE_UNIPHY_MODE_CONTROL);
+	writel(uniphy_mode_xpcs_autoneg_25m(), port->uniphy_base + PPE_UNIPHY_MODE_CONTROL);
 	writel(0x1C0, port->uniphy_base + UNIPHY_INSTANCE_LINK_DETECT);
 
 	ppe_uniphy_reset(port, true, true);
@@ -331,7 +555,7 @@ static void ppe_uniphy_usxgmii_mode_set(struct port_info *port)
 	ppe_uniphy_reset(port, false, true);
 	mdelay(RESET_DELAY);
 
-	writel(0x1021, base + PPE_UNIPHY_MODE_CONTROL);
+	writel(uniphy_mode_xpcs_autoneg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
 
 	ppe_uniphy_reset(port, true, true);
 	mdelay(RESET_DELAY);
@@ -344,19 +568,19 @@ static void ppe_uniphy_usxgmii_mode_set(struct port_info *port)
 
 	ppe_uniphy_10g_r_linkup(index);
 
-	reg_value = csr1_read(index, VR_XS_PCS_DIG_CTRL1_ADDRESS);
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS));
 	reg_value |= USXG_EN;
-	csr1_write(index, VR_XS_PCS_DIG_CTRL1_ADDRESS, reg_value);
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS), reg_value);
 
-	reg_value = csr1_read(index, VR_MII_AN_CTRL_ADDRESS);
+	reg_value = csr_read(index, CSR1_ADDR(VR_MII_AN_CTRL_ADDRESS));
 	reg_value |= MII_AN_INTR_EN | MII_CTRL;
-	csr1_write(index, VR_MII_AN_CTRL_ADDRESS, reg_value);
+	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_ADDRESS), reg_value);
 
-	reg_value = csr1_read(index, SR_MII_CTRL_ADDRESS);
+	reg_value = csr_read(index, CSR1_ADDR(SR_MII_CTRL_ADDRESS));
 	reg_value |= AN_ENABLE;
 	reg_value &= ~SS5;
 	reg_value |= SS6 | SS13 | DUPLEX_MODE;
-	csr1_write(index, SR_MII_CTRL_ADDRESS, reg_value);
+	csr_write(index, CSR1_ADDR(SR_MII_CTRL_ADDRESS), reg_value);
 }
 
 /*
@@ -380,7 +604,7 @@ static void ppe_uniphy_uqxgmii_mode_set(struct port_info *port)
 	ppe_uniphy_reset(port, false, true);
 	mdelay(RESET_DELAY);
 
-	writel(0x1021, base + PPE_UNIPHY_MODE_CONTROL);
+	writel(uniphy_mode_xpcs_autoneg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
 
 	reg_value = readl(base + UNIPHYQP_USXG_OPITON1);
 	reg_value |= GMII_SRC_SEL;
@@ -397,77 +621,77 @@ static void ppe_uniphy_uqxgmii_mode_set(struct port_info *port)
 
 	ppe_uniphy_10g_r_linkup(index);
 
-	reg_value = csr1_read(index, VR_XS_PCS_DIG_CTRL1_ADDRESS);
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS));
 	reg_value |= USXG_EN;
-	csr1_write(index, VR_XS_PCS_DIG_CTRL1_ADDRESS, reg_value);
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS), reg_value);
 
 	/* Set QXGMII mode */
-	reg_value = csr1_read(index, VR_XS_PCS_KR_CTRL_ADDRESS);
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_KR_CTRL_ADDRESS));
 	reg_value |= USXG_MODE;
-	csr1_write(index, VR_XS_PCS_KR_CTRL_ADDRESS, reg_value);
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_KR_CTRL_ADDRESS), reg_value);
 
 	/* Set AM interval mode */
-	reg_value = csr1_read(index, VR_XS_PCS_DIG_STS_ADDRESS);
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_STS_ADDRESS));
 	reg_value |= AM_COUNT;
-	csr1_write(index, VR_XS_PCS_DIG_STS_ADDRESS, reg_value);
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_STS_ADDRESS), reg_value);
 
-	reg_value = csr1_read(index, VR_XS_PCS_DIG_CTRL1_ADDRESS);
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS));
 	reg_value |= VR_RST;
-	csr1_write(index, VR_XS_PCS_DIG_CTRL1_ADDRESS, reg_value);
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS), reg_value);
 
-	reg_value = csr1_read(index, VR_MII_AN_CTRL_ADDRESS);
+	reg_value = csr_read(index, CSR1_ADDR(VR_MII_AN_CTRL_ADDRESS));
 	reg_value |= MII_AN_INTR_EN | MII_CTRL;
-	csr1_write(index, VR_MII_AN_CTRL_ADDRESS, reg_value);
-	csr1_write(index, VR_MII_AN_CTRL_CHANNEL1_ADDRESS, reg_value);
-	csr1_write(index, VR_MII_AN_CTRL_CHANNEL2_ADDRESS, reg_value);
-	csr1_write(index, VR_MII_AN_CTRL_CHANNEL3_ADDRESS, reg_value);
+	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_CHANNEL1_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_CHANNEL2_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_CHANNEL3_ADDRESS), reg_value);
 
 	/* Disable TICD */
-	reg_value = csr1_read(index, VR_XAUI_MODE_CTRL_ADDRESS);
+	reg_value = csr_read(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_ADDRESS));
 	reg_value |= IPG_CHECK;
-	csr1_write(index, VR_XAUI_MODE_CTRL_ADDRESS, reg_value);
-	csr1_write(index, VR_XAUI_MODE_CTRL_CHANNEL1_ADDRESS, reg_value);
-	csr1_write(index, VR_XAUI_MODE_CTRL_CHANNEL2_ADDRESS, reg_value);
-	csr1_write(index, VR_XAUI_MODE_CTRL_CHANNEL3_ADDRESS, reg_value);
+	csr_write(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_CHANNEL1_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_CHANNEL2_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_CHANNEL3_ADDRESS), reg_value);
 
 	/* Enable uniphy autoneg ability and usxgmii 10g speed and
 	 * full duplex
 	 */
-	reg_value = csr1_read(index, SR_MII_CTRL_ADDRESS);
+	reg_value = csr_read(index, CSR1_ADDR(SR_MII_CTRL_ADDRESS));
 	reg_value |= AN_ENABLE;
 	reg_value &= ~SS5;
 	reg_value |= SS6 | SS13 | DUPLEX_MODE;
-	csr1_write(index, SR_MII_CTRL_ADDRESS, reg_value);
-	csr1_write(index, SR_MII_CTRL_CHANNEL1_ADDRESS, reg_value);
-	csr1_write(index, SR_MII_CTRL_CHANNEL2_ADDRESS, reg_value);
-	csr1_write(index, SR_MII_CTRL_CHANNEL3_ADDRESS, reg_value);
+	csr_write(index, CSR1_ADDR(SR_MII_CTRL_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(SR_MII_CTRL_CHANNEL1_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(SR_MII_CTRL_CHANNEL2_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(SR_MII_CTRL_CHANNEL3_ADDRESS), reg_value);
 
 	/* Enable uniphy EEE transparent mode and configure EEE
 	 * related timer value
 	 */
-	reg_value = csr1_read(index, VR_XS_PCS_EEE_MCTRL0_ADDRESS);
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS));
 	reg_value |= SIGN_BIT | MULT_FACT_100NS;
-	csr1_write(index, VR_XS_PCS_EEE_MCTRL0_ADDRESS, reg_value);
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS), reg_value);
 
-	reg_value = csr1_read(index, VR_XS_PCS_EEE_TXTIMER_ADDRESS);
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_TXTIMER_ADDRESS));
 	reg_value |= UNIPHY_XPCS_TSL_TIMER | UNIPHY_XPCS_TLU_TIMER |
 		     UNIPHY_XPCS_TWL_TIMER;
-	csr1_write(index, VR_XS_PCS_EEE_TXTIMER_ADDRESS,
-		   reg_value);
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_TXTIMER_ADDRESS),
+		  reg_value);
 
-	reg_value = csr1_read(index, VR_XS_PCS_EEE_RXTIMER_ADDRESS);
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_RXTIMER_ADDRESS));
 	reg_value |= UNIPHY_XPCS_100US_TIMER | UNIPHY_XPCS_TWR_TIMER;
-	csr1_write(index, VR_XS_PCS_EEE_RXTIMER_ADDRESS,
-		   reg_value);
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_RXTIMER_ADDRESS),
+		  reg_value);
 
 	/* Transparent LPI mode and LPI pattern enable */
-	reg_value = csr1_read(index, VR_XS_PCS_EEE_MCTRL1_ADDRESS);
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL1_ADDRESS));
 	reg_value |= TRN_LPI | TRN_RXLPI;
-	csr1_write(index, VR_XS_PCS_EEE_MCTRL1_ADDRESS, reg_value);
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL1_ADDRESS), reg_value);
 
-	reg_value = csr1_read(index, VR_XS_PCS_EEE_MCTRL0_ADDRESS);
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS));
 	reg_value |= LRX_EN | LTX_EN;
-	csr1_write(index, VR_XS_PCS_EEE_MCTRL0_ADDRESS, reg_value);
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS), reg_value);
 }
 
 /*
@@ -516,11 +740,11 @@ void ppe_uniphy_usxgmii_autoneg_completed(int uniphy_index)
 		if (retries-- == 0)
 			return;
 
-		reg_value = csr1_read(uniphy_index, VR_MII_AN_INTR_STS);
+		reg_value = csr_read(uniphy_index, CSR1_ADDR(VR_MII_AN_INTR_STS));
 		autoneg_complete = reg_value & 0x1;
 	}
 	reg_value &= ~CL37_ANCMPLT_INTR;
-	csr1_write(uniphy_index, VR_MII_AN_INTR_STS, reg_value);
+	csr_write(uniphy_index, CSR1_ADDR(VR_MII_AN_INTR_STS), reg_value);
 }
 
 /*
@@ -547,7 +771,7 @@ void ppe_uniphy_usxgmii_speed_set(int portid, int uniphy_index, int speed)
 		}
 	}
 
-	reg_value = csr1_read(uniphy_index, mii_ctrl_address);
+	reg_value = csr_read(uniphy_index, CSR1_ADDR(mii_ctrl_address));
 	reg_value |= DUPLEX_MODE;
 
 	switch (speed) {
@@ -583,7 +807,7 @@ void ppe_uniphy_usxgmii_speed_set(int portid, int uniphy_index, int speed)
 		break;
 	}
 
-	csr1_write(uniphy_index, mii_ctrl_address, reg_value);
+	csr_write(uniphy_index, CSR1_ADDR(mii_ctrl_address), reg_value);
 }
 
 /*
@@ -593,14 +817,14 @@ void ppe_uniphy_usxgmii_duplex_set(int uniphy_index, int duplex)
 {
 	u32 reg_value = 0;
 
-	reg_value = csr1_read(uniphy_index, SR_MII_CTRL_ADDRESS);
+	reg_value = csr_read(uniphy_index, CSR1_ADDR(SR_MII_CTRL_ADDRESS));
 
 	if (duplex & 0x1)
 		reg_value |= DUPLEX_MODE;
 	else
 		reg_value &= ~DUPLEX_MODE;
 
-	csr1_write(uniphy_index, SR_MII_CTRL_ADDRESS, reg_value);
+	csr_write(uniphy_index, CSR1_ADDR(SR_MII_CTRL_ADDRESS), reg_value);
 }
 
 /*
@@ -610,9 +834,9 @@ void ppe_uniphy_usxgmii_port_reset(int uniphy_index)
 {
 	u32 reg_value = 0;
 
-	reg_value = csr1_read(uniphy_index, VR_XS_PCS_DIG_CTRL1_ADDRESS);
+	reg_value = csr_read(uniphy_index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS));
 	reg_value |= USRA_RST;
-	csr1_write(uniphy_index, VR_XS_PCS_DIG_CTRL1_ADDRESS, reg_value);
+	csr_write(uniphy_index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS), reg_value);
 }
 
 void ppe_xgmac_configuration(phys_addr_t reg_base, u32 portid,
@@ -1786,6 +2010,7 @@ static int ipq_ppe_qm_mcast_threshold_reset(phys_addr_t reg_base,
 		return -EINVAL;
 	}
 }
+
 /**
  * ipq_ppe_qm_threshold_reset - Reset queue threshold to default values
  * @reg_base: PPE register base address
@@ -4590,6 +4815,10 @@ static int ipq_eth_probe(struct udevice *dev)
 					     priv->uniphy_base,
 						priv->uniphy_size);
 
+	uniphy_set_base_addr(priv->uniphy_base);
+
+	current_csr_version = uniphy_get_csr_version();
+
 	ipq_edma_hw_init(dev, priv);
 
 	for (i = 0; i < CONFIG_ETH_MAX_MAC; ++i) {
@@ -4642,7 +4871,7 @@ static int ipq_eth_probe(struct udevice *dev)
 		}
 		/*
 		 * Create a dummy bus for the SFP module that is not connected via I2C
-		 * on legacy SoCs, to prevent it from being skipped during validation checks.
+		 * on older SoCs, to prevent it from being skipped during validation checks.
 		 */
 		if (!port->bus) {
 			port->bus = mdio_alloc();
@@ -4963,8 +5192,8 @@ static void ipq_parse_single_port_scheduler_resource(ofnode port_node)
  * Helper function to get clock with alternative naming
  */
 static int ipq_get_clock_alt(struct udevice *dev, const char *fmt1,
-			      const char *fmt2, struct clk *clk,
-			      const char *desc, u32 port_id, u32 uniphy_id)
+			     const char *fmt2, struct clk *clk,
+			     const char *desc, u32 port_id, u32 uniphy_id)
 {
 	char clk_name[64];
 	int ret, len;
@@ -5097,6 +5326,7 @@ static int ipq_eth_ofdata_to_platdata(struct udevice *dev)
 				/* Guard against uninitialized global entries */
 				if (ipq_uniphy[uniphy_id].reg && ipq_uniphy[uniphy_id].bit < 32) {
 					u32 reg_val = readl(ipq_uniphy[uniphy_id].reg);
+
 					if (reg_val & (1U << ipq_uniphy[uniphy_id].bit)) {
 						printf("UNIPHY%d is Disabled\n", uniphy_id);
 						continue;
