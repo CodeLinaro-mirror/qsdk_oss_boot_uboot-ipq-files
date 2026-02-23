@@ -13,6 +13,14 @@
 	#size-cells = <2>;
 	interrupt-parent = <&intc>;
 
+	clocks {
+		sleep_clk: sleep-clk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <32000>;
+		};
+	};
+
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};
@@ -972,6 +980,13 @@
 					};
 				};
 			};
+		};
+		watchdog: non-sec@b017000 {
+			compatible = "qcom,apss-wdt-ipq5210", "qcom,kpss-wdt";
+			reg =  <0x0 0xb017000 0x0 0x1000>;
+			clocks = <&sleep_clk>;
+			timeout-sec = <30>;
+			status = "disabled";
 		};
 	};
 };
