@@ -3360,19 +3360,17 @@ static int ipq_edma_setup_ring_resources(struct ipq_edma_hw *ehw)
 
 		/* Allocate buffers for each of the desc */
 		for (j = 0; j < rxfill_ring->count; j++) {
-			phys_addr_t pa = virt_to_phys(rx_buf);
-			u32 rdes1_val;
+			phys_addr_t pa;
 
 			rxfill_desc = EDMA_RXFILL_DESC(rxfill_ring, j);
+			pa = virt_to_phys(rx_buf);
 			rxfill_desc->rdes0 = pa;
-
-			if (IS_ENABLED(CONFIG_ARM64)) {
-				rdes1_val = (u32)(((uint64_t)pa >> 32) &
-					ehw->hw_cfg->rxfill.buf_hi_add_mask);
-				rxfill_desc->rdes1 = rdes1_val;
-			} else {
-				rxfill_desc->rdes1 = 0;
-			}
+#ifdef CONFIG_ARM64
+			rxfill_desc->rdes1 = (u32)((pa >> 32) &
+				ehw->hw_cfg->rxfill.buf_hi_add_mask);
+#else
+			rxfill_desc->rdes1 = 0;
+#endif
 			rxfill_desc->rdes2 = 0;
 			rxfill_desc->rdes3 = 0;
 			rx_buf += ehw->hw_cfg->rx_buff_size;
@@ -3439,15 +3437,17 @@ static int ipq_edma_setup_ring_resources(struct ipq_edma_hw *ehw)
 
 		/* Allocate buffers for each of the desc */
 		for (j = 0; j < txdesc_ring->count; j++) {
+			phys_addr_t pa;
+
 			txdesc_desc = EDMA_TXDESC_DESC(txdesc_ring, j);
-			txdesc_desc->tdes0 = virt_to_phys(tx_buf);
-			if (IS_ENABLED(CONFIG_ARM64)) {
-				txdesc_desc->tdes1 = virt_to_phys((void *)
-					(((uintptr_t)tx_buf) >> 32)) &
-					ehw->hw_cfg->txdesc.buf_hi_add_mask;
-			} else {
-				txdesc_desc->tdes1 = 0;
-			}
+			pa = virt_to_phys(tx_buf);
+			txdesc_desc->tdes0 = pa;
+#ifdef CONFIG_ARM64
+			txdesc_desc->tdes1 = (u32)((pa >> 32) &
+				ehw->hw_cfg->txdesc.buf_hi_add_mask);
+#else
+			txdesc_desc->tdes1 = 0;
+#endif
 			txdesc_desc->tdes1 |= EDMA_TXDESC_PASSTHROUGH_EN;
 			txdesc_desc->tdes2 = 0;
 			txdesc_desc->tdes3 = 0;
