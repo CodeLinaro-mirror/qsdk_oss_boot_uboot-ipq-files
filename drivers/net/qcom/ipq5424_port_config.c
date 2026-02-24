@@ -187,6 +187,32 @@ static struct ipq_eth_port_config ipq5424_port_config[] = {
 			PORT_WRAPPER_UQXGMII,
 		},
 	}, {
+		QCE2204_SWITCH_TYPE,
+		{
+			CLK_312_5_MHZ,
+			CLK_312_5_MHZ,
+			CLK_312_5_MHZ,
+			CLK_312_5_MHZ,
+			CLK_312_5_MHZ,
+			CLK_312_5_MHZ
+		},
+		{
+			XGMAC,
+			XGMAC,
+			XGMAC,
+			XGMAC,
+			XGMAC,
+			XGMAC
+		},
+		{
+			PORT_WRAPPER_10GBASE_R,
+			PORT_WRAPPER_10GBASE_R,
+			PORT_WRAPPER_10GBASE_R,
+			PORT_WRAPPER_10GBASE_R,
+			PORT_WRAPPER_10GBASE_R,
+			PORT_WRAPPER_10GBASE_R
+		},
+	}, {
 		UNUSED_PHY_TYPE,
 	},
 };
