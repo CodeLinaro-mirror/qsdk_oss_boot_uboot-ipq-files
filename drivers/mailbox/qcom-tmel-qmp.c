@@ -145,6 +145,9 @@ struct iovec_tmel {
  */
 struct qmp_device_cfg {
 	u32 shared_irq;
+	phys_addr_t reg;
+	u8 bit;
+	bool issupport_check;
 };
 
 /**
@@ -178,6 +181,7 @@ struct qmp_device {
 
 	bool link_complete;
 	bool ch_complete;
+	bool is_enabled;
 
 	atomic_t tx_sent;
 	u32 shared_irq;
@@ -922,7 +926,6 @@ static int tmel_qmp_startup(struct mbox_chan *chan,
 	mdev = tdev->mdev;
 	if (!mdev)
 		return -EINVAL;
-
 	/*
 	 * Kick start the SM from the negotiation phase
 	 * Rest of the link changes would follow when remote responds.
@@ -1147,61 +1150,100 @@ static int tmel_qmp_parse_dt(struct udevice *dev)
 /**
  * tmel_qmp_mbox_probe() - Probe TMEL QMP mailbox device
  * @dev: device to probe
+ *
+ * Return: 0 on success, negative error code on failure
  */
 static int tmel_qmp_mbox_probe(struct udevice *dev)
 {
-	struct tmel *tdev = dev_get_priv(dev);
+	struct tmel *tdev;
 	struct qmp_device *mdev;
 	struct qmp_device_cfg *mdev_cfg;
+	bool enable;
 	int ret;
 
+	/* Validate device private data */
+	tdev = dev_get_priv(dev);
 	if (!tdev)
 		return -EINVAL;
 
+	/* Get device configuration and determine enable state */
+	mdev_cfg = (struct qmp_device_cfg *)dev_get_driver_data(dev);
+	enable = true;
+	if (mdev_cfg && mdev_cfg->issupport_check) {
+		/* Check hardware support bit - if not set, disable */
+		enable = !!(readl(mdev_cfg->reg) & mdev_cfg->bit);
+		if (!enable) {
+			dev_dbg(dev, "Device not supported by hardware\n");
+			return -ENODEV;
+		}
+	}
+
+	/* Parse device tree properties */
 	ret = tmel_qmp_parse_dt(dev);
 	if (ret) {
 		dev_err(dev, "Failed to parse device tree: %d\n", ret);
-		return -EINVAL;
+		return ret;
 	}
 
+	/* Initialize TMEL device */
 	ret = tmel_init(dev);
 	if (ret) {
 		dev_err(dev, "Failed to initialize TMEL: %d\n", ret);
-		return -EINVAL;
+		return ret;
 	}
 
+	/* Initialize QMP device */
 	mdev = qmp_init(dev);
 	if (IS_ERR(mdev)) {
-		dev_err(dev, "Failed to initialize QMP: %ld\n", PTR_ERR(mdev));
-		return -EINVAL;
+		ret = PTR_ERR(mdev);
+		dev_err(dev, "Failed to initialize QMP: %d\n", ret);
+		goto err_cleanup_tmel;
 	}
 
+	/* Link QMP device to TMEL */
 	tdev->mdev = mdev;
+	mdev->is_enabled = enable;
 
-	mdev_cfg = (struct qmp_device_cfg *)dev_get_driver_data(mdev->dev);
-	if (!mdev_cfg) {
-		dev_err(mdev->dev, "Failed to get QMP device config\n");
-		return -EINVAL;
-	}
+	/* Configure device-specific settings */
+	if (mdev_cfg)
+		mdev->shared_irq = mdev_cfg->shared_irq;
 
-	mdev->shared_irq = mdev_cfg->shared_irq;
+	/* Configure and enable interrupts */
 	set_interrupt_flags(tdev);
 	enable_interrupt(tdev);
 
 	return 0;
+
+err_cleanup_tmel:
+	/* Cleanup TMEL resources on error */
+	if (tdev->ipc_pkt) {
+		free(tdev->ipc_pkt);
+		tdev->ipc_pkt = NULL;
+	}
+	return ret;
 }
 
 static const struct qmp_device_cfg config_ipq_sec = {
-	.shared_irq = BIT(21),
+	.shared_irq		= BIT(21),
+	.issupport_check	= false,
 };
 
-static const struct qmp_device_cfg config_ipq_nsec = {
-	.shared_irq = BIT(20),
+static const struct qmp_device_cfg config_ipq5210_nsec = {
+	.shared_irq 		= BIT(20),
+	.reg			= 0xA600C,
+	.bit			= BIT(0),
+	.issupport_check	= true,
 };
 
 static const struct udevice_id tmel_qmp_mbox_of_match[] = {
-	{ .compatible = "qcom,tmel-qmp-mbox-secure", .data = (ulong)&config_ipq_sec},
-	{ .compatible = "qcom,tmel-qmp-mbox", .data = (ulong)&config_ipq_nsec},
+	{
+		.compatible = "qcom,tmel-qmp-mbox-secure",
+		.data = (ulong)&config_ipq_sec
+	},
+	{
+		.compatible = "qcom,tmel-qmp-mbox",
+		.data = (ulong)&config_ipq5210_nsec
+	},
 	{}
 };
 
