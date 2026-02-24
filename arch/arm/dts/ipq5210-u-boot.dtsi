@@ -260,35 +260,18 @@
 
 			clocks = <&gcc GCC_PCIE0_AUX_CLK>,
 				 <&gcc GCC_PCIE0_AHB_CLK>,
+				 <&gcc GCC_PCIE0_RCHNG_CLK>,
+				 <&gcc GCC_PCIE0_PIPE_CLK>,
 				 <&gcc GCC_CNOC_PCIE0_1LANE_S_CLK>;
-			clock-names = "aux", "cfg_ahb", "snoc_lane";
-
-			assigned-clocks = <&gcc GCC_PCIE0_AUX_CLK>,
-					  <&gcc GCC_PCIE0_AHB_CLK>,
-					  <&gcc GCC_CNOC_PCIE0_1LANE_S_CLK>;
-			assigned-clock-rates = <20000000>,
-					       <100000000>,
-					       <240000000>;
+			clock-names = "aux", "cfg_ahb", "rchng", "pipe",
+					"lane_s";
 
 			resets = <&gcc GCC_PCIE0_PHY_BCR>,
 				 <&gcc GCC_PCIE0PHY_PHY_BCR>;
 			reset-names = "phy", "common";
 
+			#phy-cells = <0>;
 			status = "disabled";
-
-			pcie0_lanes: phy@84200 {
-				reg = <0x00084200 0x16c>, /* Serdes Tx0 */
-				      <0x00084400 0x200>, /* Serdes Rx0 */
-				      <0x00084800 0x1f0>, /* PCS: Lane0, COM, PCIE */
-				      <0x00084c00 0x0f4>; /* pcs_misc */
-
-				#phy-cells = <0>;
-
-				clocks = <&gcc GCC_PCIE0_PIPE_CLK>;
-				clock-names = "pipe0";
-				clock-output-names = "gcc_pcie0_pipe_clk_src";
-				#clock-cells = <0>;
-			};
 		};
 
 		pcie1_phy: phy@f4000 {
@@ -300,37 +283,18 @@
 
 			clocks = <&gcc GCC_PCIE1_AUX_CLK>,
 				 <&gcc GCC_PCIE1_AHB_CLK>,
+				 <&gcc GCC_PCIE1_RCHNG_CLK>,
+				 <&gcc GCC_PCIE1_PIPE_CLK>,
 				 <&gcc GCC_CNOC_PCIE1_2LANE_S_CLK>;
-			clock-names = "aux", "cfg_ahb", "snoc_lane";
-
-			assigned-clocks = <&gcc GCC_PCIE1_AUX_CLK>,
-					  <&gcc GCC_PCIE1_AHB_CLK>,
-					  <&gcc GCC_CNOC_PCIE1_2LANE_S_CLK>;
-			assigned-clock-rates = <20000000>,
-					       <100000000>,
-					       <240000000>;
+			clock-names = "aux", "cfg_ahb", "rchng", "pipe",
+					"lane_s";
 
 			resets = <&gcc GCC_PCIE1_PHY_BCR>,
 				 <&gcc GCC_PCIE1PHY_PHY_BCR>;
 			reset-names = "phy", "common";
 
+			#phy-cells = <0>;
 			status = "disabled";
-
-			pcie1_lanes: phy@f4200 {
-				reg = <0x000f4200 0x16c>, /* Serdes Tx0 */
-				      <0x000f4400 0x200>, /* Serdes Rx0 */
-				      <0x000f5000 0x1f0>, /* PCS: Lane0, COM, PCIE */
-				      <0x000f4600 0x16c>, /* Serdes Tx1 */
-				      <0x000f4800 0x200>, /* Serdes Rx1 */
-				      <0x000f5400 0x0f8>; /* pcs_misc */
-
-				#phy-cells = <0>;
-
-				clocks = <&gcc GCC_PCIE1_PIPE_CLK>;
-				clock-names = "pipe0";
-				clock-output-names = "gcc_pcie1_pipe_clk_src";
-				#clock-cells = <0>;
-			};
 		};
 
 		/* 1L controller */
@@ -394,7 +358,9 @@
 				      "ahb",
 				      "aux";
 
-			phys = <&pcie0_lanes>;
+			msi-parent = <&intc>;
+
+			phys = <&pcie0_phy>;
 			phy-names = "pciephy";
 
 			status = "disabled";
@@ -461,7 +427,9 @@
 				      "ahb",
 				      "aux";
 
-			phys = <&pcie1_lanes>;
+			msi-parent = <&intc>;
+
+			phys = <&pcie1_phy>;
 			phy-names = "pciephy";
 
 			status = "disabled";

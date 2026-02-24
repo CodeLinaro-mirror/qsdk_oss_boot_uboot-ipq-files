@@ -394,9 +394,9 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 					5, PCIE_GPLL4_OUT_MAIN);
 		break;
 	case GCC_PCIE1_AXI_M_CLK:
-		/* GCC_PCIE1_AXI_M_CLK: 240 MHz */
-		clk_rcg_set_rate(priv->base, GCC_PCIE1_AXI_M_CMD_RCGR,
-					5, PCIE_GPLL4_OUT_MAIN);
+		/* GCC_PCIE1_AXI_M_CLK: 266.67 MHz */
+		clk_rcg_set_rate_v2(priv->base, GCC_PCIE1_AXI_M_CMD_RCGR,
+					0, 8, 0, PCIE_GPLL4_OUT_MAIN);
 		break;
 	case GCC_PCIE0_AXI_S_CLK:
 		/* GCC_PCIE0_AXI_S_CLK: 240 MHz */
