@@ -1201,7 +1201,6 @@ static struct ipq_tdm_addr_config ipq5210_tdm_addr_config = {
 
 /* Global exports required by nss-switch.c */
 struct ipq_eth_port_config	*port_config		= ipq5210_port_config;
-struct ipq_eth_sku		*ipq_uniphy;
 struct ppe_table_addr_config	*ppe_table_addrs	= &ipq5210_ppe_table_addrs;
 struct ppe_port_config		*ppe_port_cfg		= &ipq5210_port_cfg;
 
@@ -1209,6 +1208,23 @@ struct ppe_port_config		*ppe_port_cfg		= &ipq5210_port_cfg;
 struct ipq_tdm_config		*tdm_config		= ipq5210_tdm_config;
 struct ipq_tdm_addr_config	*tdm_addr_config	= &ipq5210_tdm_addr_config;
 struct ipq_sch_config		*sch_config		= ipq5210_ppe_port_scheduler0_tbl;
+
+static struct ipq_eth_sku ipq5210_uniphy[CONFIG_ETH_MAX_UNIPHY] = {
+	{
+		.reg	= 0xA6264,
+		.bit	= 0,
+	},
+	{
+		.reg	= 0xA626C,
+		.bit	= 0,
+	},
+	{
+		.reg	= 0xA6274,
+		.bit	= 0,
+	},
+};
+
+struct ipq_eth_sku *ipq_uniphy = ipq5210_uniphy;
 
 /*
  * Common clock configuration function - dummy implementation
