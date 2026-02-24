@@ -43,6 +43,7 @@
 #include <mach/smem_info.h>
 #include <asm/io.h>
 #include <asm/sections.h>
+#include <asm/system.h>
 #include <smem.h>
 #include <atf_common.h>
 #include <linux/err.h>
@@ -59,6 +60,64 @@
 #include <u-boot/crc.h>
 #include <dm/device-internal.h>
 #include <linux/ipq-enable-all-clks.h>
+
+/**
+ * PBL Boot interface
+ */
+#define PBL_LOG_BUFFER_SIZE  (4 * 1024)
+#define NOR		1
+#define MMC		5
+#define SPI_NOR_MIBIB		6
+#define SPI_NAND		11
+#define SPI_NOR_GPT		12
+#define NAND		33
+
+/**
+ * Parameter ID for the data to be accessed from PBL shared data
+ */
+enum {
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_FW_VERSION = 0,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_PATCH_VERSION,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_RMB_MBOX_BASE_ADDR,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_CPU_BOOT_SPEED_HZ,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_BOOT_MEDIA_TYPE,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_IS_EDL_MODE,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_DEV_PROG_ELF_ENTRY_ADDR,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_SPL_CONFIG_ELF_ENTRY_ADDR,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_SPL_SC_EXT_ELF_ENTRY_ADDR,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_TIMESTAMPS_BUFFER_ADDR,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_TIMESTAMPS_BUFFER_SIZE,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_DEBUG_SHARED_INFO_ADDR,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_DEBUG_SHARED_INFO_SIZE,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_TME_CPU_PBL_ROM_BYPASS_FUSE,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_SPL_SC_DEBUG_LOG_ADDR,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_SPL_SC_DEBUG_LOG_SIZE,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_CURRENT_IMAGE_SET,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_MEDIA_DATA_INFO_ADDR,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_MEDIA_DATA_INFO_SIZE,
+	PBL_APPS_SPL_SHARED_DATA_PARAM_ID_MAX,
+};
+
+/**
+ * PBL shared data entry structure
+ * param_id: Parameter ID (enum value)
+ * param_val: Parameter value
+ * is_valid_entry: Validity flag (boolean)
+ */
+struct pbl_shared_data_entry {
+	u32 param_id;
+	uintptr_t param_val;
+	u8 is_valid_entry;
+};
+
+/**
+ * PBL shared data structure passed from PBL to SPL
+ */
+struct pbl_shared_data {
+	u32 version;
+	u32 num_of_entries;
+	struct pbl_shared_data_entry shared_data_entry[PBL_APPS_SPL_SHARED_DATA_PARAM_ID_MAX];
+};
 
 /*******************************************************************************
  * Globals constant & typedef
@@ -197,6 +256,16 @@ static bool secure_boot_enabled;
 /* Global variables to store MIBIB partition table and bootloader offset */
 static struct flash_partition_table g_mibib_parti_tbl;
 static int g_bootldr_offset;
+
+/**
+ * Global variables for PBL shared data and logs
+ * must be in .data section, not .bss,
+ * because they are initialized in save_boot_params()
+ * BEFORE board_init_f() clears BSS.
+ */
+static struct pbl_shared_data g_pbl_shared_data __section(".data");
+static char g_pbl_log_buffer[PBL_LOG_BUFFER_SIZE] __section(".data");
+static bool g_pbl_data_valid __section(".data");
 
 /**
  * struct mi_boot_info - MIBIB header structure
@@ -578,13 +647,256 @@ struct ipq_spl_img_ctx img_tbl_fit[] = {
  */
 void lowlevel_init(void)
 {
+	/*
+	 * Place holder
+	 */
+}
+
+/**
+ * save_boot_params() - Save PBL shared data and logs
+ * @r0: First argument from PBL (shared data pointer)
+ *
+ * This function is called VERY EARLY from assembly code before BSS is cleared.
+ * It must save PBL data to static buffers.
+ *
+ * CRITICAL: This function executes before memory initialization,
+ * so it can only use static/global variables, not heap or stack.
+ *
+ * IMPORTANT: This function MUST call save_boot_params_ret() to return
+ * to the assembly caller. Normal C return statements will corrupt the CPU state!
+ */
+void save_boot_params(unsigned long r0, unsigned long r1,
+		      unsigned long r2, unsigned long r3)
+{
+	struct pbl_shared_data *pbl_data_ptr = (struct pbl_shared_data *)r0;
+	uintptr_t pbl_log_addr;
+	u32 pbl_log_size;
 	unsigned long sctlr;
 
-	/*
+	/**
 	 * Early disable the MMU
 	 */
 	sctlr = get_sctlr();
 	set_sctlr(sctlr & ~(CR_M));
+
+	/**
+	 * Validate PBL shared data pointer
+	 */
+	if (!pbl_data_ptr || pbl_data_ptr->version == 0) {
+		g_pbl_data_valid = false;
+		goto exit;
+	}
+
+	/**
+	 * Validate number of entries
+	 */
+	if (pbl_data_ptr->num_of_entries < PBL_APPS_SPL_SHARED_DATA_PARAM_ID_MAX) {
+		g_pbl_data_valid = false;
+		goto exit;
+	}
+
+	/**
+	 * Copy entire PBL shared data structure to our static buffer
+	 */
+	memcpy(&g_pbl_shared_data, pbl_data_ptr, sizeof(struct pbl_shared_data));
+
+	/**
+	 * Get PBL log buffer address and size using CORRECT indices
+	 */
+	if (g_pbl_shared_data.shared_data_entry[
+		PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_TIMESTAMPS_BUFFER_ADDR]
+		.is_valid_entry &&
+	    g_pbl_shared_data.shared_data_entry[
+		PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_TIMESTAMPS_BUFFER_SIZE]
+		.is_valid_entry) {
+
+		pbl_log_addr = g_pbl_shared_data.shared_data_entry[
+			PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_TIMESTAMPS_BUFFER_ADDR]
+			.param_val;
+		pbl_log_size = g_pbl_shared_data.shared_data_entry[
+			PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_TIMESTAMPS_BUFFER_SIZE]
+			.param_val;
+
+		/**
+		 * Validate and copy PBL logs
+		 */
+		if (pbl_log_addr && pbl_log_size > 0) {
+			/**
+			 * Reserve one byte for null terminator
+			 * Clamp to buffer size minus 1 to ensure space for '\0'
+			 */
+			if (pbl_log_size >= PBL_LOG_BUFFER_SIZE)
+				pbl_log_size = PBL_LOG_BUFFER_SIZE - 1;
+
+			memcpy(g_pbl_log_buffer, (void *)pbl_log_addr, pbl_log_size);
+			g_pbl_log_buffer[pbl_log_size] = '\0';  /* Safe null termination */
+			g_pbl_shared_data.shared_data_entry[
+				PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_TIMESTAMPS_BUFFER_ADDR]
+				.param_val = (uintptr_t)g_pbl_log_buffer;
+
+			g_pbl_data_valid = true;
+		}
+	}
+
+exit:
+	/*
+	 * CRITICAL: Must call save_boot_params_ret() to return to assembly code.
+	 * This is NOT a normal C function - it's called from assembly and must
+	 * use the special return mechanism to avoid corrupting CPU state.
+	 */
+	save_boot_params_ret();
+}
+
+/**
+ * ipq_spl_print_pbl_version() - Print PBL version information
+ *
+ * This function prints the PBL firmware and patch version from the
+ * saved PBL shared data.
+ */
+static void ipq_spl_print_pbl_version(void)
+{
+	u32 pbl_fw_ver, pbl_patch_ver;
+
+	if (!g_pbl_data_valid)
+		return;
+
+	if (g_pbl_shared_data.shared_data_entry[
+		PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_FW_VERSION]
+		.is_valid_entry &&
+	    g_pbl_shared_data.shared_data_entry[
+		PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_PATCH_VERSION]
+		.is_valid_entry) {
+
+		pbl_fw_ver = g_pbl_shared_data.shared_data_entry[
+			PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_FW_VERSION]
+			.param_val;
+		pbl_patch_ver = g_pbl_shared_data.shared_data_entry[
+			PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_PATCH_VERSION]
+			.param_val;
+
+		printf("PBL FW Ver: %u, Patch Ver: %u\n", pbl_fw_ver, pbl_patch_ver);
+	}
+}
+
+/**
+ * ipq_spl_print_pbl_clock() - Print PBL clock frequency
+ *
+ * This function prints the CPU boot speed from the saved PBL shared data.
+ */
+static void ipq_spl_print_pbl_clock(void)
+{
+	u32 pbl_clk_hz;
+
+	if (!g_pbl_data_valid)
+		return;
+
+	if (g_pbl_shared_data.shared_data_entry[
+		PBL_APPS_SPL_SHARED_DATA_PARAM_ID_CPU_BOOT_SPEED_HZ]
+		.is_valid_entry) {
+		pbl_clk_hz = g_pbl_shared_data.shared_data_entry[
+			PBL_APPS_SPL_SHARED_DATA_PARAM_ID_CPU_BOOT_SPEED_HZ]
+			.param_val;
+
+		if (pbl_clk_hz > 0)
+			printf("PBL Clock: %u MHz\n", pbl_clk_hz / 1000000);
+	}
+}
+
+/**
+ * ipq_spl_print_pbl_boot_interface() - Print Boot Interface type from PBL
+ *
+ * This function prints the boot media type from the saved PBL shared data.
+ */
+static void ipq_spl_print_pbl_boot_interface(void)
+{
+	u32 boot_interface;
+	const char *media_str = "Unknown";
+
+	if (!g_pbl_data_valid)
+		return;
+
+	if (g_pbl_shared_data.shared_data_entry[
+		PBL_APPS_SPL_SHARED_DATA_PARAM_ID_BOOT_MEDIA_TYPE]
+		.is_valid_entry) {
+		boot_interface = g_pbl_shared_data.shared_data_entry[
+			PBL_APPS_SPL_SHARED_DATA_PARAM_ID_BOOT_MEDIA_TYPE]
+			.param_val;
+
+		switch (boot_interface) {
+		case NOR:
+			media_str = "NOR";
+			break;
+		case MMC:
+			media_str = "MMC/eMMC";
+			break;
+		case SPI_NOR_MIBIB:
+			media_str = "SPI NOR MIBIB";
+			break;
+		case SPI_NAND:
+			media_str = "SPI NAND";
+			break;
+		case SPI_NOR_GPT:
+			media_str = "SPI NOR GPT";
+			break;
+		case NAND:
+			media_str = "NAND";
+			break;
+		default:
+			media_str = "Unknown";
+			break;
+		}
+
+		printf("Boot Interface: %s\n", media_str);
+	}
+}
+
+/**
+ * ipq_spl_print_pbl_logs() - Print PBL timestamp logs
+ *
+ * This function prints the PBL.
+ */
+static void ipq_spl_print_pbl_logs(void)
+{
+	char *pbl_log_ptr;
+
+	/**
+	 * Print PBL information
+	 */
+	printf("\n========== Boot Information ==========\n");
+	ipq_spl_print_pbl_version();
+	ipq_spl_print_pbl_clock();
+	ipq_spl_print_pbl_boot_interface();
+	printf("======================================\n");
+
+	/**
+	 * Print PBL timestamp logs
+	 */
+	if (!g_pbl_data_valid) {
+		printf("PBL logs not available\n");
+		return;
+	}
+
+	if (g_pbl_shared_data.shared_data_entry[
+		PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_TIMESTAMPS_BUFFER_ADDR]
+		.is_valid_entry) {
+		pbl_log_ptr = (char *)g_pbl_shared_data.shared_data_entry[
+			PBL_APPS_SPL_SHARED_DATA_PARAM_ID_PBL_TIMESTAMPS_BUFFER_ADDR]
+			.param_val;
+
+		/**
+		 * Verify pointer is within our safe buffer range
+		 * This prevents accessing stale PBL memory addresses
+		 */
+		if (pbl_log_ptr >= g_pbl_log_buffer &&
+		    pbl_log_ptr < (g_pbl_log_buffer + PBL_LOG_BUFFER_SIZE) &&
+		    pbl_log_ptr[0] != '\0') {
+			printf("========= PBL Timestamp Logs =========\n");
+			printf("%s", pbl_log_ptr);
+			printf("======================================\n");
+		} else {
+			printf("PBL logs pointer validation failed\n");
+		}
+	}
 }
 
 #if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
@@ -2176,6 +2488,8 @@ void board_init_f(ulong dummy)
 	}
 
 	preloader_console_init();
+
+	ipq_spl_print_pbl_logs();
 
 #if defined(CONFIG_CLK_QCOM_ALL)
 	ipq_enable_all_clks();
