@@ -50,8 +50,10 @@
 #include <asm/armv8/mmu.h>
 #endif
 #include <asm/cache.h>
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
 #include <mailbox.h>
 #include <linux/tmelcom-qmp.h>
+#endif
 #include <linux/mtd/mtd.h>
 #include <nand.h>
 #include <u-boot/crc.h>
@@ -532,6 +534,34 @@ void lowlevel_init(void)
 	sctlr = get_sctlr();
 	set_sctlr(sctlr & ~(CR_M));
 }
+
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
+/**
+ * ipq_spl_tmel_bypass_enabled() - Check if TMEL bypass is enabled
+ *
+ * This function reads the FEATURE_CONFIG2 register on first call and caches
+ * the result. It checks bit 0 (TMEL_BYPASS_DISABLE). If the bit is 0,
+ * TME-L authentication should be bypassed.
+ *
+ * Return: true if TMEL bypass is enabled, false otherwise
+ */
+static bool ipq_spl_tmel_bypass_enabled(void)
+{
+	static bool initialized;
+	static bool bypass;
+
+	if (!initialized) {
+		u32 feature_config2 = readl(IPQ_SPL_FEATURE_CONFIG2_REG_ADDR);
+
+		bypass = !(feature_config2 & IPQ_SPL_TMEL_BYPASS_DISABLE_MASK);
+		initialized = true;
+
+		printf("TME - %s (FEATURE_CONFIG2=0x%08X)\n",
+		       bypass ? "Disabled" : "Enabled", feature_config2);
+	}
+	return bypass;
+}
+#endif
 
 /**
  * ipq_spl_error_handler() - Centralized SPL error handler.
@@ -1450,15 +1480,20 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 
 #if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
 			/*
-			 * Authenticate image if enabled
+			 * Authenticate image if enabled and bypass is not set
 			 */
 			if (img_tbl_fit[uc_index].auth) {
-				ret = ipq_spl_auth_image(ctx->img_tbl);
-				if (ret) {
-					pr_err("%s auth failed (ret=%d)\n",
-					ctx->img_tbl->img_name,
-					ret);
-					goto fail;
+				if (ipq_spl_tmel_bypass_enabled()) {
+					printf("Authentication bypassed for %s (tmel_bypass=1)\n",
+						img_tbl_fit[uc_index].img_name);
+				} else {
+					ret = ipq_spl_auth_image(ctx->img_tbl);
+					if (ret) {
+						pr_err("%s auth failed (ret=%d)\n",
+						ctx->img_tbl->img_name,
+						ret);
+						goto fail;
+					}
 				}
 			}
 #endif /* CONFIG_IPQ_TMEL_IPC_SUPPORT */
@@ -1572,6 +1607,13 @@ struct bl_params *bl2_plat_get_bl31_params_v2(uintptr_t bl32_entry,
  */
 void spl_board_prepare_for_boot(void)
 {
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
+	/* Skip TME mailbox cleanup if tmel_bypass is enabled */
+	if (ipq_spl_tmel_bypass_enabled()) {
+		printf("TME mailbox cleanup skipped (tmel_bypass=1)\n");
+		return;
+	}
+
 	/*
 	 * Disconnect the TME mailbox channel so the client does not receive
 	 * anymore data and can reliquish control of the channel.
@@ -1594,6 +1636,7 @@ void spl_board_prepare_for_boot(void)
 	return;
 fail:
 	ipq_spl_error_handler(NULL);
+#endif
 }
 
 /**
@@ -1725,12 +1768,22 @@ void board_init_f(ulong dummy)
 
 	preloader_console_init();
 
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
+	/* Initialize TMEL bypass check (will print status on first call) */
+	ipq_spl_tmel_bypass_enabled();
+#endif
+
 	ipq_spl_list_fuse(fuse_info_array,
 				ARRAY_SIZE(fuse_info_array));
 
 #if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
-	ipq_spl_list_tme_fuse(tme_fuse_info_array,
-				ARRAY_SIZE(tme_fuse_info_array));
+	/* Skip TME fuse listing if tmel_bypass is enabled */
+	if (!ipq_spl_tmel_bypass_enabled()) {
+		ipq_spl_list_tme_fuse(tme_fuse_info_array,
+					ARRAY_SIZE(tme_fuse_info_array));
+	} else {
+		printf("TME fuse listing skipped (tmel_bypass=1)\n");
+	}
 #endif
 
 #if !(CONFIG_IS_ENABLED(SYS_ICACHE_OFF) && CONFIG_IS_ENABLED(SYS_DCACHE_OFF))
