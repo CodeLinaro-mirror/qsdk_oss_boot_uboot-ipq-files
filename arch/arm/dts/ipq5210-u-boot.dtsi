@@ -65,8 +65,8 @@
 			uart1_pins: uart1-state {
 				pins = "gpio38", "gpio39";
 				function = "uart1";
-				drive-strength = <8>;
-				bias-pull-up;
+				drive-strength = <6>;
+				bias-pull-down;
 			};
 		};
 
@@ -981,21 +981,21 @@
 		qspi_data {
 			pins = "gpio0", "gpio1", "gpio2","gpio3";
 			function = "qspi_data";
-			drive-strength = <8>;
+			drive-strength = <6>;
 			bias-pull-up;
 		};
 
 		qspi_cs_n {
 			pins = "gpio4";
 			function = "qspi_cs";
-			drive-strength = <8>;
+			drive-strength = <6>;
 			bias-pull-up;
                 };
 
 		qspi_clk {
 			pins = "gpio5";
 			function = "qspi_clk";
-			drive-strength = <8>;
+			drive-strength = <6>;
 			bias-disable;
 		};
         };

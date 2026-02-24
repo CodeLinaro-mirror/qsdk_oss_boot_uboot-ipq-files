@@ -58,4 +58,34 @@
 			bias-pull-down;
 		};
 	};
+
+	spi0_pinmux: spi0 {
+		spi0_sclk {
+			pins = "gpio6";
+			function = "spi0_clk";
+			drive-strength = <6>;
+			bias-pull-down;
+		};
+
+		spi0_cs0 {
+			pins = "gpio7";
+			function = "spi0_cs";
+			drive-strength = <6>;
+			bias-pull-up;
+		};
+
+		spi0_miso {
+			pins = "gpio8";
+			function = "spi0_miso";
+			drive-strength = <6>;
+			bias-pull-down;
+		};
+
+		spi0_mosi {
+			pins = "gpio9";
+			function = "spi0_mosi";
+			drive-strength = <6>;
+			bias-pull-down;
+		};
+	};
 };
