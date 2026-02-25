@@ -52,6 +52,28 @@
 #define PPE_AC_GROUP_TOTAL_BUF		3000
 
 /*
+ * CMN PLL Register Definitions
+ */
+#ifndef CMN_BLK_ADDR
+#define CMN_BLK_ADDR			0x9b000
+#endif
+
+/* Register offsets from CMN_BLK_ADDR */
+#define CMN_PLL_POWER_ON_AND_RESET	0x780  /* CMN_BLK_ADDR + 0x780 */
+#define CMN_PLL_REFCLK_CONFIG		0x784  /* CMN_BLK_ADDR + 0x784 */
+#define CMN_PLL_LOCKED			0x64   /* CMN_BLK_ADDR + 0x64 (Lock status) */
+/* CMN_PLL_REFCLK_CONFIG (0x784) bit definitions */
+#define CMN_PLL_REFCLK_INDEX_MASK	0x0F   /* Bits 3:0 */
+#define CMN_PLL_REFCLK_INDEX_48MHZ	0x07   /* Index 7 for 48 MHz*/
+
+/* CMN_PLL_POWER_ON_AND_RESET (0x780) bit definitions */
+#define CMN_ANA_EN_SW_RSTN		BIT(6) /* Bit 6: Software reset (active high) */
+#define CMN_PLL_CLKS_LOCKED		BIT(8) /* Lock status bit */
+
+/* Clock enable bits in CMN_PLL_POWER_ON_AND_RESET */
+#define CLK_ENABLE_MASK_PARTIAL		0xBF   /* Enable most clocks (bit 6 = 0) */
+#define CLK_ENABLE_MASK_FULL		0xFF   /* Enable all clocks (bit 6 = 1) */
+/*
  * Hardware configuration structure
  */
 static struct edma_hw_cfg ipq5210_hw_cfg = {
@@ -1231,6 +1253,66 @@ struct ipq_eth_sku *ipq_uniphy = ipq5210_uniphy;
  */
 void ipq_config_cmn_clock(void)
 {
+	unsigned int reg_val;
+
+	/*
+	 * Step 1: Configure reference clock to 48 MHz
+	 * uses ref_48mhz_clk (derived from xo_clk) as reference (from DTS)
+	 * This is identical to IPQ9574
+	 */
+	reg_val = readl(CMN_BLK_ADDR + CMN_PLL_REFCLK_CONFIG);
+	reg_val = (reg_val & ~CMN_PLL_REFCLK_INDEX_MASK) |
+			CMN_PLL_REFCLK_INDEX_48MHZ;
+	writel(reg_val, CMN_BLK_ADDR + CMN_PLL_REFCLK_CONFIG);
+
+	/*
+	 * Step 2: Assert reset (set bit 6)
+	 * Setting bit 6 actually asserts reset
+	 */
+	reg_val = readl(CMN_BLK_ADDR + CMN_PLL_POWER_ON_AND_RESET);
+	reg_val = reg_val | CMN_ANA_EN_SW_RSTN;
+	writel(reg_val, CMN_BLK_ADDR + CMN_PLL_POWER_ON_AND_RESET);
+	mdelay(1);
+
+	/*
+	 * Step 3: Deassert reset (clear bit 6)
+	 * Clearing bit 6 releases the PLL from reset
+	 */
+	reg_val = reg_val & (~CMN_ANA_EN_SW_RSTN);
+	writel(reg_val, CMN_BLK_ADDR + CMN_PLL_POWER_ON_AND_RESET);
+	mdelay(1);
+
+	/*
+	 * Step 4: Enable clocks progressively
+	 * First enable most clocks (0xbf = bit 6 clear)
+	 */
+	writel(CLK_ENABLE_MASK_PARTIAL,
+		CMN_BLK_ADDR + CMN_PLL_POWER_ON_AND_RESET);
+	mdelay(1);
+
+	/*
+	 * Step 5: Enable all clocks (0xff = all bits set)
+	 */
+	writel(CLK_ENABLE_MASK_FULL, CMN_BLK_ADDR + CMN_PLL_POWER_ON_AND_RESET);
+	mdelay(1);
+
+	/*
+	 * Wait for PLL lock
+	 */
+	{
+		int timeout = 1000;
+		while (timeout-- > 0) {
+			reg_val = readl(CMN_BLK_ADDR + CMN_PLL_LOCKED);
+			if (reg_val & CMN_PLL_CLKS_LOCKED) {
+				break;
+			}
+			udelay(10);
+		}
+
+		if (timeout <= 0) {
+			printf("Warning: CMN PLL lock timeout\n");
+		}
+	}
 }
 
 /**
