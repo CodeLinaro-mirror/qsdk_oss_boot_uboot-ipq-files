@@ -27,9 +27,10 @@ static int tmelcom_probe(struct udevice *dev)
 
 	ret = mbox_get_by_index(dev, 0, &priv->mbox);
 	if (ret) {
-		printf("mbox_get_by_index() failed: %d\n", ret);
+		log_err("TMELCOM: Failed to get mailbox: %d\n", ret);
 		return ret;
 	}
+
 	return 0;
 }
 
@@ -54,7 +55,7 @@ int ipq_get_tmelcom_device(struct tmelcom **tmelcom_priv)
 	ret = uclass_get_device_by_name(UCLASS_MISC, "qcom,tmelcom",
 					&tmelcom_udev);
 	if (ret) {
-		printf("Failed to find TMELCOM node %d\n", ret);
+		log_err("TMELCOM: Failed to find device node: %d\n", ret);
 		return ret;
 	}
 
@@ -69,5 +70,5 @@ U_BOOT_DRIVER(tmelcom) = {
 	.probe		= tmelcom_probe,
 	.remove		= tmelcom_remove,
 	.priv_auto	= sizeof(struct tmelcom),
-	.flags  = DM_FLAG_PRE_RELOC,
+	.flags  = DM_FLAG_PRE_RELOC | DM_FLAG_OS_PREPARE,
 };

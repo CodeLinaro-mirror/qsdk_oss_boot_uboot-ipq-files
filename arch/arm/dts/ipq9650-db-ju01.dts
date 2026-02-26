@@ -1,0 +1,13 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+/dts-v1/;
+
+#include "ipq9650-u-boot.dtsi"
+
+/ {
+	model = "Qualcomm Technologies, Inc. IPQ9650 DB-JU01";
+	compatible = "qcom,ipq9650-db-ju01", "qcom,ipq9650";
+};

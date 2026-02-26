@@ -55,6 +55,7 @@
 #include <linux/mtd/mtd.h>
 #include <nand.h>
 #include <u-boot/crc.h>
+#include <dm/device-internal.h>
 
 /*******************************************************************************
  * Globals constant & typedef
@@ -387,6 +388,7 @@ struct ipq_spl_img_ctx {
 	u8 load;
 	u8 auth;
 	u8 optional;
+	u8 img_arch;
 	int fit_node;
 	int (*fixup)(void *ctx);
 };
@@ -589,6 +591,120 @@ void ipq_spl_malloc_init_f(void)
 	gd->flags |= GD_FLG_FULL_MALLOC_INIT;
 }
 #endif
+
+#if defined(CONFIG_CLK_QCOM_PLL)
+/**
+ * ipq_spl_probe_and_enable_plls() - Probe and enable all PLLs.
+ *
+ * This function probes and enables all available PLLs in the system.
+ * Return: 0 on success, or a negative error code on failure.
+ */
+int ipq_spl_probe_and_enable_plls(void)
+{
+	int ret;
+	ofnode node, p_handle;
+	struct udevice *pll_dev;
+	u32 index, num_plls;
+
+	node = ofnode_by_compatible(ofnode_null(), "qcom,ipq-init-plls");
+	if (!ofnode_valid(node)) {
+		pr_debug("Failed to get qcom,ipq-init-plls node\n");
+		/**
+		 * No PLL node is available in device tree.
+		 * Return success.
+		 */
+		return 0;
+	}
+
+	/**
+	 * Get the number of phandles are in "plls"
+	 */
+	num_plls = ofnode_count_phandle_with_args(node, "plls", NULL, 0);
+	if (num_plls < 0) {
+		pr_debug("No plls found %d", num_plls);
+		/**
+		 * No PLLs available in device tree to be initialized.
+		 * Return success.
+		 */
+		return 0;
+	}
+
+	/**
+	 * Probe and enable all the PLL devices.
+	 */
+	for (index = 0; index < num_plls; index++) {
+		p_handle = ofnode_parse_phandle(node, "plls", index);
+		if (!ofnode_valid(p_handle)) {
+			pr_debug(" No more PLL phandles\n");
+			/**
+			 * If no more PLL phandles, break the loop with Success.
+			 */
+			break;
+		}
+
+		/* Convert the ofnode p_handle to a udevice and probe it.
+		 * The probe step initializes the PLL hardware.
+		 */
+		ret = uclass_get_device_by_ofnode(UCLASS_MISC, p_handle,
+							&pll_dev);
+		if (ret) {
+			pr_err("Failed to get PLL[%d] device: %d\n",
+				index, ret);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+#endif /* CONFIG_CLK_QCOM_PLL */
+
+/**
+ * ipq_spl_board_init_clk() - Initialize board clocks.
+ *
+ * This function initializes the board-specific clocks.
+ * Return: 0 on success, or a negative error code on failure.
+ */
+int ipq_spl_board_init_clk(void)
+{
+	struct udevice *dev;
+	struct clk_bulk bulk;
+	int ret;
+
+	ret = uclass_get_device_by_name(UCLASS_NOP,
+						"qcom,ipq-init-clks", &dev);
+	if (ret) {
+		pr_debug("Failed to get qcom,ipq-init-clks device\n");
+		/**
+		 * No board init clks are in device tree to be initialized.
+		 * Return success.
+		 */
+		return 0;
+	}
+
+	/*
+	 * Enable listed clocks (gates/votes) in SPL/U-Boot
+	 * via standard bulk clock API.
+	 */
+	ret = clk_get_bulk(dev, &bulk);
+	if (!ret) {
+		ret = clk_enable_bulk(&bulk);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static const struct udevice_id ipq_init_clk_of_match[] = {
+	{ .compatible = "qcom,ipq-init-clks" },
+	{ }
+};
+
+U_BOOT_DRIVER(ipq_init_clk) = {
+	.name		= "ipq-init-clk",
+	.id		= UCLASS_NOP,
+	.of_match	= ipq_init_clk_of_match,
+};
 
 /**
  * ipq_spl_list_fuse() - List all fuses.
@@ -873,6 +989,33 @@ static int ipq_spl_get_iftbl_entry_by_name(struct interface_table *if_tbl,
 	pr_err("Interface table entry '%s' not found\n", name);
 
 	return -ENOENT;
+}
+
+/**
+ * ipq_spl_get_img_ctx_by_name() - Get image table entry by name.
+ * @img_name:	Name of the image to find.
+ *
+ * This function searches the img_tbl_fit for any entry matching the given name
+ * and returns the pointer to the matching image entry from the table.
+ *
+ * Return: pointer to maching image table entry on success, or NULL on failure.
+ */
+
+struct ipq_spl_img_ctx *ipq_spl_get_img_ctx_by_name(char *img_name)
+{
+	u8 uc_index;
+	u8 uc_size;
+
+	if (!img_name)
+		return NULL;
+
+	uc_size = ARRAY_SIZE(img_tbl_fit);
+	for (uc_index = 0; uc_index < uc_size; uc_index++) {
+		if (strcmp(img_name, img_tbl_fit[uc_index].img_name) == 0)
+			return &img_tbl_fit[uc_index];
+	}
+
+	return NULL;
 }
 
 /**
@@ -1238,6 +1381,7 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 	int ret;
 	u8 uc_index;
 	u8 uc_size;
+	u8 img_arch;
 	u64 load_addr;
 	void *load_ptr;
 	const char *img_name = fit_get_name(fit, node, NULL);
@@ -1297,6 +1441,12 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 			img_tbl_fit[uc_index].fit_node = node;
 			img_tbl_fit[uc_index].load_addr = (u64)(*p_image);
 			img_tbl_fit[uc_index].img_sz = *p_size;
+
+			if (fit_image_get_arch(fit, node, &img_arch)) {
+				pr_err("Failed to get architecture for %s\n", img_name);
+				goto fail;
+			}
+			img_tbl_fit[uc_index].img_arch = img_arch;
 
 #if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
 			/*
@@ -1360,6 +1510,7 @@ struct bl_params *bl2_plat_get_bl31_params_v2(uintptr_t bl32_entry,
 	struct interface_table_entry if_tbl_entry;
 	int ret;
 	struct ipq_spl_ctx *ctx = U_BOOT_GET_IPQ_SPL_CTX(ipq_default_ctx);
+	struct ipq_spl_img_ctx *img_tbl;
 
 	/*
 	 * Populate the bl31 params with default values.
@@ -1400,6 +1551,13 @@ struct bl_params *bl2_plat_get_bl31_params_v2(uintptr_t bl32_entry,
 			 * If found, populate arg0 with the QCSDI address.
 			 */
 			node->ep_info->args.arg0 = if_tbl_entry.address;
+		} else if (node->image_id == ATF_BL33_IMAGE_ID) {
+			img_tbl = ipq_spl_get_img_ctx_by_name("uboot-meta");
+
+			if (img_tbl && img_tbl->img_arch == IH_ARCH_ARM) {
+				/* SPSR = 0x1D3 for 32-bit Mode */
+				node->ep_info->spsr = SPSR_32_SVC_ARM_MASKED_LE;
+			}
 		}
 	}
 
@@ -1548,6 +1706,20 @@ void board_init_f(ulong dummy)
 	ret = spl_early_init();
 	if (ret) {
 		pr_debug("spl_early_init() failed (ret=%d)\n", ret);
+		goto fail;
+	}
+
+#if defined(CONFIG_CLK_QCOM_PLL)
+	ret = ipq_spl_probe_and_enable_plls();
+	if (ret) {
+		pr_err("Failed to enable PLLs (ret=%d)\n", ret);
+		goto fail;
+	}
+#endif /* CONFIG_CLK_QCOM_PLL */
+
+	ret = ipq_spl_board_init_clk();
+	if (ret) {
+		pr_err("Failed to initialize board clocks (ret=%d)\n", ret);
 		goto fail;
 	}
 

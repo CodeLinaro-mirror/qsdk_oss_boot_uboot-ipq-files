@@ -59,6 +59,7 @@
 #define TME_PRODUCT_ID_MSK			0x0000FFFF
 
 #define CRASH_DUMP_ADDR_IMEM			0x8600658
+#define CFG_QTI_KERN_WDT_ADDR			*((unsigned int *)0x08600658)
 
 #if defined(CONFIG_SPL)
 #define IPQ_SPL_FUSE_BOOT_CFG_ADDR		0xA602C

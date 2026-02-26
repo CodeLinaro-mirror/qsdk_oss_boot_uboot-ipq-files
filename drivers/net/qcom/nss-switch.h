@@ -1,70 +1,104 @@
+/* SPDX-License-Identifier: GPL-2.0+ */
 /*
- **************************************************************************
  * Copyright (c) 2016-2019, 2021, The Linux Foundation. All rights reserved.
  *
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
- *
- * Permission to use, copy, modify, and/or distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
- **************************************************************************
  */
 
+#ifndef __NSS_SWITCH_H__
+#define __NSS_SWITCH_H__
+
+/* System includes - alphabetically ordered */
 #include <asm/global_data.h>
 #include <asm/io.h>
-#include <phy.h>
-#include <net.h>
-#include <miiphy.h>
-#include <fdtdec.h>
-#include <reset.h>
-#include <dm/device_compat.h>
-#include <linux/delay.h>
 #include <asm-generic/gpio.h>
 #include <clk.h>
-#include <i2c.h>
-
 #include <cpu_func.h>
-//#include <dm.h>
+#include <dm/device_compat.h>
+#include <dm/pinctrl.h>
+#include <dt-bindings/net/qcom_ipqsoc.h>
 #include <errno.h>
-#include <malloc.h>
-#include <regmap.h>
-#include <serial.h>
-#include <syscon.h>
-#include <asm/io.h>
+#include <fdtdec.h>
+#include <i2c.h>
+#include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/iopoll.h>
-#include <dm/pinctrl.h>
+#include <malloc.h>
 #include <memalign.h>
-#include <dt-bindings/net/qcom_ipqsoc.h>
+#include <miiphy.h>
+#include <net.h>
+#include <phy.h>
+#include <regmap.h>
+#include <reset.h>
+#include <serial.h>
+#include <syscon.h>
+
+#ifdef CONFIG_NSS_PPE_V4
+#include "nss_ppe_v4.h"
+#endif
+
+/* PPE Bridge Control Register Layout Types */
+enum ppe_bridge_ctrl_layout {
+	PPE_BRIDGE_CTRL_LAYOUT_UNKNOWN = 0,
+	PPE_V2,
+	PPE_V4,
+};
+
+/*
+ * ========================================================================
+ * CSR Version/Method Definitions
+ * ========================================================================
+ */
+
+enum csr_version {
+	CSR_VERSION_V1 = 1,
+	CSR_VERSION_V2 = 2,
+};
+
+/* UNIPHY_MODE_CTRL (CSR0: 0x46c) */
+union uniphy_mode_ctrl_u {
+	u32 val;
+	struct {
+		u32 newaddedfromhere_ch0_autoneg_mode:1;    /* [0] Autoneg mode enable */
+		u32 newaddedfromhere_ch1_ch0_sgmii:1;       /* [1] CH1/CH0 SGMII select */
+		u32 newaddedfromhere_ch4_ch1_0_sgmii:1;     /* [2] CH4/CH1_0 SGMII select */
+		u32 newaddedfromhere_sgmii_even_low:1;      /* [3] SGMII even low */
+		u32 newaddedfromhere_ch0_mode_ctrl_25m:3;   /* [6:4] CH0 mode control */
+		u32 newaddedfromhere_xpcs_mode_12p5g:1;     /* [7] XPCS 12.5G mode */
+		u32 newaddedfromhere_ch0_qsgmii_sgmii:1;    /* [8] CH0 QSGMII/SGMII select */
+		u32 newaddedfromhere_ch0_psgmii_qsgmii:1;   /* [9] CH0 PSGMII/QSGMII select */
+		u32 newaddedfromhere_sg_mode:1;             /* [10] SG mode enable */
+		u32 newaddedfromhere_sgplus_mode:1;         /* [11] SGMII+ mode enable */
+		u32 newaddedfromhere_xpcs_mode:1;           /* [12] XPCS mode enable */
+		u32 newaddedfromhere_usxg_en:1;             /* [13] USXGMII enable */
+		u32 newaddedfromhere_xlgpcs_en:1;           /* [14] XLGPCS enable */
+		u32 newaddedfromhere_sw_v17_v18:1;          /* [15] SW version select */
+		u32 _reserved0:16;                          /* [31:16] Reserved */
+	} bf;
+};
 
 #define UPDATE_EDMA_CONFIG(_src, _dest)					\
 	do {								\
-		_dest->txdesc_ring_start = _src->txdesc_ring_start;	\
-		_dest->txdesc_rings = _src->txdesc_rings;		\
-		_dest->txdesc_ring_end = _src->txdesc_ring_end;		\
-		_dest->txcmpl_ring_start = _src->txcmpl_ring_start;	\
-		_dest->txcmpl_rings = _src->txcmpl_rings;		\
-		_dest->txcmpl_ring_end = _src->txcmpl_ring_end;		\
-		_dest->rxfill_ring_start = _src->rxfill_ring_start;	\
-		_dest->rxfill_rings = _src->rxfill_rings;		\
-		_dest->rxfill_ring_end = _src->rxfill_ring_end;		\
-		_dest->rxdesc_ring_start = _src->rxdesc_ring_start;	\
-		_dest->rxdesc_rings = _src->rxdesc_rings;		\
-		_dest->rxdesc_ring_end = _src->rxdesc_ring_end;		\
-		_dest->max_txcmpl_rings = _src->max_txcmpl_rings;	\
-		_dest->max_txdesc_rings = _src->max_txdesc_rings;	\
-		_dest->max_rxdesc_rings = _src->max_rxdesc_rings;	\
-		_dest->max_rxfill_rings = _src->max_rxfill_rings;	\
-		_dest->max_ports = _src->ports;				\
-		_dest->start_ports = _src->start_ports;			\
+		typeof(_src) __src = (_src);				\
+		typeof(_dest) __dest = (_dest);				\
+		__dest->txdesc_ring_start = __src->txdesc_ring_start;	\
+		__dest->txdesc_rings = __src->txdesc_rings;		\
+		__dest->txdesc_ring_end = __src->txdesc_ring_end;	\
+		__dest->txcmpl_ring_start = __src->txcmpl_ring_start;	\
+		__dest->txcmpl_rings = __src->txcmpl_rings;		\
+		__dest->txcmpl_ring_end = __src->txcmpl_ring_end;	\
+		__dest->rxfill_ring_start = __src->rxfill_ring_start;	\
+		__dest->rxfill_rings = __src->rxfill_rings;		\
+		__dest->rxfill_ring_end = __src->rxfill_ring_end;	\
+		__dest->rxdesc_ring_start = __src->rxdesc_ring_start;	\
+		__dest->rxdesc_rings = __src->rxdesc_rings;		\
+		__dest->rxdesc_ring_end = __src->rxdesc_ring_end;	\
+		__dest->max_txcmpl_rings = __src->max_txcmpl_rings;	\
+		__dest->max_txdesc_rings = __src->max_txdesc_rings;	\
+		__dest->max_rxdesc_rings = __src->max_rxdesc_rings;	\
+		__dest->max_rxfill_rings = __src->max_rxfill_rings;	\
+		__dest->max_ports = __src->ports;			\
+		__dest->start_ports = __src->start_ports;		\
 	} while (0)
 
 #define	WRITE_REG_ARRAY(_base, _offset, _size, _val, _count)		\
@@ -77,15 +111,16 @@
 #define UPDATE_ACL_SET(_base, _var1, _var2, _var3, _var4, _var5, _var6,	\
 			_var7, _var8, _var9)				\
 			do {						\
-				_base.reg_base = (_var1);		\
-				_base.rule_id = (_var2);		\
-				_base.rule_type = (_var3);		\
-				_base.field0 = (_var4);			\
-				_base.field1 = (_var5);			\
-				_base.mask = (_var6);			\
-				_base.permit = (_var7);			\
-				_base.deny = (_var8);			\
-				_base.ipo_cnt = (_var9);		\
+				typeof(_base) *__base = &(_base);	\
+				__base->reg_base = (_var1);		\
+				__base->rule_id = (_var2);		\
+				__base->rule_type = (_var3);		\
+				__base->field0 = (_var4);		\
+				__base->field1 = (_var5);		\
+				__base->mask = (_var6);			\
+				__base->permit = (_var7);		\
+				__base->deny = (_var8);			\
+				__base->ipo_cnt = (_var9);		\
 			} while (0)
 
 #define LINK_STATUS				BIT(7)
@@ -96,6 +131,7 @@
 
 #define EDMA_SW_VER_1_ID			0x01
 #define EDMA_SW_VER_2_ID			0x02
+#define EDMA_SW_VER_3_ID			0x03
 
 #define SKU_ENABLED				0x1
 #define SKU_DISABLED				0x0
@@ -126,9 +162,372 @@
 #define EDMA_RXDESC_DESC(R, i)	EDMA_GET_DESC(R, i, struct ipq_edma_rxdesc_desc)
 #define EDMA_TXDESC_DESC(R, i)	EDMA_GET_DESC(R, i, struct ipq_edma_txdesc_desc)
 #define EDMA_TXCMPL_DESC(R, i)	EDMA_GET_DESC(R, i, struct ipq_edma_txcmpl_desc)
+
 /*
- * EDMA register
+ * ========================================================================
+ * CSR Address Encoding Macros
+ * ========================================================================
  */
+
+#define UNIPHY_CSR_BLOCK_SHIFT		24
+#define UNIPHY_CSR_BLOCK_MASK		0xFF000000
+#define UNIPHY_REG_ADDR_MASK		0x00FFFFFF
+
+/* CSR type encoding */
+#define CSR0_ADDR(addr)		((0x00 << UNIPHY_CSR_BLOCK_SHIFT) | (addr))
+#define CSR1_ADDR(addr)		((0x01 << UNIPHY_CSR_BLOCK_SHIFT) | (addr))
+#define CSR2_ADDR(addr)		((0x02 << UNIPHY_CSR_BLOCK_SHIFT) | (addr))
+/* uniphy CSR details*/
+#define UNIPHY_PHY_SHIFT	16
+
+/*
+ * ========================================================================
+ * V2 (New) CSR Constants
+ * ========================================================================
+ */
+
+/* V2 CSR indirect registers */
+#define V2_CSR1_INDIRECT_REG	0x43FC
+#define V2_CSR2_INDIRECT_REG	0x83FC
+
+/* V2 CSR data offsets */
+#define V2_CSR1_DATA_OFFSET	0x10
+#define V2_CSR2_DATA_OFFSET	0x20
+
+/*
+ * ========================================================================
+ * V1 (Legacy) CSR Constants
+ * ========================================================================
+ */
+
+/* V1 uses CSR2 method (0x83FC, 0x20) - this is what old u-boot used */
+#define V1_CSR_INDIRECT_REG	0x83FC
+#define V1_CSR_DATA_OFFSET	0x20
+
+/* Low address mask for indirect access */
+#define CSR_INDIRECT_LOW_ADDR	0xFF
+
+/* EDMA register structures - configurable register layout */
+struct edma_global_regs {
+	u32 mas_ctrl;
+	u32 port_ctrl;
+	u32 rxdesc2fill_map_0;
+	u32 rxdesc2fill_map_1;
+	u32 rxdesc2fill_map_2;
+	u32 dmar_ctrl;
+	u32 misc_int_stat;
+	u32 misc_int_mask;
+	u32 txdesc2cmpl_map_0;
+	u32 txdesc2cmpl_map_1;
+	u32 txdesc2cmpl_map_2;
+	u32 txdesc2cmpl_map_3;
+	u32 txdesc2cmpl_map_4;
+	u32 txdesc2cmpl_map_5;
+	u32 qid2rid_table_base;
+};
+
+struct edma_ring_regs {
+	u32 base_addr;
+	u32 prod_idx;
+	u32 cons_idx;
+	u32 ring_size;
+	u32 ctrl;
+	u32 base_addr2;
+	u32 base_addr_high;
+	u32 base_addr2_high;
+	u32 ring_en;
+	u32 int_stat;
+	u32 int_mask;
+	u32 int_ctrl;
+	u32 fc_thre;
+};
+
+struct edma_reg_offsets {
+	struct edma_global_regs global;
+	struct {
+		u32 base_offset;
+		u32 ring_increment;
+		struct edma_ring_regs offsets;
+	} txdesc;
+	struct {
+		u32 base_offset;
+		u32 ring_increment;
+		struct edma_ring_regs offsets;
+	} rxfill;
+	struct {
+		u32 base_offset;
+		u32 ring_increment;
+		struct edma_ring_regs offsets;
+	} rxdesc;
+	struct {
+		u32 base_offset;
+		u32 ring_increment;
+		struct edma_ring_regs offsets;
+	} txcmpl;
+	struct {
+		u32 base_offset;
+		u32 increment;
+	} qid2rid;
+};
+
+/* EDMA register bit masks and shifts - configurable per SoC */
+
+/* Unified ring register structure - combines offset and mask for each register
+ */
+struct edma_ring_reg {
+	u32 offset;		/* Register offset */
+	u32 mask;		/* Register mask */
+	u32 shift;		/* Bit shift (if applicable) */
+};
+
+/* Unified TXDESC ring configuration
+ */
+struct edma_txdesc_ring_cfg {
+	u32 base_offset;
+	u32 ring_increment;
+
+	/* Register configurations with masks */
+	struct edma_ring_reg base_addr;
+	struct edma_ring_reg base_addr_high;
+	struct edma_ring_reg base_addr2;
+	struct edma_ring_reg base_addr2_high;
+	struct edma_ring_reg prod_idx;
+	struct edma_ring_reg cons_idx;
+	struct edma_ring_reg ring_size;
+	struct edma_ring_reg ctrl;
+	struct edma_ring_reg ring_en;
+	struct edma_ring_reg int_stat;
+	struct edma_ring_reg int_mask;
+	struct edma_ring_reg int_ctrl;
+	struct edma_ring_reg fc_thre;
+
+	/* TXDESC-specific masks */
+	u32 tx_en;
+	u32 buf_hi_add_mask;
+	u32 data_offset_mask;
+	u32 data_offset_shift;
+	u32 data_length_mask;
+	u32 data_length_shift;
+};
+
+/* Unified TXCMPL ring configuration
+ */
+struct edma_txcmpl_ring_cfg {
+	u32 base_offset;
+	u32 ring_increment;
+
+	/* Register configurations with masks */
+	struct edma_ring_reg base_addr;
+	struct edma_ring_reg base_addr_high;
+	struct edma_ring_reg base_addr2;
+	struct edma_ring_reg base_addr2_high;
+	struct edma_ring_reg prod_idx;
+	struct edma_ring_reg cons_idx;
+	struct edma_ring_reg ring_size;
+	struct edma_ring_reg ctrl;
+	struct edma_ring_reg ring_en;
+	struct edma_ring_reg int_stat;
+	struct edma_ring_reg int_mask;
+	struct edma_ring_reg int_ctrl;
+	struct edma_ring_reg fc_thre;
+
+	/* TXCMPL-specific masks */
+	u32 ring_int_status_mask;
+};
+
+/* Unified RXFILL ring configuration
+ */
+struct edma_rxfill_ring_cfg {
+	u32 base_offset;
+	u32 ring_increment;
+
+	/* Register configurations with masks */
+	struct edma_ring_reg base_addr;
+	struct edma_ring_reg base_addr_high;
+	struct edma_ring_reg base_addr2;
+	struct edma_ring_reg base_addr2_high;
+	struct edma_ring_reg prod_idx;
+	struct edma_ring_reg cons_idx;
+	struct edma_ring_reg ring_size;
+	struct edma_ring_reg buf_size;		/* Combined ring_size + buf_size */
+	struct edma_ring_reg ctrl;
+	struct edma_ring_reg ring_en;
+	struct edma_ring_reg int_stat;
+	struct edma_ring_reg int_mask;
+	struct edma_ring_reg int_ctrl;
+	struct edma_ring_reg fc_thre;
+
+	/* RXFILL-specific masks */
+	u32 buf_hi_add_mask;
+	u32 ring_int_status_mask;
+};
+
+/* Unified RXDESC ring configuration
+ */
+struct edma_rxdesc_ring_cfg {
+	u32 base_offset;
+	u32 ring_increment;
+
+	/* Register configurations with masks */
+	struct edma_ring_reg base_addr;
+	struct edma_ring_reg base_addr_high;
+	struct edma_ring_reg base_addr2;
+	struct edma_ring_reg base_addr2_high;
+	struct edma_ring_reg prod_idx;
+	struct edma_ring_reg cons_idx;
+	struct edma_ring_reg ring_size;
+	struct edma_ring_reg pl_offset;		/* Payload offset in ring_size reg */
+	struct edma_ring_reg ctrl;
+	struct edma_ring_reg ring_en;
+	struct edma_ring_reg int_stat;
+	struct edma_ring_reg int_mask;
+	struct edma_ring_reg int_ctrl;
+	struct edma_ring_reg fc_thre;
+
+	/* RXDESC-specific masks */
+	u32 rx_en;
+	u32 srcinfo_type_mask;
+	u32 pkt_size_mask;
+	u32 pkt_size_shift;
+	u32 ring_int_status_mask;
+	u32 portnum_bits;
+};
+
+/* Unified global register configuration
+ */
+struct edma_global_cfg {
+	struct edma_ring_reg mas_ctrl;
+	struct edma_ring_reg port_ctrl;
+	struct edma_ring_reg rxdesc2fill_map_0;
+	struct edma_ring_reg rxdesc2fill_map_1;
+	struct edma_ring_reg rxdesc2fill_map_2;
+	struct edma_ring_reg dmar_ctrl;
+	struct edma_ring_reg misc_int_stat;
+	struct edma_ring_reg misc_int_mask;
+	struct edma_ring_reg txdesc2cmpl_map_0;
+	struct edma_ring_reg txdesc2cmpl_map_1;
+	struct edma_ring_reg txdesc2cmpl_map_2;
+	struct edma_ring_reg txdesc2cmpl_map_3;
+	struct edma_ring_reg txdesc2cmpl_map_4;
+	struct edma_ring_reg txdesc2cmpl_map_5;
+	u32 qid2rid_table_base;
+};
+
+/* Unified EDMA hardware configuration
+ * This structure combines all register offsets with their associated masks
+ */
+struct edma_hw_cfg {
+	struct edma_global_cfg global;
+	struct edma_txdesc_ring_cfg txdesc;
+	struct edma_txcmpl_ring_cfg txcmpl;
+	struct edma_rxfill_ring_cfg rxfill;
+	struct edma_rxdesc_ring_cfg rxdesc;
+
+	/* QID2RID configuration */
+	u32 qid2rid_base_offset;
+	u32 qid2rid_increment;
+
+	/* Interrupt control configuration - independent from descriptor rings */
+	u32 int_ctrl_base_offset;
+	u32 int_ctrl_ring_increment;
+	u32 int_ctrl_reg_offset;
+
+	/* Hardware-specific parameters - configurable per SoC */
+	u32 ring_dma_mask;
+	u32 rx_ring_size;
+	u32 tx_ring_size;
+	u32 rx_buff_size;
+	u32 tx_buff_size;
+	u32 rxfill_desc_size;
+	u32 rxdesc_desc_size;
+	u32 txdesc_desc_size;
+	u32 txdesc_sec_desc_size;
+	u32 txcmpl_desc_size;
+
+	/* Interrupt masks - configurable per SoC */
+	u32 rxfill_int_mask;
+	u32 rxdesc_int_mask;
+	u32 txcmpl_int_mask;
+	u32 misc_intr_mask;
+	u32 rx_payload_offset;
+
+	/* Common masks used across multiple rings */
+	u32 tx_int_mask;
+	u32 rx_ne_int_en;
+	u32 tx_ne_int_en;
+
+	/* Destination port configuration */
+	u32 dst_port_type;
+	u32 dst_port_type_shift;
+	u32 dst_port_type_mask;
+	u32 dst_port_id_shift;
+	u32 dst_port_id_mask;
+
+	/* Chip-specific register initialization values */
+	u32 port_ctrl_init_val;	/* Value to write to PORT_CTRL register */
+
+	/* DMAR_CTRL configurable values - chip-specific differences */
+	u32 dmar_txdata_outstanding_num;	/* TXDATA outstanding number */
+	u32 dmar_txdesc_outstanding_num;	/* TXDESC outstanding number */
+	u32 dmar_rxfill_outstanding_num;	/* RXFILL outstanding number */
+
+	/* DMAR_CTRL bit field configuration - differs between chip variants */
+	u32 dmar_txdata_mask;			/* Mask for TXDATA field */
+	u32 dmar_txdata_shift;			/* Shift for TXDATA field */
+	u32 dmar_txdesc_mask;			/* Mask for TXDESC field */
+	u32 dmar_txdesc_shift;			/* Shift for TXDESC field */
+	u32 dmar_rxfill_mask;			/* Mask for RXFILL field */
+	u32 dmar_rxfill_shift;			/* Shift for RXFILL field */
+};
+
+/* Helper functions for register access using configurable offsets */
+static inline u32 edma_reg_addr(phys_addr_t base, u32 offset)
+{
+	return base + offset;
+}
+
+static inline phys_addr_t edma_ring_reg_addr(phys_addr_t base,
+					      u32 ring_base_offset,
+					      u32 ring_increment,
+					      u32 ring_id,
+					      u32 reg_offset)
+{
+	return base + ring_base_offset + (ring_id * ring_increment) +
+	       reg_offset;
+}
+
+static inline phys_addr_t edma_qid2rid_addr(phys_addr_t base,
+					     const struct edma_hw_cfg *hw_cfg,
+					     u32 qid)
+{
+	return base + hw_cfg->qid2rid_base_offset + (qid * 4);
+}
+
+/* New unified helper functions for cleaner register access */
+static inline phys_addr_t edma_unified_ring_addr(phys_addr_t base,
+						  u32 ring_base_offset,
+						  u32 ring_increment,
+						  u32 ring_id,
+						  struct edma_ring_reg *reg)
+{
+	return base + ring_base_offset + (ring_id * ring_increment) +
+	       reg->offset;
+}
+
+static inline u32 edma_unified_read_masked(phys_addr_t addr, struct edma_ring_reg *reg)
+{
+	return readl(addr) & reg->mask;
+}
+
+static inline void edma_unified_write_masked(phys_addr_t addr, u32 val, struct edma_ring_reg *reg)
+{
+	u32 current = readl(addr);
+
+	current = (current & ~reg->mask) | (val & reg->mask);
+	writel(current, addr);
+}
+
+/* EDMA register */
 #define EDMA_REG_MAS_CTRL		0x0
 #define EDMA_REG_PORT_CTRL		0x4
 #define EDMA_REG_RXDESC2FILL_MAP_0	0x14
@@ -186,17 +585,15 @@
 #define EDMA_REG_TX_INT_STAT(n)		(0x99000 + (0x1000 * (n)))
 #define EDMA_REG_TX_INT_MASK(n)		(0x99004 + (0x1000 * (n)))
 #define EDMA_REG_TX_INT_CTRL(n)		(0x9900c + (0x1000 * (n)))
-/*
- * EDMA QID2RID configuration
- */
+
+/* EDMA QID2RID configuration */
 #define EDMA_QID2RID_TABLE_MEM(q)	(0xb9000 + (0x4 * (q)))
 
 #define EDMA_CPU_PORT_MC_QID_MIN		256
 #define EDMA_CPU_PORT_MC_QID_MAX		271
 #define EDMA_QID2RID_NUM_PER_REG		4
-/*
- * EDMA_REG_DMAR_CTRL register
- */
+
+/* EDMA_REG_DMAR_CTRL register */
 #define EDMA_DMAR_REQ_PRI_MASK			0x7
 #define EDMA_DMAR_REQ_PRI_SHIFT			0x0
 #define EDMA_DMAR_BURST_LEN_MASK		0x1
@@ -226,119 +623,86 @@
 
 #define EDMA_BURST_LEN_ENABLE			0x0
 
-/*
- * EDMA_REG_PORT_CTRL register
- */
+/* EDMA_REG_PORT_CTRL register */
 #define EDMA_PORT_CTRL_EN			0x3
 
-/*
- * EDMA_REG_TXDESC_PROD_IDX register
- */
+/* EDMA_REG_TXDESC_PROD_IDX register */
 #define EDMA_TXDESC_PROD_IDX_MASK		0xffff
 
-/*
- * EDMA_REG_TXDESC_CONS_IDX register
- */
+/* EDMA_REG_TXDESC_CONS_IDX register */
 #define EDMA_TXDESC_CONS_IDX_MASK		0xffff
 
-/*
- * EDMA_REG_TXDESC_RING_SIZE register
- */
+/* EDMA_REG_TXDESC_RING_SIZE register */
 #define EDMA_TXDESC_RING_SIZE_MASK		0xffff
 
-/*
- * EDMA_REG_TXDESC_CTRL register
- */
+/* EDMA_REG_TXDESC_CTRL register */
 #define EDMA_TXDESC_TX_EN			0x1
 
 #define EDMA_TXDESC_BUF_HI_ADD_MASK		0xFF
-/*
- * EDMA_REG_TXCMPL_PROD_IDX register
- */
+
+/* EDMA_REG_TXCMPL_PROD_IDX register */
 #define EDMA_TXCMPL_PROD_IDX_MASK		0xffff
 
-/*
- * EDMA_REG_TXCMPL_CONS_IDX register
- */
+/* EDMA_REG_TXCMPL_CONS_IDX register */
 #define EDMA_TXCMPL_CONS_IDX_MASK		0xffff
 
-/*
- * EDMA_REG_TX_INT_CTRL register
- */
+/* EDMA_REG_TX_INT_CTRL register */
 #define EDMA_TX_INT_MASK			0x3
 
-/*
- * EDMA_REG_RXFILL_PROD_IDX register
- */
+/* EDMA_REG_RXFILL_PROD_IDX register */
 #define EDMA_RXFILL_PROD_IDX_MASK		0xffff
 
-/*
- * EDMA_REG_RXFILL_CONS_IDX register
- */
+/* EDMA_REG_RXFILL_CONS_IDX register */
 #define EDMA_RXFILL_CONS_IDX_MASK		0xffff
 
-/*
- * EDMA_REG_RXFILL_RING_SIZE register
- */
+/* EDMA_REG_RXFILL_RING_SIZE register */
 #define EDMA_RXFILL_RING_SIZE_MASK		0xffff
 #define EDMA_RXFILL_BUF_SIZE_MASK		0xffff0000
 #define EDMA_RXFILL_BUF_SIZE_SHIFT		16
 
-/*
- * EDMA_REG_RXFILL_RING_EN register
- */
+/* EDMA_REG_RXFILL_RING_EN register */
 #define EDMA_RXFILL_RING_EN			0x1
 
-/*
- * EDMA_REG_RXFILL_INT_MASK register
- */
+/* EDMA_REG_RXFILL_INT_MASK register */
 #define EDMA_RXFILL_INT_MASK			0x1
 
 #define EDMA_RXFILL_BUF_HI_ADD_MASK		0xFF
 
-/*
- * EDMA_REG_RXDESC_PROD_IDX register
- */
+/* EDMA_REG_RXDESC_PROD_IDX register */
 #define EDMA_RXDESC_PROD_IDX_MASK		0xffff
 
-/*
- * EDMA_REG_RXDESC_CONS_IDX register
- */
+/* EDMA_REG_RXDESC_CONS_IDX register */
 #define EDMA_RXDESC_CONS_IDX_MASK		0xffff
 
-/*
- * EDMA_REG_RXDESC_RING_SIZE register
- */
+/* EDMA_REG_RXDESC_RING_SIZE register */
 #define EDMA_RXDESC_RING_SIZE_MASK		0xffff
 #define EDMA_RXDESC_PL_OFFSET_MASK		0x1ff
 #define EDMA_RXDESC_PL_OFFSET_SHIFT		16
 #define EDMA_RXDESC_PL_OFFSET_SHIFT_V2		23
 
-/*
- * EDMA_REG_RXDESC_CTRL register
- */
+/* EDMA_REG_RXDESC_CTRL register */
 #define EDMA_RXDESC_RX_EN			0x1
 
-/*
- * EDMA_REG_TX_INT_MASK register
- */
+/* EDMA_REG_TX_INT_MASK register */
 #define EDMA_TX_INT_MASK_PKT_INT		0x1
 #define EDMA_TX_INT_MASK_UGT_INT		0x2
 
-/*
- * EDMA_REG_RXDESC_INT_MASK register
- */
+/* EDMA_REG_RXDESC_INT_MASK register */
 #define EDMA_RXDESC_INT_MASK_PKT_INT		0x1
 #define EDMA_MASK_INT_DISABLE			0x0
 
-/*
- * TXDESC shift values
- */
+/* TXDESC shift values */
 #define EDMA_TXDESC_DATA_OFFSET_SHIFT		0
 #define EDMA_TXDESC_DATA_OFFSET_MASK		0xfff
 
 #define EDMA_TXDESC_DATA_LENGTH_SHIFT		0
 #define EDMA_TXDESC_DATA_LENGTH_MASK		0x1ffff
+
+/* TXDESC pass-through enable */
+#define EDMA_TXDESC_PASSTHROUGH_EN_MASK		0x3
+#define EDMA_TXDESC_PASSTHROUGH_EN_SHIFT	14
+#define EDMA_TXDESC_PASSTHROUGH_EN \
+	(EDMA_TXDESC_PASSTHROUGH_EN_MASK << EDMA_TXDESC_PASSTHROUGH_EN_SHIFT)
 
 #define EDMA_DST_PORT_TYPE			2
 #define EDMA_DST_PORT_TYPE_SHIFT		28
@@ -362,9 +726,7 @@
 
 #define EDMA_RING_DMA_MASK			0xffffffff
 
-/*
- * RXDESC shift values
- */
+/* RXDESC shift values */
 #define EDMA_RXDESC_PKT_SIZE_MASK		0x3ffff
 #define EDMA_RXDESC_PKT_SIZE_SHIFT		0
 #define EDMA_RXDESC_SRC_INFO_GET(x)		((x) & 0xFFFF)
@@ -380,9 +742,7 @@
 #define EDMA_MISC_INTR_MASK			0xFF
 #define EDMA_RX_PAYLOAD_OFFSET			0x0
 
-/*
- * PPE register
- */
+/* PPE register */
 #define PORT5_MUX_PCS_UNIPHY0			0x0
 #define PORT5_MUX_PCS_UNIPHY1			0x1
 
@@ -416,6 +776,10 @@
 #define PPE_MRU_MTU_CTRL_TBL_ADDR		0x65000
 #define PPE_MC_MTU_CTRL_TBL_ADDR		0x60a00
 #define PPE_PORT_EG_VLAN_TBL_ADDR		0x20020
+
+#define PPE_PORT_EG_VLAN_TBL_INC		0x10
+#define PPE_PORT_EG_VLAN_TBL_NUM		7
+#define PPE_PORT_EG_VLAN_TBL_PORT0		0
 
 #define PPE_UCAST_QUEUE_AC_EN_BASE_ADDR		0x848000
 #define PPE_MCAST_QUEUE_AC_EN_BASE_ADDR		0x84a000
@@ -503,7 +867,6 @@
 #define PPE_PORT_BRIDGE_CTRL_PORT_ISOLATION_BMP	0x7f00
 #define PPE_PORT_BRIDGE_CTRL_STATION_LRN_EN	0x8
 #define PPE_PORT_BRIDGE_CTRL_NEW_ADDR_LRN_EN	0x1
-
 #define PPE_PORT_EDMA_BITPOS		0x1
 #define PPE_PORT_QTI1_BITPOS		BIT(PPE_PORT_QTI1)
 #define PPE_PORT_QTI2_BITPOS		BIT(PPE_PORT_QTI2)
@@ -547,9 +910,7 @@
 
 #define IPO_ACTION_ADDRESS			0x8000
 #define IPO_ACTION_INC				0x20
-/*
- * Uniphy register
- */
+/* Uniphy register */
 #define GCC_UNIPHY_REG_INC			0x10
 
 #define PPE_UNIPHY_OFFSET_CALIB_4		0x1E0
@@ -698,14 +1059,11 @@ enum {
 	UDP_PKT,
 };
 
-/*
- * RxDesc descriptor
- */
+/* RxDesc descriptor */
 struct ipq_edma_rxdesc_desc {
 	u32 rdes0; /* Contains lower 32-bit of buffer address */
 	u32 rdes1;
-	/*
-	 * v1: Contains more bit, priority bit, service code
+	/* v1: Contains more bit, priority bit, service code
 	 * v2: Contains more bit, priority bit, service code & higher 8-bit of
 	 * buffer address.
 	 */
@@ -717,9 +1075,7 @@ struct ipq_edma_rxdesc_desc {
 	u32 rdes7; /* Contains DSCP, packet offsets */
 };
 
-/*
- * EDMA Rx Secondary Descriptor
- */
+/* EDMA Rx Secondary Descriptor */
 struct ipq_edma_rx_sec_desc {
 	u32 rx_sec0; /* Contains timestamp */
 	u32 rx_sec1; /* Contains secondary checksum status */
@@ -731,28 +1087,22 @@ struct ipq_edma_rx_sec_desc {
 	u32 rx_sec7; /* Contains secondary SVLAN, CVLAN */
 };
 
-/*
- * RxFill descriptor
- */
+/* RxFill descriptor */
 struct ipq_edma_rxfill_desc {
 	u32 rdes0; /* Contains Lower 32-bit of buffer address */
 	u32 rdes1;
-	/*
-	 * v1: Contains buffer size
+	/* v1: Contains buffer size
 	 * v2: Contains buffer & higher 8-bit of buffer address.
 	 */
 	u32 rdes2; /* Contains opaque */
 	u32 rdes3; /* Contains opaque high bits */
 };
 
-/*
- * TxDesc descriptor
- */
+/* TxDesc descriptor */
 struct ipq_edma_txdesc_desc {
 	u32 tdes0; /* Lower 32-bit of buffer address */
 	u32 tdes1;
-	/*
-	 * v1: Buffer recycling, PTP tag flag, PRI valid flag
+	/* v1: Buffer recycling, PTP tag flag, PRI valid flag
 	 * v2: Buffer recycling, PTP tag flag, PRI valid flag & higher 8-bit
 	 * of buffer address
 	 */
@@ -764,9 +1114,7 @@ struct ipq_edma_txdesc_desc {
 	u32 tdes7; /* L4/L3 offset, PROT type, L2 type, CVLAN/SVLAN tag, service code */
 };
 
-/*
- * EDMA Tx Secondary Descriptor
- */
+/* EDMA Tx Secondary Descriptor */
 struct ipq_edma_tx_sec_desc {
 	u32 tx_sec0; /* Reserved */
 	u32 tx_sec1; /* Custom csum offset, payload offset, TTL/NAT action */
@@ -778,9 +1126,7 @@ struct ipq_edma_tx_sec_desc {
 	u32 rx_sec7; /* CVLAN/SVLAN tag value */
 };
 
-/*
- * TxCmpl descriptor
- */
+/* TxCmpl descriptor */
 struct ipq_edma_txcmpl_desc {
 	u32 tdes0; /* Low 32-bit opaque value */
 	u32 tdes1; /* High 32-bit opaque value */
@@ -788,9 +1134,7 @@ struct ipq_edma_txcmpl_desc {
 	u32 tdes3; /* Error indications */
 };
 
-/*
- * Tx descriptor ring
- */
+/* Tx descriptor ring */
 struct ipq_edma_txdesc_ring {
 	u32 prod_idx;		/* Producer index */
 	u32 avail_desc;		/* Number of available descriptor to process */
@@ -804,9 +1148,7 @@ struct ipq_edma_txdesc_ring {
 	u16 count;			/* number of descriptors */
 };
 
-/*
- * TxCmpl ring
- */
+/* TxCmpl ring */
 struct ipq_edma_txcmpl_ring {
 	u32 cons_idx;		/* Consumer index */
 	u32 avail_pkt;		/* Number of available packets to process */
@@ -817,9 +1159,7 @@ struct ipq_edma_txcmpl_ring {
 	u32 count;			/* Number of descriptors in the ring */
 };
 
-/*
- * RxFill ring
- */
+/* RxFill ring */
 struct ipq_edma_rxfill_ring {
 	u32 id;			/* RXFILL ring number */
 	u32 count;			/* number of descriptors in the ring */
@@ -829,9 +1169,7 @@ struct ipq_edma_rxfill_ring {
 	dma_addr_t dma;			/* descriptor ring physical address */
 };
 
-/*
- * RxDesc ring
- */
+/* RxDesc ring */
 struct ipq_edma_rxdesc_ring {
 	u32 id;			/* RXDESC ring number */
 	u32 count;			/* number of descriptors in the ring */
@@ -937,9 +1275,71 @@ struct ipq_eth_port_config {
 	u8 mode[6];
 } __aligned(8);
 
+/* Generic PPE Table Address Structure
+ * Contains base addresses, offsets, and increments for PPE hardware tables
+ */
+struct ppe_table_addr {
+	u32 base_addr;		/* Base address of the table region */
+	u32 offset;		/* Offset within the base region */
+	u32 increment;		/* Bytes per table entry */
+};
+
+/* PPE Table Address Configuration
+ * Centralized configuration for all PPE table addresses
+ */
+struct ppe_table_addr_config {
+	struct ppe_table_addr vsi_tbl;			/* VSI Table */
+	struct ppe_table_addr vp_port_tbl;		/* VP Port Table */
+	struct ppe_table_addr port_fc_cfg;		/* Port Flow Control Config */
+	struct ppe_table_addr mru_mtu_ctrl_tbl;	/* MRU/MTU Control Table */
+	struct ppe_table_addr mc_mtu_ctrl_tbl;		/* MC MTU Control Table */
+	struct ppe_table_addr port_bridge_ctrl;	/* Port Bridge Control */
+	struct ppe_table_addr cst_state;		/* CST (Common Spanning Tree) State */
+	struct ppe_table_addr l2_global_conf;		/* L2 Global Configuration */
+	struct ppe_table_addr ipo_action;		/* IPO Action Table */
+	struct ppe_table_addr port_eg_vlan_tbl;	/* Port Egress VLAN Table */
+	struct ppe_table_addr eg_bridge_config;	/* Egress Bridge Config */
+	struct ppe_table_addr ipo_rule_reg;		/* IPO Rule Register */
+	struct ppe_table_addr ipo_mask_reg;		/* IPO Mask Register */
+	struct ppe_table_addr tl_port_vp_tbl;		/* TL Port VP Table */
+	struct ppe_table_addr ac_uni_queue_cfg_tbl;	/* AC Unicast Queue Config Table */
+	struct ppe_table_addr ac_mul_queue_cfg_tbl;	/* AC Multicast Queue Config Table */
+	struct ppe_table_addr ac_grp_cfg_tbl;		/* AC Group Config Table */
+	struct ppe_table_addr ucast_queue_map_tbl;	/* Unicast Queue Map Table */
+	struct ppe_table_addr ucast_priority_map_tbl;	/* Unicast Priority Map Table */
+	struct ppe_table_addr l0_flow_map_tbl;		/* L0 Flow Map Table */
+	struct ppe_table_addr l0_flow_port_map_tbl;	/* L0 Flow Port Map Table */
+	struct ppe_table_addr l1_flow_map_tbl;		/* L1 Flow Map Table */
+	struct ppe_table_addr l1_flow_port_map_tbl;	/* L1 Flow Port Map Table */
+	struct ppe_table_addr psch_tdm_cfg_tbl;	/* PSCH TDM Config Table */
+	struct ppe_table_addr port_bufgrp_cfg;		/* Port Buffer Group Config */
+	struct ppe_table_addr port_shp_cfg;		/* Port Shaper Config */
+	struct ppe_table_addr port_cnt_cfg;		/* Port Counter Config */
+	struct ppe_table_addr l0_comp_cfg_tbl;		/* L0 Component Config Table */
+	struct ppe_table_addr l1_comp_cfg_tbl;		/* L1 Component Config Table */
+	struct ppe_table_addr ac_mcast_queue_en_tbl;	/* AC Multicast Queue Enable Table */
+};
+
+/* TDM Configuration Structure
+ * Supports multiple TDM data configurations with shared address settings
+ */
 struct ipq_tdm_config {
-	u8 val[128];
+	u32 val[256];			/* TDM data values (32-bit register values) */
+	u32 depth;			/* Number of TDM register entries to configure */
 } __aligned(8);
+
+/* TDM Address Configuration
+ * Shared across all TDM configurations for a chip
+ */
+struct ipq_tdm_addr_config {
+	struct ppe_table_addr tdm_addr;	/* TDM table address configuration */
+	u32 tdm_ctrl_offset;		/* TDM control register offset (e.g., 0xb000) */
+} __aligned(8);
+
+struct ipq_sch_config {
+	u32 val[256];
+	u32 depth;	/* Number of scheduler register entries to configure */
+};
 
 struct ipq_eth_sku {
 	phys_addr_t reg;
@@ -948,14 +1348,25 @@ struct ipq_eth_sku {
 } __aligned(8);
 
 extern struct ipq_tdm_config *tdm_config;
+extern struct ipq_tdm_addr_config *tdm_addr_config;
+extern struct ipq_sch_config *sch_config;
 extern struct ipq_eth_port_config *port_config;
 extern struct ipq_eth_sku *ipq_uniphy;
 extern u32 nb_vsi_config[CONFIG_ETH_MAX_MAC];
+extern struct ppe_table_addr_config *ppe_table_addrs;
+
+/* Helper function for PPE table address calculation */
+static inline phys_addr_t ppe_table_addr(const struct ppe_table_addr *tbl, u32 index)
+{
+	return tbl->base_addr + tbl->offset + (index * tbl->increment);
+}
 
 struct edma_config {
 	struct ipq_eth_port_config *pconfig;
+	struct edma_hw_cfg *hw_cfg;			/* Unified configuration */
 	u32 tdm_ctrl_val;
 	u32 sw_version;
+	u32 vsi;
 	u8 txdesc_ring_start;
 	u8 txdesc_rings;
 	u8 txdesc_ring_end;
@@ -975,7 +1386,6 @@ struct edma_config {
 	u8 iports;
 	u8 ports;
 	u8 start_ports;
-	u8 vsi;
 	u8 tx_map;
 	u8 rx_map;
 	u8 ipo_action;
@@ -995,6 +1405,7 @@ struct ipq_edma_hw {
 					/* Rx Desc Ring, SW is consumer */
 	struct ipq_edma_rxfill_ring *rxfill_ring;
 					/* Rx Fill Ring, SW is producer */
+	struct edma_hw_cfg *hw_cfg;		/* Unified hardware configuration */
 	u32 sw_version;		/* EDMA SW version */
 	u32 rxfill_intr_mask;	/* Rx fill ring interrupt mask */
 	u32 rxdesc_intr_mask;	/* Rx Desc ring interrupt mask */
@@ -1057,21 +1468,78 @@ struct port_info {
 	bool phy_25mhz;
 	bool fw_loaded;
 	int i2c_bus;
+	struct clk rx_clk_rate;
+	struct clk tx_clk_rate;
+	struct clk rx_clk;
+	struct clk tx_clk;
 } __aligned(8);
+
+/* Port Scheduler Configuration */
+struct port_scheduler_cfg {
+	/* L1 Scheduler */
+	u8  l1_sp_id;
+	u8  l1_c_pri;
+	u8  l1_c_drr_id;
+	u8  l1_e_pri;
+	u8  l1_e_drr_id;
+	u16 l1_c_drr_wt;
+	u16 l1_e_drr_wt;
+	u32 l1_map_index;
+
+	/* L0 Scheduler (common config used for both uc/mc) */
+	u8  l0_sp_id;
+	u8  l0_c_pri;
+	u8  l0_c_drr_id;
+	u8  l0_e_pri;
+	u8  l0_e_drr_id;
+	u16 l0_c_drr_wt;
+	u16 l0_e_drr_wt;
+
+	/* L0 Queue IDs */
+	u32 l0_uc_queue_id; /* Unicast queue id */
+	u32 l0_mc_queue_id; /* Multicast queue id */
+
+	/* Resource ranges from port_scheduler_resource */
+	u32 ucast_queue_start;
+	u32 ucast_queue_end;
+	u32 mcast_queue_start;
+	u32 mcast_queue_end;
+	u32 l0cdrr_start;
+	u32 l0cdrr_end;
+
+	/* Parsing validity flag */
+	bool valid;
+};
+
+/* PPE port configuration using bit fields */
+struct ppe_port_config {
+	u32 port_cpu:4;
+	u32 port_eth_start:4;
+	u32 port_eth_end:4;
+	u32 port_loopback:4;
+	u32 port_eip:4;
+	u32 num_ports:4;
+	u32 reserved:8;
+} __aligned(4);
 
 struct ppe_info {
 	phys_addr_t base;
 	u32 tdm_offset;
 	u32 tdm_ctrl_val;
+	u32 vsi;
 	u8 no_ports;
 	u8 nos_iports;
-	u8 vsi;
 	u8 tdm_mode;
 	u8 no_reg;
 	u8 nbport; /* non bridge port*/
 	u8 ipo_action;
 	bool tm;
 	bool bridge_mode;
+	/* Per-port scheduler configuration (passed via ppe_info) */
+	struct port_scheduler_cfg *port_sched_cfg;
+	u32 port_sched_cfg_len;
+	/* Port configuration structure (32-bit packed) */
+	struct ppe_port_config port_cfg;
 } __aligned(8);
 
 struct ipq_eth_dev {
@@ -1085,4 +1553,140 @@ struct ipq_eth_dev {
 	bool emulation;
 };
 
+/* Generic register read/write functions */
+static inline void reg_read(phys_addr_t base_addr, size_t size, size_t increment, u32 *val_ptr)
+{
+	size_t i;
+
+	for (i = 0; i < size; i++)
+		val_ptr[i] = readl(base_addr + (i * increment));
+}
+
+/* Generic macros that work for both single values and arrays */
+#define REG_READ(addr, var) \
+	reg_read((addr), sizeof(var) / sizeof(u32), sizeof(u32), \
+		 (u32 *)(void *)&(var))
+
+#define REG_WRITE(addr, var) \
+	reg_write((addr), sizeof(var) / sizeof(u32), sizeof(u32), \
+		  (u32 *)(void *)&(var))
+
+/* Legacy array-specific macros (kept for backward compatibility) */
+#define REG_READ_ARRAY(addr, arr) REG_READ(addr, arr)
+#define REG_WRITE_ARRAY(addr, arr) REG_WRITE(addr, arr)
+
+/* reg_write() - Write one or more registers with configurable increment */
+static inline void reg_write(phys_addr_t base_addr, size_t size,
+			      size_t increment, const u32 *val_ptr)
+{
+	size_t i;
+
+	for (i = 0; i < size; i++)
+		writel(val_ptr[i], base_addr + (i * increment));
+}
+
+/* TDM Direction Definitions */
+#define FAL_PORT_TDB_DIR_INGRESS    2
+#define FAL_PORT_TDB_DIR_EGRESS     3
+
+/* TDM control register constants */
+#define TDM_CTRL_TDM_EN_SHIFT		31
+#define TDM_CTRL_TDM_EN_MASK		BIT(TDM_CTRL_TDM_EN_SHIFT)
+#define TDM_CTRL_TDM_OFFSET_SHIFT	8
+#define TDM_CTRL_TDM_OFFSET_MASK	(0x7F << TDM_CTRL_TDM_OFFSET_SHIFT)
+#define TDM_CTRL_TDM_DEPTH_SHIFT	0
+#define TDM_CTRL_TDM_DEPTH_MASK		(0xFF << TDM_CTRL_TDM_DEPTH_SHIFT)
+
+#ifndef A_TRUE
+#define A_TRUE  1
+#define A_FALSE 0
+#endif
+
+/* TDM Tick Conversion Macro */
+#define TDM(valid, dir, port, port1, port2)  (((dir) << 4) | ((port) & 0xF))
+
+/* Port Scheduler Configuration Macros */
+#define PSCH(ens_bmp, ens_port, des_port, des_sec_en, des_sec_port) \
+	(((des_port) & 0xF) | \
+	(((ens_port) & 0xF) << 4) | \
+	(((ens_bmp) & 0x1FF) << 8) | \
+	(((des_sec_en) & 0x1) << 17) | \
+	(((des_sec_port) & 0xF) << 18))
+
+/* Port Scheduler Extraction */
+#define PSCH_GET_DES_PORT(val)       ((val) & 0xF)
+#define PSCH_GET_ENS_PORT(val)       (((val) >> 4) & 0xF)
+#define PSCH_GET_ENS_BMP(val)        (((val) >> 8) & 0x1FF)
+#define PSCH_GET_DES_SEC_EN(val)     (((val) >> 17) & 0x1)
+#define PSCH_GET_DES_SEC_PORT(val)   (((val) >> 18) & 0xF)
+
+/* Layout V2 compatibility aliases */
+#define PPE_PORT_BRIDGE_CTRL_PORT_ISOLATION_BMP_V2	\
+		PPE_PORT_BRIDGE_CTRL_PORT_ISOLATION_BMP
+#define PPE_PORT_BRIDGE_CTRL_TXMAC_EN_V2		\
+		PPE_PORT_BRIDGE_CTRL_TXMAC_EN
+#define PPE_PORT_BRIDGE_CTRL_PROMISC_EN_V2		\
+		PPE_PORT_BRIDGE_CTRL_PROMISC_EN
+
+/* CST Port State Values */
+#define CST_STATE_DISABLED				0x0
+#define CST_STATE_BLOCKING				0x1
+#define CST_STATE_LEARNING				0x2
+#define CST_STATE_FORWARDING				0x3
+
 void ipq_config_cmn_clock(void);
+u16 ipq_get_group_buf(void);
+u16 ipq_get_ac_group_total_buf(void);
+
+/* Per-SoC dynamic masks provided by nss-switch.c */
+u32 ppe_port_bridge_txmac_mask(void);
+u32 ppe_port_bridge_promisc_mask(void);
+u32 ppe_port_bridge_isolation_mask(unsigned int nos_iports);
+/* ========================================================================
+ * Main API - Works for Both V1 and V2
+ * ========================================================================
+ */
+/**
+ * uniphy_get_csr_version - Get current CSR version
+ * Return: CSR_VERSION_V1 or CSR_VERSION_V2
+ */
+enum csr_version uniphy_get_csr_version(void);
+
+/**
+ * uniphy_set_base_addr - Set UNIPHY base address
+ * @base_addr: Physical base address for UNIPHY registers
+ *
+ * Must be called to configure the base address before CSR access
+ */
+void uniphy_set_base_addr(phys_addr_t base_addr);
+
+/**
+ * uniphy_get_base_addr - Get current UNIPHY base address
+ * Return: Physical base address for UNIPHY registers
+ */
+phys_addr_t uniphy_get_base_addr(void);
+
+/**
+ * csr_write - Write UNIPHY CSR register
+ * @uniphy_index: UNIPHY instance (0, 1, or 2)
+ * @addr: Register address (should be CSR1 encoded)
+ * @value: Value to write
+ *
+ * Works for both V1 and V2 CSR methods. Address should be encoded with CSR1_ADDR().
+ * V2: Uses csr_write_v2() with type detection
+ * V1: Strips encoding and uses csr_write_v1()
+ */
+void csr_write(int uniphy_index, u32 addr, u32 value);
+
+/**
+ * csr_read - Read UNIPHY CSR register
+ * @uniphy_index: UNIPHY instance (0, 1, or 2)
+ * @addr: Register address (should be CSR1 encoded)
+ * Return: Register value
+ *
+ * Works for both V1 and V2 CSR methods. Address should be encoded with CSR1_ADDR().
+ * V2: Uses csr_read_v2() with type detection
+ * V1: Strips encoding and uses csr_read_v1()
+ */
+u32 csr_read(int uniphy_index, u32 addr);
+#endif /* __NSS_SWITCH_H__ */

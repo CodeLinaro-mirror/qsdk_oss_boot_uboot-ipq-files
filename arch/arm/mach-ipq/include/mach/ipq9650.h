@@ -29,6 +29,21 @@
 #define ROOTFS_AUTH_FUSE			0xA0060
 #define OEM_SEC_BOOT_ENABLE			BIT(7)
 
+#define KERNEL_START_ADDR			CFG_SYS_SDRAM_BASE
+#define BOOT_PARAMS_ADDR			(KERNEL_START_ADDR + 0x100)
+#define FDT_HIGH				0x88500000
+
+/*
+ * TCSR Registers
+ */
+#define TCSR_TZ_WONCE0				0x195C000
+#define TCSR_TZ_WONCE1				0x195C004
+
+#define ENABLE_EDL_MODE				BIT(0)
+
+#define EDL_RECOVERY_MODE			0x2
+#define UBOOT_RECOVERY_MODE			0x1
+
 #if defined(CONFIG_SPL)
 #define IPQ_SPL_FUSE_BOOT_CFG_ADDR		0xA602C
 #define IPQ_SPL_FUSE_JTAG_ID_ADDR		0xA607C
@@ -61,13 +76,13 @@
 #define TME_CTXT_SIZE				(128 * 1024)
 #define CPU_CNTXT_HDR_SIZE			4624
 
+#define CFG_QTI_KERN_WDT_ADDR			*((unsigned int *)0x8600758)
+
 #if defined(CONFIG_IPQ_MINIDUMP_VERSION_V2)
-#define TLV_BUF_OFFSET				(489 * 1024) - TME_CTXT_SIZE \
-							- CPU_CNTXT_HDR_SIZE
+#define TLV_BUF_OFFSET				0
 #define CFG_TLV_DUMP_SIZE			(23 * 1024)
 #else
-#define TLV_BUF_OFFSET				(500 * 1024) - TME_CTXT_SIZE \
-							- CPU_CNTXT_HDR_SIZE
+#define TLV_BUF_OFFSET				0
 #define CFG_TLV_DUMP_SIZE			(12 * 1024)
 #endif /* CONFIG_IPQ_MINIDUMP_VERSION_V2 */
 

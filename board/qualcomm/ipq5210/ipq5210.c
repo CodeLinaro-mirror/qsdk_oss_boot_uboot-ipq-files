@@ -16,12 +16,17 @@
 /* MACH IDs for various RDPs */
 #define MACH_TYPE_IPQ5210_EMULATION		0xf060000
 
+#define TIMEOUT_MS				30000
+#define CLK_SRC					32000
+#define WDT_ENABLE_REG				0xb017008
+#define WDT_RST_REG				0xb017004
+#define WDT_BARK_TIME_REG			0xb017010
+#define WDT_BITE_TIME_REG			0xb017014
+
 struct dts_fixup ipq5210_mmc_fixup [] = {
 	{ "/soc@0/nand@79b0000/", {"/soc@0/nand@79b0000/%status%?disabled"},1},
 	{ "/soc@0/mmc@7804000/", {"/soc@0/mmc@7804000/%status%?okay"}, 1},
-	{ "/soc/nand@79b0000/", {"/soc/nand@79b0000/%status%?disabled"},1},
-	{ "/soc/sdhci@7804000/", {"/soc/sdhci@7804000/%status%?okay"}, 1},
-	{}
+	{NULL}
 };
 
 struct dts_fixup *mmc_fixup = ipq5210_mmc_fixup;
@@ -31,14 +36,34 @@ struct dts_fixup ipq5210_usb_fixup [] = {
 		{"/soc@0/usb3@8a00000/dwc3@8a00000%dr_mode%?peripheral",
 		"/soc@0/usb3@8a00000/dwc3@8a00000%maximum-speed%?high-speed"},
 		2},
-	{ "/soc/usb3@8A00000/dwc3@8A00000/",
-		{ "/soc/usb3@8A00000/dwc3@8A00000%dr_mode%?peripheral",
-		"/soc/usb3@8A00000/dwc3@8A00000%maximum-speed%?high-speed"},
-		2},
-	{}
+	{NULL}
 };
 
 struct dts_fixup *usb_fixup = ipq5210_usb_fixup;
+
+#ifdef CONFIG_IPQ_EARLY_WDT
+void ipq_enable_non_sec_watchdog(void)
+{
+	/*
+	 * Enabling non-secure WDT for early failure recovery support
+	 */
+	ulong bark_timeout_s = ((TIMEOUT_MS - 1)  * CLK_SRC) / 1000;
+	ulong bite_timeout_s = (TIMEOUT_MS * CLK_SRC) / 1000;
+
+	writel(0, WDT_ENABLE_REG);
+	writel(BIT(0), WDT_RST_REG);
+	writel(bark_timeout_s, WDT_BARK_TIME_REG);
+	writel(bite_timeout_s, WDT_BITE_TIME_REG);
+	writel(BIT(0), WDT_ENABLE_REG);
+}
+#endif
+
+#if !defined(CONFIG_SPL)
+void lowlevel_init(void)
+{
+
+}
+#endif /* !CONFIG_SPL */
 
 #if CONFIG_FDT_FIXUP_PARTITIONS
 struct node_info ipq_fnodes[] = {
@@ -242,4 +267,87 @@ void ipq_update_comm_type(void)
 
 	if (bdinfo)
 		bdinfo->comm_type_map = comm_type_map;
+}
+
+int board_get_smem_target_info(struct ipq_smem_target_info *smem_tinfo_ptr)
+{
+	uint32_t tcsr_wonce0_val = readl(TCSR_TZ_WONCE0);
+	uint32_t tcsr_wonce1_val = readl(TCSR_TZ_WONCE1);
+	uint64_t ipq_smem_target_info_addr;
+	struct ipq_smem_target_info *ipq_smem_target_info_ptr;
+
+	ipq_smem_target_info_addr = tcsr_wonce0_val |
+		(((uint64_t)(tcsr_wonce1_val)) << 32);
+
+	ipq_smem_target_info_ptr = (struct ipq_smem_target_info*)
+		(uintptr_t)ipq_smem_target_info_addr;
+	if (!ipq_smem_target_info_ptr)
+		return -EFAULT;
+
+	if (ipq_smem_target_info_ptr->identifier !=
+			IPQ_SMEM_TARGET_INFO_IDENTIFIER)
+		return -EFAULT;
+
+	memcpy((void*)smem_tinfo_ptr,
+			(void*)(uintptr_t)ipq_smem_target_info_ptr,
+			sizeof(struct ipq_smem_target_info));
+	return 0;
+}
+
+void ipq_fdt_fixup_smem(void *blob)
+{
+	uint32_t reg[4];
+	struct ipq_smem_target_info ipq_smem_target_info;
+	struct ipq_smem_target_info *smem_tinfo_ptr = &ipq_smem_target_info;
+
+	if (board_get_smem_target_info(&ipq_smem_target_info))
+		return;
+
+	reg[0] = 0;
+	reg[1] = cpu_to_fdt32((uint32_t)smem_tinfo_ptr->smem_base_addr);
+	reg[2] = 0;
+	reg[3] = cpu_to_fdt32(smem_tinfo_ptr->smem_size);
+
+	fdt_find_and_setprop(blob, "/reserved-memory/smem@8a500000/",
+			"reg", reg, sizeof(reg), 0);
+}
+
+int ipq_uboot_fdt_fixup_smem(void *blob)
+{
+	uint32_t reg[4];
+	struct ipq_smem_target_info ipq_smem_target_info;
+	struct ipq_smem_target_info *smem_tinfo_ptr = &ipq_smem_target_info;
+
+	if (board_get_smem_target_info(&ipq_smem_target_info))
+		return -EFAULT;
+
+	reg[0] = 0;
+	reg[1] = cpu_to_fdt32((uint32_t)smem_tinfo_ptr->smem_base_addr);
+	reg[2] = 0;
+	reg[3] = cpu_to_fdt32(smem_tinfo_ptr->smem_size);
+
+	fdt_find_and_setprop(blob, "/reserved-memory/smem_region@8a500000",
+			"reg", reg, sizeof(reg), 0);
+	return 0;
+}
+
+void ipq_uboot_fdt_fixup_usb(void *blob)
+{
+	return;
+}
+
+int ipq_uboot_fdt_fixup(void *blob, enum fixup_type type)
+{
+	switch(type) {
+	case UBOOT_FIXUP_SMEM:
+		ipq_uboot_fdt_fixup_smem(blob);
+		break;
+	case UBOOT_FIXUP_USB:
+		ipq_uboot_fdt_fixup_usb(blob);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
 }

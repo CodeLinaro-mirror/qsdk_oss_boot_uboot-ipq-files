@@ -17,6 +17,13 @@
 /* MACH IDs for various RDPs */
 #define MACH_TYPE_IPQ9650_EMULATION		0xF060000
 
+#define TIMEOUT_MS				30000
+#define CLK_SRC					32000
+#define WDT_ENABLE_REG				0xF410008
+#define WDT_RST_REG				0xf410004
+#define WDT_BARK_TIME_REG			0xf410010
+#define WDT_BITE_TIME_REG			0xf410014
+
 static struct crashdump_infos dumpinfo_n[] = {
 	{
 		/* DDR Bank 0 */
@@ -108,9 +115,7 @@ uint8_t *board_dump_entries = &dump_entries_n;
 struct dts_fixup ipq9650_mmc_fixup [] = {
 	{ "/soc@0/nand@79b0000/", {"/soc@0/nand@79b0000/%status%?disabled"},1},
 	{ "/soc@0/mmc@7804000/", {"/soc@0/mmc@7804000/%status%?okay"}, 1},
-	{ "/soc/nand@79b0000/", {"/soc/nand@79b0000/%status%?disabled"},1},
-	{ "/soc/sdhci@7804000/", {"/soc/sdhci@7804000/%status%?okay"}, 1},
-	{}
+	{NULL}
 };
 
 struct dts_fixup *mmc_fixup = ipq9650_mmc_fixup;
@@ -120,11 +125,7 @@ struct dts_fixup ipq9650_usb_fixup [] = {
 		{"/soc@0/usb3@8a00000/dwc3@8a00000%dr_mode%?peripheral",
 		"/soc@0/usb3@8a00000/dwc3@8a00000%maximum-speed%?high-speed"},
 		2},
-	{ "/soc/usb3@8A00000/dwc3@8A00000/",
-		{ "/soc/usb3@8A00000/dwc3@8A00000%dr_mode%?peripheral",
-		"/soc/usb3@8A00000/dwc3@8A00000%maximum-speed%?high-speed"},
-		2},
-	{}
+	{NULL}
 };
 
 struct dts_fixup *usb_fixup = ipq9650_usb_fixup;
@@ -142,6 +143,32 @@ int ipq_fnode_entires = ARRAY_SIZE(ipq_fnodes);
 struct node_info * fnodes = ipq_fnodes ;
 int * fnode_entires = &ipq_fnode_entires;
 #endif
+
+#ifdef CONFIG_IPQ_EARLY_WDT
+void ipq_enable_non_sec_watchdog(void)
+{
+	/*
+	 * Enabling non-secure WDT for early failure recovery support
+	 */
+	ulong bark_timeout_s = ((TIMEOUT_MS - 1)  * CLK_SRC) / 1000;
+	ulong bite_timeout_s = (TIMEOUT_MS * CLK_SRC) / 1000;
+
+	writel(0, WDT_ENABLE_REG);
+	writel(BIT(0), WDT_RST_REG);
+	writel(bark_timeout_s, WDT_BARK_TIME_REG);
+	writel(bite_timeout_s, WDT_BITE_TIME_REG);
+	writel(BIT(0), WDT_ENABLE_REG);
+}
+#endif
+
+#if !defined(CONFIG_SPL)
+void lowlevel_init(void)
+{
+#ifdef CONFIG_IPQ_EARLY_WDT
+	ipq_enable_non_sec_watchdog();
+#endif
+}
+#endif /* !CONFIG_SPL */
 
 struct machid_dts_map machid_dts[] = {
 	{
@@ -218,7 +245,7 @@ void reset_cpu(void)
 void reset_cpu(void)
 {
 #ifdef CONFIG_IPQ_CRASHDUMP
-	reset_crashdump(RESET_V1);
+	reset_crashdump(RESET_V2);
 #endif
 	psci_sys_reset(SYSRESET_COLD);
 }

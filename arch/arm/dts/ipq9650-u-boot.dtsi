@@ -20,14 +20,22 @@
 		stdout-path = "serial0:115200n8";
 	};
 
+	clocks {
+		sleep_clk: sleep-clk {
+			compatible = "fixed-clock";
+			#clock-cells = <0>;
+			clock-frequency = <32000>;
+		};
+	};
+
 	reserved-memory {
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
 
 		/delete-node/ smem;
-		smem_mem: smem_region@8a100000 {
-			reg = <0x0 0x8a100000 0x0 0x40000>;
+		smem_mem: smem_region@8a500000 {
+			reg = <0x0 0x8a500000 0x0 0x40000>;
 			no-map;
 		};
 
@@ -789,6 +797,15 @@
 			phy-names = "pciephy";
 
 			status = "disabled";
+		};
+		watchdog: non-sec@f410000 {
+			compatible = "qcom,apss-wdt-ipq9650", "qcom,kpss-wdt";
+			#address-cells = <2>;
+			#size-cells = <2>;
+			reg =  <0x0 0xf410000 0x0 0x1000>;
+			clocks = <&sleep_clk>;
+			timeout-sec = <30>;
+			status = "okay";
 		};
 	};
 };

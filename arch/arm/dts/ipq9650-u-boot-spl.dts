@@ -31,9 +31,9 @@
 		#size-cells = <2>;
 		ranges;
 
-		smem_mem: smem_region@8a100000 {
+		smem_mem: smem_region@8a500000 {
 			bootph-all;
-			reg = <0x0 0x8a100000 0x0 0x40000>;
+			reg = <0x0 0x8a500000 0x0 0x40000>;
 			no-map;
 		};
 	};
@@ -304,7 +304,7 @@
 			reg = <0x0 0x79B0000 0x0 0x10000>;
 			assigned-clocks = <&gcc GCC_QPIC_CLK>,
 					 <&gcc GCC_QPIC_IO_MACRO_CLK>;
-			assigned-clock-rates = <100000000>, <200000000>;
+			assigned-clock-rates = <100000000>, <50000000>;
 			max_clk_feaquency = <400000000>;
 			clock-names = "qpic-clk",
 				      "qpic-io-macro-clk",
