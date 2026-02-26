@@ -15,6 +15,16 @@
 #define IM_SLEEP_CLK				0x1834020
 /* MACH IDs for various RDPs */
 #define MACH_TYPE_IPQ5210_EMULATION		0xf060000
+#define MACH_TYPE_IPQ5210_DB_HM01_1		0x1080000
+#define MACH_TYPE_IPQ5210_DB_HM02_1		0x1080100
+#define MACH_TYPE_IPQ5210_RDP497		0x8080000
+#define MACH_TYPE_IPQ5210_RDP498		0x8080100
+#define MACH_TYPE_IPQ5210_RDP499		0x8080200
+#define MACH_TYPE_IPQ5210_RDP500		0x8080101
+#define MACH_TYPE_IPQ5210_RDP501		0x8080102
+#define MACH_TYPE_IPQ5210_RDP502		0x8080201
+#define MACH_TYPE_IPQ5210_RDP503		0x8080202
+#define MACH_TYPE_IPQ5210_RDP504		0x8080203
 
 #define TIMEOUT_MS				30000
 #define CLK_SRC					32000
@@ -85,6 +95,66 @@ struct machid_dts_map machid_dts[] = {
 		"ipq5210-emulation-fbc",
 		"emulation-fbc",
 		"1",
+	},
+	{
+		MACH_TYPE_IPQ5210_DB_HM01_1,
+		"ipq5210-db-hm01.1",
+		"db-hm01.1",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_DB_HM02_1,
+		"ipq5210-db-hm02.1",
+		"db-hm02.1",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP497,
+		"ipq5210-rdp497",
+		"rdp497",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP498,
+		"ipq5210-rdp498",
+		"rdp498",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP499,
+		"ipq5210-rdp499",
+		"rdp499",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP500,
+		"ipq5210-rdp500",
+		"rdp500",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP501,
+		"ipq5210-rdp501",
+		"rdp501",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP502,
+		"ipq5210-rdp502",
+		"rdp502",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP503,
+		"ipq5210-rdp503",
+		"rdp503",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP504,
+		"ipq5210-rdp504",
+		"rdp504",
+		"1"
 	},
 };
 
