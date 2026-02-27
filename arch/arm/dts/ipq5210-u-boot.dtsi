@@ -460,12 +460,8 @@
 			bridge_mode;
 			status = "disabled";
 
-			assigned-clocks = <&nsscc NSS_CC_NSS_CSR_CLK>,
-				<&nsscc NSS_CC_NSSNOC_NSS_CSR_CLK>,
-				<&nsscc NSS_CC_PON_CLK>;
-			assigned-clock-rates = <100000000>,   /* NSS_CSR: 100 MHz */
-				<100000000>,   /* NSSNOC_NSS_CSR: 100 MHz */
-				<429000000>;   /* PON: 429 MHz */
+			assigned-clocks = <&nsscc NSS_CC_PPE_SWITCH_CFG_CLK>;
+			assigned-clock-rates = <429000000>;
 
 			clocks = <&gcc GCC_IM_SLEEP_CLK>,
 				<&gcc GCC_CMN_12GPLL_AHB_CLK>,
@@ -505,8 +501,12 @@
 				<&nsscc NSS_CC_PORT3_TX_CLK>,
 				<&nsscc NSS_CC_PORT4_RX_CLK>,
 				<&nsscc NSS_CC_PORT4_TX_CLK>,
+				<&nsscc NSS_CC_PORT4_UNIPHY1_RX_CLK>,
+				<&nsscc NSS_CC_PORT4_UNIPHY1_TX_CLK>,
 				<&nsscc NSS_CC_PORT5_RX_CLK>,
 				<&nsscc NSS_CC_PORT5_TX_CLK>,
+				<&nsscc NSS_CC_PORT5_UNIPHY0_RX_CLK>,
+				<&nsscc NSS_CC_PORT5_UNIPHY0_TX_CLK>,
 				<&nsscc NSS_CC_PORT6_RX_CLK>,
 				<&nsscc NSS_CC_PORT6_TX_CLK>,
 				<&nsscc NSS_CC_UNIPHY_PORT1_RX_CLK>,
@@ -560,8 +560,12 @@
 				"nss_port3_tx_clk",
 				"nss_port4_rx_clk",
 				"nss_port4_tx_clk",
+				"nss_port4_uniphy1_rx_clk",
+				"nss_port4_uniphy1_tx_clk",
 				"nss_port5_rx_clk",
 				"nss_port5_tx_clk",
+				"nss_port5_uniphy0_rx_clk",
+				"nss_port5_uniphy0_tx_clk",
 				"nss_port6_rx_clk",
 				"nss_port6_tx_clk",
 				"uniphy0_port1_rx_clk",
