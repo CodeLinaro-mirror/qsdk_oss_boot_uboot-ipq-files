@@ -627,7 +627,7 @@ int arm_reserve_mmu(void)
 	/* reserve TLB table */
 	gd->arch.tlb_size = PGTABLE_SIZE;
 
-	gd->arch.tlb_addr = (unsigned long)(memalign(SZ_64K,
+	gd->arch.tlb_addr = (unsigned long)(memalign(SZ_4K,
 							gd->arch.tlb_size));
 	if (!gd->arch.tlb_addr) {
 		pr_err("%s No enough Space for pagetable\n", __func__);
