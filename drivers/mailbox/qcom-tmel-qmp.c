@@ -854,6 +854,69 @@ int tmelcom_fuse_list_read(struct tmel *tdev, struct tmel_fuse_payload *fuse, si
 }
 
 /**
+ * tmelcom_get_tme_version() - Get TME version information
+ * @tdev: the tmel device
+ * @version_msg: message containing buffer pointer and length for version data
+ */
+int tmelcom_get_tme_version(struct tmel *tdev, struct tmel_get_tme_version *version_msg)
+{
+	int ret;
+	struct tmel_get_state msg = {0};
+	struct udevice *dev;
+	dma_addr_t dma_version;
+	void *version_buf;
+	u32 length;
+
+	if (!tdev || !version_msg)
+		return -EINVAL;
+
+	dev = tdev->dev;
+	version_buf = (void *)(uintptr_t)version_msg->pdata;
+	length = version_msg->length;
+
+	if (!dev || !version_buf || !length)
+		return -EINVAL;
+
+	if (length != TME_PATCH_VERSION_LENGTH) {
+		dev_err(dev, "Invalid buffer length %u (expected %d bytes)\n",
+			length, TME_PATCH_VERSION_LENGTH);
+		return -EINVAL;
+	}
+
+	dma_version = dma_map_single(version_buf, length, DMA_BIDIRECTIONAL);
+	if (!dma_version) {
+		dev_err(dev, "Failed to map DMA buffer\n");
+		return -ENOMEM;
+	}
+
+	msg.rsp.status = TMEL_ERROR_GENERIC;
+	msg.rsp.patch_version.pdata = (u32)dma_version;
+	msg.rsp.patch_version.length = length;
+	msg.rsp.patch_version.length_used = 0;
+
+	/* Send Get TME State IPC call to TME */
+	ret = tmel_process_request(tdev, TMEL_MSG_UID_SECBOOT_GET_STATE,
+				   &msg, sizeof(msg));
+	if (ret || msg.rsp.status)
+		dev_err(dev, "%s : IPC Failed. ret: %d, msg.status = 0x%x\n",
+			__func__, ret, msg.rsp.status);
+
+	/* Validate returned length before invalidating cache */
+	if (msg.rsp.patch_version.length_used > length) {
+		dev_err(dev, "TME returned invalid length %u > buffer size %u\n",
+			msg.rsp.patch_version.length_used, length);
+		dma_unmap_single(dma_version, length, DMA_BIDIRECTIONAL);
+		return -EOVERFLOW;
+	}
+
+	dma_unmap_single(dma_version, length, DMA_BIDIRECTIONAL);
+
+	version_msg->length = msg.rsp.patch_version.length_used;
+
+	return ret ? ret : msg.rsp.status;
+}
+
+/**
  * tmel_qmp_send() - Send message through mailbox
  * @chan: mailbox channel
  * @data: message data
@@ -893,6 +956,14 @@ static int tmel_qmp_send(struct mbox_chan *chan, const void *data)
 			struct tmel_sec_auth_v2 *sec_auth = (struct tmel_sec_auth_v2 *)tmsg->msg;
 
 			ret = tmel_secboot_sec_auth_v2(tdev, sec_auth);
+		}
+		break;
+	case TMEL_MSG_UID_SECBOOT_GET_STATE:
+		{
+			struct tmel_get_tme_version *version_msg =
+				(struct tmel_get_tme_version *)tmsg->msg;
+
+			ret = tmelcom_get_tme_version(tdev, version_msg);
 		}
 		break;
 	default:

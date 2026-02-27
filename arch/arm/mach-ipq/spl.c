@@ -81,10 +81,20 @@
 #define IF_TABLE_VERSION		0x1
 #define QCCONFIG			"qc_config"
 #define QCSDI				"qcsdi"
+/*
+ * Image version table definitions
+ */
+#define IMAGE_INDEX_TMEL			10
 
 /*******************************************************************************
  * Structure enum and static
  ******************************************************************************/
+/*
+ * Global variable to store TME-L patch version
+ * Explicitly initialized to empty string
+ */
+static char g_tme_version[TME_PATCH_VERSION_LENGTH] = {0};
+
 enum {
 	IPQ_SPL_RAM_FLASHLESS = 0xFD,
 	IPQ_SPL_FLASHTYPE_MAX = 0xFF
@@ -920,6 +930,54 @@ static int ipq_spl_populate_smem(void *ctx)
 	}
 	*atf_en = true;
 
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
+	/*
+	 * Populate TME-L Image Version in SMEM
+	 */
+	if (g_tme_version[0] != '\0') {
+		struct image_version_entry *img_ver_entry;
+		struct image_version_entry *tmel_entry;
+
+		img_ver_entry = (struct image_version_entry *)smem_get(smem, -1,
+							SMEM_IMAGE_VERSION_TABLE, &size);
+		if (!img_ver_entry) {
+			pr_err("Failed to get item: SMEM_IMAGE_VERSION_TABLE\n");
+			/* Non-fatal error, continue */
+		} else {
+			/*
+			 * Get pointer to TME-L entry (index 10) using pre-calculated offset
+			 */
+			tmel_entry =
+				(struct image_version_entry *)img_ver_entry + IMAGE_INDEX_TMEL;
+
+			/*
+			 * Populate TME-L version entry
+			 * Format: "10:TME-L_VERSION:OEM_VERSION"
+			 */
+			memset(tmel_entry, 0, sizeof(struct image_version_entry));
+
+			/* Set image index (10 for TME-L) */
+			tmel_entry->image_index[0] = '1';
+			tmel_entry->image_index[1] = '0';
+
+			/* Set first separator */
+			tmel_entry->image_colon_sep1[0] = ':';
+
+			/* Copy TME-L version string */
+			strlcpy(tmel_entry->image_qc_version_string, g_tme_version,
+				IMAGE_QC_VERSION_STRING_LENGTH);
+
+			/* Set second separator */
+			tmel_entry->image_colon_sep2[0] = ':';
+
+			/* Set OEM version string (empty for now) */
+			tmel_entry->image_oem_version_string[0] = '\0';
+
+			printf("TME-L version added to SMEM: %s\n", g_tme_version);
+		}
+	}
+#endif /* CONFIG_IPQ_TMEL_IPC_SUPPORT */
+
 	/*
 	 * Populate MIBIB Info if available
 	 */
@@ -1280,10 +1338,65 @@ static int ipq_spl_list_tme_fuse(struct ipq_spl_fuse_info *fuse_arr,
 			fuse[index].msb_val,
 			fuse[index].lsb_val);
 	}
+
 fail:
 	free(fuse);
 
 	return ret;
+}
+
+/**
+ * ipq_spl_get_tme_patch_version() - Get and store TME-L patch version.
+ *
+ * This function retrieves the TME-L patch version using TME IPC communication
+ * and stores it in the global variable g_tme_version for later use.
+ * Return: void
+ */
+static void ipq_spl_get_tme_patch_version(void)
+{
+	int ret;
+	struct tmel_get_tme_version version_msg;
+	char *version_buffer;
+
+	/*
+	 * Initialize global TME version string
+	 */
+	g_tme_version[0] = '\0';
+
+	/*
+	 * Allocate aligned buffer for TME version
+	 */
+	version_buffer = memalign(ARCH_DMA_MINALIGN, TME_PATCH_VERSION_LENGTH);
+	if (!version_buffer) {
+		pr_err("Failed to allocate memory for TME version buffer\n");
+		return;
+	}
+
+	memset(version_buffer, 0, TME_PATCH_VERSION_LENGTH);
+	version_msg.pdata = (u32)(uintptr_t)version_buffer;
+	version_msg.length = TME_PATCH_VERSION_LENGTH;
+
+	/*
+	 * Get TME-L patch version from TME
+	 */
+	ret = ipq_get_tme_version_impl(&version_msg);
+	if (ret == 0) {
+		/* Validate that returned length is within buffer bounds */
+		if (version_msg.length >= TME_PATCH_VERSION_LENGTH) {
+			pr_err("TME version length %u exceeds buffer size %d\n",
+			       version_msg.length, TME_PATCH_VERSION_LENGTH);
+		} else {
+			/* Null-terminate at actual length returned by TME */
+			version_buffer[version_msg.length] = '\0';
+			printf("TME-L Patch Version: %s\n", version_buffer);
+			/* Save TME-L version to global variable */
+			strlcpy(g_tme_version, version_buffer, TME_PATCH_VERSION_LENGTH);
+		}
+	} else {
+		pr_warn("Failed to get TME-L patch version (ret=%d)\n", ret);
+	}
+
+	free(version_buffer);
 }
 
 /**
@@ -1781,6 +1894,7 @@ void board_init_f(ulong dummy)
 	if (!ipq_spl_tmel_bypass_enabled()) {
 		ipq_spl_list_tme_fuse(tme_fuse_info_array,
 					ARRAY_SIZE(tme_fuse_info_array));
+		ipq_spl_get_tme_patch_version();
 	} else {
 		printf("TME fuse listing skipped (tmel_bypass=1)\n");
 	}
