@@ -86,6 +86,10 @@
  */
 #define IMAGE_INDEX_TMEL			10
 
+#define DEFAULT_SHIFT			0x0
+#define DEFAULT_32BIT_MASK		0xFFFFFFFF
+#define DEFAULT_64BIT_MASK		0xFFFFFFFFFFFFFFFF
+
 /*******************************************************************************
  * Structure enum and static
  ******************************************************************************/
@@ -113,10 +117,18 @@ enum {
  * struct ipq_spl_fuse_info - Fuse information structure
  * @fuse_name:	Name of the fuse.
  * @fuse_addr:	Address of the fuse register.
+ * @secboot_protected: If secure boot is enabled, do not log this entry.
+ * @full_row:	Indicates full 64-bit row should be logged. Default is 32 bits.
+ * @mask:	Mask to be applied to the register value.
+ * @shift:	Shift to be applied after masking.
  */
 struct ipq_spl_fuse_info {
 	char fuse_name[24];
 	u32 fuse_addr;
+	bool secboot_protected;
+	bool full_row;
+	u64 mask;
+	u32 shift;
 };
 
 /**
@@ -174,6 +186,12 @@ struct interface_table {
 #define FLASH_MIBIB_CRC_MAGIC1		0x9D41BEA1
 #define FLASH_MIBIB_CRC_MAGIC2		0xF1DED2EA
 #define FLASH_MIBIB_CRC_VERSION		1
+
+/**
+ * Global variable to track secure boot status.
+ * This is set by ipq_spl_list_tme_fuse()
+ */
+static bool secure_boot_enabled;
 
 /* Global variables to store MIBIB partition table and bootloader offset */
 static struct flash_partition_table *g_mibib_parti_ptr;
@@ -452,23 +470,49 @@ static int ipq_spl_tfa_fixup(void *ctx);
 static int ipq_spl_optee_fixup(void *ctx);
 static int ipq_spl_uboot_fixup(void *ctx);
 
+/*
+ * Forward declarations for boot log functions
+ */
+static void ipq_spl_log_lcs_state(void);
+static void ipq_spl_log_debug_state(void);
+static void ipq_spl_log_otp_version(void);
+
 /**
  * fuse_info_array - Array of fuse information.
  *
  * This array contains the names and addresses of various fuses used in the
  * system. These fuses are typically used for configuration.
+ * The secboot_protected flag indicates whether the fuse should only be
+ * printed when secure boot is disabled.
+ * The full_row flag indicates whether the full 64-bit row should be logged.
  */
 static struct ipq_spl_fuse_info fuse_info_array[] = {
-	{"Boot Config", IPQ_SPL_FUSE_BOOT_CFG_ADDR},
-	{"JTAG ID", IPQ_SPL_FUSE_JTAG_ID_ADDR},
-	{"OEM ID", IPQ_SPL_FUSE_OEM_ID_ADDR},
-	{"TME-L LCS", IPQ_SPL_FUSE_TME_L_LCS_ADDR},
-	{"Serial Number", IPQ_SPL_FUSE_SERIAL_NUM_ADDR},
-	{"Product Id", IPQ_SPL_FUSE_PRODUCT_ID_ADDR},
-	{"Reset Debug", IPQ_SPL_GCC_RESET_DEBUG_ADDR},
-	{"Reset Status", IPQ_SPL_GCC_RESET_STATUS_ADDR},
-	{"FSM Status", IPQ_SPL_GCC_FSM_STATUS_ADDR},
-	{"GPR0", IPQ_SPL_DDR_GPR0_ADDR},
+	{"OEM Config Row 1", IPQ_SPL_FUSE_OEM_CONFIG_ROW_1_ADDR, true, true,
+	 DEFAULT_64BIT_MASK, DEFAULT_SHIFT},
+	{"Feature Config Row 0", IPQ_SPL_FUSE_FEATURE_CONFIG_ROW_0_ADDR,
+	 false, true, DEFAULT_64BIT_MASK, DEFAULT_SHIFT},
+	{"Feature Config Row 1", IPQ_SPL_FUSE_FEATURE_CONFIG_ROW_1_ADDR,
+	 false, true, DEFAULT_64BIT_MASK, DEFAULT_SHIFT},
+	{"Boot Config", IPQ_SPL_FUSE_BOOT_CFG_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
+	{"JTAG ID", IPQ_SPL_FUSE_JTAG_ID_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
+	{"OEM ID", IPQ_SPL_FUSE_OEM_ID_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
+	{"TME-L LCS", IPQ_SPL_FUSE_TME_L_LCS_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
+	{"Serial Number", IPQ_SPL_FUSE_SERIAL_NUM_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
+	{"Product Id", IPQ_SPL_FUSE_PRODUCT_ID_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
+	{"FEATURE ID", IPQ_SPL_FUSE_FEATURE_ID_ADDR, false, false,
+	 IPQ_SPL_FEATURE_ID_MASK, IPQ_SPL_FEATURE_ID_SHIFT},
+	{"Reset Debug", IPQ_SPL_GCC_RESET_DEBUG_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
+	{"Reset Status", IPQ_SPL_GCC_RESET_STATUS_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
+	{"FSM Status", IPQ_SPL_GCC_FSM_STATUS_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
 };
 
 #if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
@@ -480,11 +524,8 @@ static struct ipq_spl_fuse_info fuse_info_array[] = {
  * and configuration settings.
  */
 static struct ipq_spl_fuse_info tme_fuse_info_array[] = {
-	{"OEM TME Row 0", IPQ_SPL_FUSE_OEM_TME_ROW_0_ADDR},
-	{"Feature Config Row 0", IPQ_SPL_FUSE_FEATURE_CONFIG_ROW_0_ADDR},
-	{"Feature Config Row 1", IPQ_SPL_FUSE_FEATURE_CONFIG_ROW_1_ADDR},
-	{"OEM Config Row 0", IPQ_SPL_FUSE_OEM_CONFIG_ROW_0_ADDR},
-	{"OEM Config Row 1", IPQ_SPL_FUSE_OEM_CONFIG_ROW_1_ADDR},
+	{"OEM Config Row 0", IPQ_SPL_FUSE_OEM_TME_ROW_0_ADDR, true, true,
+	 DEFAULT_64BIT_MASK, DEFAULT_SHIFT},
 };
 #endif /* CONFIG_IPQ_TMEL_IPC_SUPPORT */
 
@@ -747,16 +788,20 @@ U_BOOT_DRIVER(ipq_init_clk) = {
 };
 
 /**
- * ipq_spl_list_fuse() - List all fuses.
+ * ipq_spl_list_fuse() - List all fuses conditionally based on secure boot.
  * @fuse_arr:	Pointer to the fuse array.
  * @fuse_cnt:	Number of fuses.
  *
- * This function lists all fuses.
+ * This function lists fuses. If a fuse is marked as secboot_protected,
+ * it will only be printed when secure boot is disabled.
+ * Supports both 32-bit and 64-bit fuse logging based on the full_row flag.
  * Return: 0 on success, or a negative error code on failure.
  */
 int ipq_spl_list_fuse(struct ipq_spl_fuse_info *fuse_arr, size_t fuse_cnt)
 {
 	size_t index;
+	u32 fuse_value_32;
+	u64 fuse_value_64;
 
 	if (!fuse_arr) {
 		pr_err("Invalid fuse array pointer\n");
@@ -769,13 +814,157 @@ int ipq_spl_list_fuse(struct ipq_spl_fuse_info *fuse_arr, size_t fuse_cnt)
 			continue;
 		}
 
-		printf("%-24s @ 0x%08X = 0x%08X\n",
-			fuse_arr[index].fuse_name,
-			fuse_arr[index].fuse_addr,
-			readl((uintptr_t)fuse_arr[index].fuse_addr));
+		/*
+		 *Entry is only printed if secboot_protected is false
+		 * or secure boot is disabled
+		 */
+		if ((fuse_arr[index].secboot_protected == false) ||
+		    (secure_boot_enabled == false)) {
+
+			if (fuse_arr[index].full_row == true) {
+				fuse_value_64 = readq((uintptr_t)fuse_arr[index].fuse_addr);
+
+				if (fuse_arr[index].mask != 0) {
+					fuse_value_64 = (fuse_value_64 & fuse_arr[index].mask) >>
+							fuse_arr[index].shift;
+				}
+
+				printf("%-24s @ 0x%08X = 0x%016llX\n",
+					fuse_arr[index].fuse_name,
+					fuse_arr[index].fuse_addr,
+					fuse_value_64);
+			} else {
+				fuse_value_32 = readl((uintptr_t)fuse_arr[index].fuse_addr);
+
+				if (fuse_arr[index].mask != 0) {
+					fuse_value_32 =
+						(fuse_value_32 & (u32)fuse_arr[index].mask) >>
+						fuse_arr[index].shift;
+				}
+
+				printf("%-24s @ 0x%08X = 0x%08X\n",
+					fuse_arr[index].fuse_name,
+					fuse_arr[index].fuse_addr,
+					fuse_value_32);
+			}
+		}
 	}
 
 	return 0;
+}
+
+/**
+ * ipq_spl_log_lcs_state() - Log TME-L LCS state
+ *
+ * This function reads the SOC LCS register and prints the decoded LCS state.
+ */
+static void ipq_spl_log_lcs_state(void)
+{
+	u32 lcs_state;
+	const char *lcs_str;
+
+	/*
+	 * Read and decode LCS state
+	 */
+	lcs_state = (readl(IPQ_SPL_FUSE_TME_L_LCS_ADDR) & IPQ_SPL_SOC_LCS_MASK) >>
+		    IPQ_SPL_SOC_LCS_SHFT;
+
+	switch (lcs_state) {
+	case 0x0:
+		lcs_str = "BLANK";
+		break;
+	case 0xE:
+		lcs_str = "DEVELOPMENT";
+		break;
+	case 0x5:
+		lcs_str = "OPERATIONAL_EXT";
+		break;
+	case 0xB:
+		lcs_str = "OPERATIONAL_INT";
+		break;
+	case 0x7:
+		lcs_str = "RMA";
+		break;
+	default:
+		lcs_str = "Unknown";
+		break;
+	}
+
+	printf("%-24s %s\n", "TME-L LCS:", lcs_str);
+}
+
+/**
+ * ipq_spl_log_debug_state() - Log debug enable/disable state
+ *
+ * This function reads the feature provisioning registers and prints
+ * the debug state for APSS, TME-L, and Q6.
+ */
+static void ipq_spl_log_debug_state(void)
+{
+	u32 feat_prov_out0;
+	u32 feat_prov_out2;
+	bool apss_debug_disabled;
+	bool tmel_debug_disabled;
+	bool q6_debug_disabled;
+
+	/*
+	 * Read feature provisioning registers
+	 */
+	feat_prov_out0 = readl(IPQ_SPL_FEAT_PROV_OUT0_ADDR);
+	feat_prov_out2 = readl(IPQ_SPL_FEAT_PROV_OUT2_ADDR);
+
+	/*
+	 * Check debug disable bits (1 = disabled, 0 = enabled)
+	 * Extract debug state bits
+	 */
+	apss_debug_disabled = (feat_prov_out0 & IPQ_SPL_FEAT_PROV_APSS_MASK) >>
+			IPQ_SPL_FEAT_PROV_APSS_SHIFT;
+	tmel_debug_disabled = feat_prov_out0 & IPQ_SPL_FEAT_PROV_TMEL_MASK;
+	q6_debug_disabled = (feat_prov_out2 & IPQ_SPL_FEAT_PROV_Q6_MASK) >>
+			IPQ_SPL_FEAT_PROV_Q6_SHIFT;
+
+	printf("%-24s APSS : %s , TME-L :%s , Q6 :%s\n",
+			"Debug state:",
+			apss_debug_disabled ? "Disabled" : "Enabled",
+			tmel_debug_disabled ? "Disabled" : "Enabled",
+			q6_debug_disabled ? "Disabled" : "Enabled");
+}
+
+/**
+ * ipq_spl_log_otp_version() - Log OTP version
+ *
+ * This function reads the QFPROM register and prints the OTP TAG and FM version.
+ */
+static void ipq_spl_log_otp_version(void)
+{
+	u32 pte_row2_lsb;
+	u32 otp_tag_version;
+	u32 otp_fm_version;
+
+	/*
+	 * Read QFPROM PTE ROW2 LSB register
+	 */
+	pte_row2_lsb = readl(IPQ_SPL_QFPROM_PTE_ROW2_LSB_ADDR);
+
+	/*
+	 * Extract TAG and FM versions
+	 */
+	otp_tag_version = (pte_row2_lsb & IPQ_SPL_OTP_TAG_VERSION_MASK) >>
+			  IPQ_SPL_OTP_TAG_VERSION_SHIFT;
+	otp_fm_version = (pte_row2_lsb & IPQ_SPL_OTP_FM_VERSION_MASK) >>
+			 IPQ_SPL_OTP_FM_VERSION_SHIFT;
+
+	printf("%-24s %d.%d\n", "OTP Version:", otp_tag_version, otp_fm_version);
+}
+
+/*
+ * ipq_spl_boot_logs() - Print boot logs
+ */
+static void ipq_spl_boot_logs(void)
+{
+	ipq_spl_log_lcs_state();
+	ipq_spl_log_debug_state();
+	ipq_spl_log_otp_version();
 }
 
 /**
@@ -1292,11 +1481,13 @@ static int ipq_spl_uboot_fixup(void *ctx)
 
 #if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
 /**
- * ipq_spl_list_tme_fuse() - List all TME fuses.
+ * ipq_spl_list_tme_fuse() - List TME fuses conditionally based on secure boot.
  * @fuse_arr:	Pointer to the fuse array.
  * @fuse_cnt:	Number of fuses.
  *
- * This function lists all fuses using TME IPC communication.
+ * This function lists fuses using TME IPC communication. If a fuse is marked
+ * as secboot_protected, it will only be printed when secure boot is disabled.
+ * It also updates the global secure_boot_enabled variable.
  * Return: 0 on success, or a negative error code on failure.
  */
 static int ipq_spl_list_tme_fuse(struct ipq_spl_fuse_info *fuse_arr,
@@ -1331,12 +1522,56 @@ static int ipq_spl_list_tme_fuse(struct ipq_spl_fuse_info *fuse_arr,
 	if (ret)
 		goto fail;
 
+	/*
+	 * Print fuses conditionally
+	 */
 	for (index = 0; index < fuse_cnt ; index++) {
-		printf("%-24s @ 0x%08X = 0x%08X%08X\n",
-			fuse_arr[index].fuse_name,
-			fuse[index].fuse_addr,
-			fuse[index].msb_val,
-			fuse[index].lsb_val);
+		if (fuse[index].fuse_addr == IPQ_SPL_FUSE_OEM_TME_ROW_0_ADDR) {
+			u32 lsb_val = fuse[index].lsb_val;
+			bool qti_secure_boot = (lsb_val & BIT(1)) ? true : false;
+
+			/*
+			 * Determine secure boot status
+			 */
+			secure_boot_enabled = (lsb_val & OEM_SEC_BOOT_ENABLE) ? true : false;
+			printf("%-24s OEM : %s , OEM + QTI :%s\n",
+				"Secure Boot:",
+				secure_boot_enabled ? "On " : "Off",
+				(secure_boot_enabled && qti_secure_boot) ? "On " : "Off");
+		}
+
+		if ((fuse_arr[index].secboot_protected == false) ||
+		    (secure_boot_enabled == false)) {
+
+			if (fuse_arr[index].full_row == true) {
+				u64 fuse_value_64 =
+					((u64)fuse[index].msb_val << 32) | fuse[index].lsb_val;
+
+				if (fuse_arr[index].mask != 0) {
+					fuse_value_64 =
+						(fuse_value_64 & fuse_arr[index].mask) >>
+						fuse_arr[index].shift;
+				}
+
+				printf("%-24s @ 0x%08X = 0x%016llX\n",
+					fuse_arr[index].fuse_name,
+					fuse[index].fuse_addr,
+					fuse_value_64);
+			} else {
+				u32 fuse_value_32 = fuse[index].lsb_val;
+
+				if (fuse_arr[index].mask != 0) {
+					fuse_value_32 =
+						(fuse_value_32 & (u32)fuse_arr[index].mask) >>
+						fuse_arr[index].shift;
+				}
+
+				printf("%-24s @ 0x%08X = 0x%08X\n",
+					fuse_arr[index].fuse_name,
+					fuse[index].fuse_addr,
+					fuse_value_32);
+			}
+		}
 	}
 
 fail:
@@ -1881,13 +2116,7 @@ void board_init_f(ulong dummy)
 
 	preloader_console_init();
 
-#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
-	/* Initialize TMEL bypass check (will print status on first call) */
-	ipq_spl_tmel_bypass_enabled();
-#endif
-
-	ipq_spl_list_fuse(fuse_info_array,
-				ARRAY_SIZE(fuse_info_array));
+	ipq_spl_boot_logs();
 
 #if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
 	/* Skip TME fuse listing if tmel_bypass is enabled */
@@ -1899,6 +2128,8 @@ void board_init_f(ulong dummy)
 		printf("TME fuse listing skipped (tmel_bypass=1)\n");
 	}
 #endif
+	ipq_spl_list_fuse(fuse_info_array,
+				ARRAY_SIZE(fuse_info_array));
 
 #if !(CONFIG_IS_ENABLED(SYS_ICACHE_OFF) && CONFIG_IS_ENABLED(SYS_DCACHE_OFF))
 	ret = arm_reserve_mmu();
