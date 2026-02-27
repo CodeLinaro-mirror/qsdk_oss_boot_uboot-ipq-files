@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-=======
-<<<<<<< HEAD   (4e4802 Merge "mach-ipq: SPL text base, pgtbl align, cleanup")
-=======
->>>>>>> b1dc9e0 (clk: qcom: add clock RCGR configuration)
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
@@ -11,16 +6,6 @@
 #ifndef __IPQ_CLKS_OFFSETS_H__
 #define __IPQ_CLKS_OFFSETS_H__
 
-<<<<<<< HEAD
-#define CLK_ENABLE						BIT(1)
-
-/* GCC Clocks */
-#define GCC_APCS_CLOCK_BRANCH_ENA_VOTE                     	(0x180B004)
-#define GCC_APCS_HYP_CLOCK_BRANCH_ENA_VOTE                 	(0x180D004)
-#define GCC_APCS_TZ_CLOCK_BRANCH_ENA_VOTE                  	(0x180C004)
-#define GCC_SPARE_CLOCK_BRANCH_ENA_VOTE                    	(0x1800004)
-#define GCC_TME_CLOCK_BRANCH_ENA_VOTE                      	(0x182F000)
-=======
 /* Return codes */
 #define HERMOSA_GCC_SUCCESS             0
 #define HERMOSA_GCC_ERROR              -1
@@ -274,7 +259,6 @@
 
 
 /* GCC Clocks */
->>>>>>> b1dc9e0 (clk: qcom: add clock RCGR configuration)
 #define GCC_ADSS_PWM_CBCR                                  	(0x181C00C)
 #define GCC_AHB_CBCR                                       	(0x1834024)
 #define GCC_APC0_VOLTAGE_DROOP_DETECTOR_GPLL0_CBCR         	(0x183800C)
@@ -595,7 +579,3 @@
 
 void ipq_enable_all_clks(void);
 #endif /* __IPQ_CLKS_OFFSETS_H__ */
-<<<<<<< HEAD
-=======
->>>>>>> CHANGE (aa8634 clk: qcom: add clock RCGR configuration)
->>>>>>> b1dc9e0 (clk: qcom: add clock RCGR configuration)
