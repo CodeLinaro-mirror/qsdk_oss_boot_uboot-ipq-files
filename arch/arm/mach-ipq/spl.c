@@ -176,7 +176,7 @@ struct interface_table {
 #define FLASH_MIBIB_CRC_VERSION		1
 
 /* Global variables to store MIBIB partition table and bootloader offset */
-static struct flash_partition_table *g_mibib_parti_ptr;
+static struct flash_partition_table g_mibib_parti_tbl;
 static int g_bootldr_offset;
 
 /**
@@ -979,55 +979,54 @@ static int ipq_spl_populate_smem(void *ctx)
 #endif /* CONFIG_IPQ_TMEL_IPC_SUPPORT */
 
 	/*
-	 * Populate MIBIB Info if available
+	 * Update MIBIB partition table in SMEM only for NAND boot
 	 */
-	if (g_mibib_parti_ptr) {
-		/* Validate MIBIB partition table magic numbers and version */
-		if ((g_mibib_parti_ptr->magic1 != FLASH_PART_MAGIC1) ||
-		    (g_mibib_parti_ptr->magic2 != FLASH_PART_MAGIC2) ||
-		    (g_mibib_parti_ptr->version != FLASH_PARTITION_VERSION)) {
-			pr_err("Invalid MIBIB partition table detected, skipping SMEM population\n");
-			free(g_mibib_parti_ptr);
-			g_mibib_parti_ptr = NULL;
-			return -EINVAL;
-		}
+	if (*fltype != SMEM_BOOT_QSPI_NAND_FLASH)
+		goto out_skip_smem_mibib_update;
 
-		size = sizeof(struct flash_partition_table);
-		ret = smem_alloc(smem, -1, SMEM_AARM_PARTITION_TABLE, size);
-		if (ret) {
-			pr_err("Failed to alloc item: SMEM_AARM_PARTITION_TABLE (ret=%d)\n", ret);
-			free(g_mibib_parti_ptr);
-			g_mibib_parti_ptr = NULL;
-			return ret;
-		}
-
-		void *mibib_info = smem_get(smem, -1, SMEM_AARM_PARTITION_TABLE, &size);
-
-		if (!mibib_info) {
-			pr_err("Failed to get item: SMEM_AARM_PARTITION_TABLE\n");
-			free(g_mibib_parti_ptr);
-			g_mibib_parti_ptr = NULL;
-			return -ENOENT;
-		}
-
-		/* Verify size is sufficient for the copy operation */
-		if (size < sizeof(struct flash_partition_table)) {
-			pr_err("SMEM allocation too small for MIBIB partition table\n");
-			free(g_mibib_parti_ptr);
-			g_mibib_parti_ptr = NULL;
-			return -EINVAL;
-		}
-
-		/* Copy the partition table to SMEM */
-		memcpy(mibib_info, g_mibib_parti_ptr, sizeof(struct flash_partition_table));
-		printf("MIBIB partition table populated in SMEM\n");
-
-		/* Free the temporary allocation after copying to SMEM */
-		free(g_mibib_parti_ptr);
-		g_mibib_parti_ptr = NULL;
-	} else {
-		printf("No MIBIB partition table available to populate SMEM\n");
+	/*
+	 * Validate MIBIB partition table magic numbers and version
+	 * and populate MIBIB Info if valid.
+	 */
+	if ((g_mibib_parti_tbl.magic1 != FLASH_PART_MAGIC1) ||
+	    (g_mibib_parti_tbl.magic2 != FLASH_PART_MAGIC2) ||
+	    (g_mibib_parti_tbl.version != FLASH_PARTITION_VERSION)) {
+		pr_err("Invalid MIBIB partition table; skipping SMEM update\n");
+		goto out_skip_smem_mibib_update;
 	}
+
+	size = sizeof(struct flash_partition_table);
+	ret = smem_alloc(smem, -1, SMEM_AARM_PARTITION_TABLE, size);
+	if (ret) {
+		pr_err("SMEM AARM partition alloc failed (ret=%d)\n", ret);
+		return ret;
+	}
+
+	void *mibib_info = smem_get(smem, -1, SMEM_AARM_PARTITION_TABLE, &size);
+
+	if (!mibib_info) {
+		pr_err("Failed to get item: SMEM_AARM_PARTITION_TABLE\n");
+		return -ENOENT;
+	}
+
+	/*
+	 * Verify size is sufficient for the copy operation
+	 */
+	if (size < sizeof(struct flash_partition_table)) {
+		pr_err("SMEM allocation too small for MIBIB partition table\n");
+		return -EINVAL;
+	}
+
+	/*
+	 * Copy partition table to the SMEM
+	 */
+	memcpy(mibib_info,
+		&g_mibib_parti_tbl,
+		sizeof(struct flash_partition_table));
+
+	printf("MIBIB partition table populated in SMEM\n");
+
+out_skip_smem_mibib_update:
 
 	return 0;
 }
@@ -2236,30 +2235,64 @@ static u32 find_bootldr_partition(struct flash_partition_table *parti_ptr)
 int spl_nand_get_uboot_raw_page(void)
 {
 	struct mtd_info *mtd;
+	struct flash_partition_table *mibib_parti_ptr;
 
-	/* If bootloader offset is already calculated, return it directly */
+	/*
+	 * If bootloader offset is already calculated, return it directly
+	 */
 	if (g_bootldr_offset != 0)
 		return g_bootldr_offset;
 
-	/* Only retrieve MIBIB if it's not already saved */
-	if (!g_mibib_parti_ptr) {
-		/* Retrieve MIBIB */
-		g_mibib_parti_ptr = nand_retrieve_mibib();
+	/*
+	 * Retrieve MIBIB if invalid magic
+	 */
+	if ((g_mibib_parti_tbl.magic1 != FLASH_PART_MAGIC1) ||
+	    (g_mibib_parti_tbl.magic2 != FLASH_PART_MAGIC2) ||
+	    (g_mibib_parti_tbl.version != FLASH_PARTITION_VERSION)) {
+
+		/*
+		 * Retrieve MIBIB
+		 */
+		mibib_parti_ptr = nand_retrieve_mibib();
+		if (!mibib_parti_ptr) {
+			/*
+			 * Use default offset if MIBIB not found
+			 */
+#if defined(CONFIG_SYS_NAND_U_BOOT_OFFS)
+			g_bootldr_offset = CONFIG_SYS_NAND_U_BOOT_OFFS;
+#else
+			g_bootldr_offset = 0;
+#endif
+			printf("MIBIB not found, using default offset: 0x%X\n",
+				g_bootldr_offset);
+
+			return g_bootldr_offset;
+		}
+
+		/*
+		 * Store the MIBIB struct
+		 */
+		memcpy(&g_mibib_parti_tbl,
+			mibib_parti_ptr,
+			sizeof(struct flash_partition_table));
+
+		free(mibib_parti_ptr);
 	}
 
-	if (g_mibib_parti_ptr) {
-		/* Find BOOTLDR partition */
-		g_bootldr_offset = find_bootldr_partition(g_mibib_parti_ptr);
+	/*
+	 * Find BOOTLDR partition
+	 */
+	g_bootldr_offset = find_bootldr_partition(&g_mibib_parti_tbl);
 
-		/* Convert block offset to page offset */
-		mtd = get_nand_dev_by_index(0);
-		if (mtd)
-			g_bootldr_offset = g_bootldr_offset * (mtd->erasesize);
+	/*
+	 * Convert block offset to page offset
+	 */
+	mtd = get_nand_dev_by_index(0);
+	if (mtd)
+		g_bootldr_offset *= (mtd->erasesize);
 
-		printf("BOOTLDR partition found at page offset: %d\n", g_bootldr_offset);
-	} else {
-		printf("Failed to retrieve MIBIB, using default offset\n");
-	}
+	printf("BOOTLDR partition found at page offset: 0x%X\n",
+		g_bootldr_offset);
 
 	return g_bootldr_offset;
 }
