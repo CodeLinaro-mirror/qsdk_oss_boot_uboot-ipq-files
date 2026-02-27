@@ -32,6 +32,7 @@
 #define RCG_N_REG		0xc
 #define RCG_D_REG		0x10
 
+#define GCC_SWITCH_CORE_CMD_RCGR		0x000
 #define GCC_MAC0_TX_CMD_RCGR			0x078
 #define GCC_MAC0_RX_CMD_RCGR			0x094
 #define GCC_MAC1_TX_CMD_RCGR			0x0B4
@@ -133,7 +134,6 @@ static int qce2204_ahb_write(struct nsscc_qce2204_priv *priv, u32 reg, u32 val)
 	int ret;
 	struct udevice *bus = priv->mdio_bus;
 	int addr = 6;
-	u32 l_val = 0;
 
 	qce2204_split_addr(reg, &reg_low, &reg_mid, &reg_high);
 
@@ -145,11 +145,15 @@ static int qce2204_ahb_write(struct nsscc_qce2204_priv *priv, u32 reg, u32 val)
 		ret = dm_mdio_write(bus, addr, MDIO_DEVAD_NONE,
 				    (reg_low | BIT(2)), (val >> 16) & 0xffff);
 
-	ret = qce2204_ahb_read(priv, reg, &l_val);
-	if (!ret)
-		debug("## %s | %d | reg : 0x%x | val: 0x%x [%s]\n",
-		      __func__, __LINE__, reg, val,
-		      l_val == val ? "MATCH" : "NO-MATCH");
+	if (IS_ENABLED(CONFIG_DEBUG)) {
+		u32 l_val = 0;
+
+		if (!qce2204_ahb_read(priv, reg, &l_val))
+			debug("## %s | %d | reg : 0x%x | val: 0x%x [%s]\n",
+			      __func__, __LINE__, reg, val,
+			      l_val == val ? "MATCH" : "NO-MATCH");
+	}
+
 	return ret;
 }
 
@@ -332,6 +336,19 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 	int ret, div = 0, cdiv = 0, xgmii_dev = 0;
 
 	switch (clk->id) {
+	case QCE2204_NSSCC_SWITCH_CORE_CLK:
+		qce2204_clk_rcg_set_rate_v2(priv, GCC_SWITCH_CORE_CMD_RCGR, 0, 1, 0,
+					    1 << 8);
+		break;
+	case QCE2204_NSSCC_MAC0_TX_CLK:
+		qce2204_clk_rcg_set_rate_v2(priv, GCC_MAC0_TX_CMD_RCGR, 0, 1, 0,
+					    2 << 8);
+		break;
+	case QCE2204_NSSCC_MAC0_RX_CLK:
+		qce2204_clk_rcg_set_rate_v2(priv, GCC_MAC0_RX_CMD_RCGR, 0, 1, 0,
+					    1 << 8);
+		break;
+	case QCE2204_NSSCC_MAC1_TX_CLK:
 	case QCE2204_NSSCC_MAC1_SRDS1_CH0_TX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv,
 						&xgmii_dev);
@@ -344,6 +361,7 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 					  GCC_MAC1_SRDS1_CH0_XGMII_TX_DIV_CDIVR,
 					  xgmii_dev);
 		break;
+	case QCE2204_NSSCC_MAC2_TX_CLK:
 	case QCE2204_NSSCC_MAC2_SRDS1_CH1_TX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv,
 						&xgmii_dev);
@@ -356,6 +374,7 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 					  GCC_MAC2_SRDS1_CH1_XGMII_TX_DIV_CDIVR,
 					  xgmii_dev);
 		break;
+	case QCE2204_NSSCC_MAC3_TX_CLK:
 	case QCE2204_NSSCC_MAC3_SRDS1_CH2_TX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv,
 						&xgmii_dev);
@@ -368,6 +387,7 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 					  GCC_MAC3_SRDS1_CH2_XGMII_TX_DIV_CDIVR,
 					  xgmii_dev);
 		break;
+	case QCE2204_NSSCC_MAC4_TX_CLK:
 	case QCE2204_NSSCC_MAC4_SRDS1_CH3_TX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv,
 						&xgmii_dev);
@@ -381,6 +401,7 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 					  xgmii_dev);
 		break;
 
+	case QCE2204_NSSCC_MAC1_RX_CLK:
 	case QCE2204_NSSCC_MAC1_SRDS1_CH0_RX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv,
 						&xgmii_dev);
@@ -393,6 +414,7 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 					  GCC_MAC1_SRDS1_CH0_XGMII_RX_DIV_CDIVR,
 					  xgmii_dev);
 		break;
+	case QCE2204_NSSCC_MAC2_RX_CLK:
 	case QCE2204_NSSCC_MAC2_SRDS1_CH1_RX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv,
 						&xgmii_dev);
@@ -405,6 +427,7 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 					  GCC_MAC2_SRDS1_CH1_XGMII_RX_DIV_CDIVR,
 					  xgmii_dev);
 		break;
+	case QCE2204_NSSCC_MAC3_RX_CLK:
 	case QCE2204_NSSCC_MAC3_SRDS1_CH2_RX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv,
 						&xgmii_dev);
@@ -417,6 +440,7 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 					  GCC_MAC3_SRDS1_CH2_XGMII_RX_DIV_CDIVR,
 					  xgmii_dev);
 		break;
+	case QCE2204_NSSCC_MAC4_RX_CLK:
 	case QCE2204_NSSCC_MAC4_SRDS1_CH3_RX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv,
 						&xgmii_dev);
@@ -433,8 +457,9 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 	case QCE2204_NSSCC_AHB_CLK:
 		qce2204_clk_rcg_set_rate_v2(priv, GCC_AHB_CMD_RCGR, 0, 5, 0,
 					    2 << 8);
+		break;
 
-	case QCE2204_NSSCC_SRDS1_SYS_ARES:
+	case QCE2204_NSSCC_SRDS1_SYS_CLK:
 		qce2204_clk_rcg_set_rate_v2(priv, GCC_SYS_CMD_RCGR, 0, 3, 0, 0);
 		break;
 	default:
