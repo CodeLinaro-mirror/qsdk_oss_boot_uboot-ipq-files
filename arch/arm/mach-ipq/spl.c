@@ -58,6 +58,7 @@
 #include <nand.h>
 #include <u-boot/crc.h>
 #include <dm/device-internal.h>
+#include <linux/ipq-enable-all-clks.h>
 
 /*******************************************************************************
  * Globals constant & typedef
@@ -2115,6 +2116,10 @@ void board_init_f(ulong dummy)
 	}
 
 	preloader_console_init();
+
+#if defined(CONFIG_CLK_QCOM_ALL)
+	ipq_enable_all_clks();
+#endif
 
 	ipq_spl_boot_logs();
 

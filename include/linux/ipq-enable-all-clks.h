@@ -6,14 +6,259 @@
 #ifndef __IPQ_CLKS_OFFSETS_H__
 #define __IPQ_CLKS_OFFSETS_H__
 
+/* Return codes */
+#define HERMOSA_GCC_SUCCESS             0
+#define HERMOSA_GCC_ERROR              -1
+
+/* PLL Control Bits */
+#define PLL_MODE_LOCK_DET                           (1 << 31)
+#define PLL_MODE_ACTIVE_FLAG                        (1 << 30)
+#define PLL_MODE_OUTCTRL                            (1 << 0)
+#define PLL_MODE_BYPASSNL                           (1 << 1)
+#define PLL_MODE_RESET_N                            (1 << 2)
+
+/* RCGR Control Bits */
+#define RCGR_CMD_ROOT_OFF                           (1 << 31)
+#define RCGR_CMD_UPDATE                             (1 << 0)
+#define RCGR_CFG_SRC_SEL_SHIFT                      8
+#define RCGR_CFG_SRC_DIV_SHIFT                      0
+
+/* CBCR Control Bits */
+#define CBCR_CLK_OFF                                (1 << 31)
+#define CBCR_CLK_ENABLE                             (1 << 0)
+
 #define CLK_ENABLE						BIT(1)
 
+/* PLL Registers - GPLL0 */
+#define GCC_GPLL0_MODE                              (0x1820000)
+#define GCC_GPLL0_L_VAL                             (0x1820004)
+#define GCC_GPLL0_ALPHA_VAL                         (0x1820008)
+#define GCC_GPLL0_ALPHA_VAL_U                       (0x182000C)
+#define GCC_GPLL0_USER_CTL                          (0x1820018)
+#define GCC_GPLL0_USER_CTL_U                        (0x182001C)
+#define GCC_GPLL0_CONFIG_CTL                        (0x1820020)
+#define GCC_GPLL0_TEST_CTL                          (0x1820010)
+#define GCC_GPLL0_TEST_CTL_U                        (0x1820014)
+#define GCC_GPLL0_STATUS                            (0x1820024)
+
+/* PLL Registers - GPLL2 */
+#define GCC_GPLL2_MODE                              (0x1821000)
+#define GCC_GPLL2_L_VAL                             (0x1821004)
+#define GCC_GPLL2_ALPHA_VAL                         (0x1821008)
+#define GCC_GPLL2_ALPHA_VAL_U                       (0x182100C)
+#define GCC_GPLL2_USER_CTL                          (0x1821018)
+#define GCC_GPLL2_USER_CTL_U                        (0x182101C)
+#define GCC_GPLL2_CONFIG_CTL                        (0x1821020)
+#define GCC_GPLL2_TEST_CTL                          (0x1821010)
+#define GCC_GPLL2_TEST_CTL_U                        (0x1821014)
+#define GCC_GPLL2_STATUS                            (0x1821024)
+
+/* PLL Registers - GPLL4 */
+#define GCC_GPLL4_MODE                              (0x1822000)
+#define GCC_GPLL4_L_VAL                             (0x1822004)
+#define GCC_GPLL4_ALPHA_VAL                         (0x1822008)
+#define GCC_GPLL4_ALPHA_VAL_U                       (0x182200C)
+#define GCC_GPLL4_USER_CTL                          (0x1822018)
+#define GCC_GPLL4_USER_CTL_U                        (0x182201C)
+#define GCC_GPLL4_CONFIG_CTL                        (0x1822020)
+#define GCC_GPLL4_TEST_CTL                          (0x1822010)
+#define GCC_GPLL4_TEST_CTL_U                        (0x1822014)
+#define GCC_GPLL4_STATUS                            (0x1822024)
+
+/* PLL Registers - GPLL6 */
+#define GCC_GPLL6_MODE                              (0x181F000)
+#define GCC_GPLL6_L_VAL                             (0x181F004)
+#define GCC_GPLL6_ALPHA_VAL                         (0x181F008)
+#define GCC_GPLL6_ALPHA_VAL_U                       (0x181F00C)
+#define GCC_GPLL6_USER_CTL                          (0x181F018)
+#define GCC_GPLL6_USER_CTL_U                        (0x181F01C)
+#define GCC_GPLL6_CONFIG_CTL                        (0x181F020)
+#define GCC_GPLL6_TEST_CTL                          (0x181F010)
+#define GCC_GPLL6_TEST_CTL_U                        (0x181F014)
+#define GCC_GPLL6_STATUS                            (0x181F024)
+
+/* Voter Registers */
+#define GCC_APCS_GPLL_ENA_VOTE                      (0x180B000)
+#define GCC_APCS_CLOCK_SLEEP_ENA_VOTE               (0x180B008)
+#define GCC_APCS_CLOCK_BRANCH_ENA_VOTE              (0x180B004)
+#define GCC_APCS_HYP_CLOCK_BRANCH_ENA_VOTE          (0x180D004)
+#define GCC_APCS_TZ_CLOCK_BRANCH_ENA_VOTE           (0x180C004)
+#define GCC_SPARE_CLOCK_BRANCH_ENA_VOTE             (0x1800004)
+#define GCC_TME_CLOCK_BRANCH_ENA_VOTE               (0x182F000)
+
+/* RCGR Registers - QUPV3 */
+#define GCC_QUPV3_2X_CORE_CMD_RCGR                  (0x180100C)
+#define GCC_QUPV3_2X_CORE_CFG_RCGR                  (0x1801010)
+#define GCC_QUPV3_WRAP_SE0_CMD_RCGR                 (0x1804004)
+#define GCC_QUPV3_WRAP_SE0_CFG_RCGR                 (0x1804008)
+#define GCC_QUPV3_WRAP_SE0_M                        (0x180400C)
+#define GCC_QUPV3_WRAP_SE0_N                        (0x1804010)
+#define GCC_QUPV3_WRAP_SE0_D                        (0x1804014)
+#define GCC_QUPV3_WRAP_SE1_CMD_RCGR                 (0x1805004)
+#define GCC_QUPV3_WRAP_SE1_CFG_RCGR                 (0x1805008)
+#define GCC_QUPV3_WRAP_SE1_M                        (0x180500C)
+#define GCC_QUPV3_WRAP_SE1_N                        (0x1805010)
+#define GCC_QUPV3_WRAP_SE1_D                        (0x1805014)
+#define GCC_QUPV3_WRAP_SE2_CMD_RCGR                 (0x1802018)
+#define GCC_QUPV3_WRAP_SE2_CFG_RCGR                 (0x180201C)
+#define GCC_QUPV3_WRAP_SE2_M                        (0x1802020)
+#define GCC_QUPV3_WRAP_SE2_N                        (0x1802024)
+#define GCC_QUPV3_WRAP_SE2_D                        (0x1802028)
+#define GCC_QUPV3_WRAP_SE3_CMD_RCGR                 (0x1802034)
+#define GCC_QUPV3_WRAP_SE3_CFG_RCGR                 (0x1802038)
+#define GCC_QUPV3_WRAP_SE3_M                        (0x180203C)
+#define GCC_QUPV3_WRAP_SE3_N                        (0x1802040)
+#define GCC_QUPV3_WRAP_SE3_D                        (0x1802044)
+#define GCC_QUPV3_WRAP_SE4_CMD_RCGR                 (0x1803018)
+#define GCC_QUPV3_WRAP_SE4_CFG_RCGR                 (0x180301C)
+#define GCC_QUPV3_WRAP_SE4_M                        (0x1803020)
+#define GCC_QUPV3_WRAP_SE4_N                        (0x1803024)
+#define GCC_QUPV3_WRAP_SE4_D                        (0x1803028)
+#define GCC_QUPV3_WRAP_SE5_CMD_RCGR                 (0x1803034)
+#define GCC_QUPV3_WRAP_SE5_CFG_RCGR                 (0x1803038)
+#define GCC_QUPV3_WRAP_SE5_M                        (0x180303C)
+#define GCC_QUPV3_WRAP_SE5_N                        (0x1803040)
+#define GCC_QUPV3_WRAP_SE5_D                        (0x1803044)
+
+/* RCGR Registers - GP */
+#define GCC_GP1_CMD_RCGR                            (0x1808004)
+#define GCC_GP1_CFG_RCGR                            (0x1808008)
+#define GCC_GP1_M                                   (0x180800C)
+#define GCC_GP1_N                                   (0x1808010)
+#define GCC_GP1_D                                   (0x1808014)
+#define GCC_GP2_CMD_RCGR                            (0x1809004)
+#define GCC_GP2_CFG_RCGR                            (0x1809008)
+#define GCC_GP2_M                                   (0x180900C)
+#define GCC_GP2_N                                   (0x1809010)
+#define GCC_GP2_D                                   (0x1809014)
+#define GCC_GP3_CMD_RCGR                            (0x180A004)
+#define GCC_GP3_CFG_RCGR                            (0x180A008)
+#define GCC_GP3_M                                   (0x180A00C)
+#define GCC_GP3_N                                   (0x180A010)
+#define GCC_GP3_D                                   (0x180A014)
+
+/* RCGR Registers - NSS */
+#define GCC_NSSNOC_MEMNOC_BFDCD_CMD_RCGR            (0x1817004)
+#define GCC_NSSNOC_MEMNOC_BFDCD_CFG_RCGR            (0x1817008)
+#define GCC_NSS_TS_CMD_RCGR                         (0x1817088)
+#define GCC_NSS_TS_CFG_RCGR                         (0x181708C)
+#define GCC_UNIPHY_SYS_CMD_RCGR                     (0x1817090)
+#define GCC_UNIPHY_SYS_CFG_RCGR                     (0x1817094)
+
+/* RCGR Registers - DDRSS */
+#define GCC_DDRSS_SMS_SLOW_CMD_RCGR                 (0x1819030)
+#define GCC_DDRSS_SMS_SLOW_CFG_RCGR                 (0x1819034)
+
+/* RCGR Registers - SEC_CTRL */
+#define GCC_ACC_CMD_RCGR                            (0x181A004)
+#define GCC_ACC_CFG_RCGR                            (0x181A008)
+#define GCC_SEC_CTRL_CMD_RCGR                       (0x181A00C)
+#define GCC_SEC_CTRL_CFG_RCGR                       (0x181A010)
+
+/* RCGR Registers - ADSS */
+#define GCC_ADSS_PWM_CMD_RCGR                       (0x181C004)
+#define GCC_ADSS_PWM_CFG_RCGR                       (0x181C008)
+
+/* RCGR Registers - APSS */
+#define GCC_APSS_AXI_CMD_RCGR                       (0x1824004)
+#define GCC_APSS_AXI_CFG_RCGR                       (0x1824008)
+#define GCC_APSS_AHB_CMD_RCGR                       (0x182400C)
+#define GCC_APSS_AHB_CFG_RCGR                       (0x1824010)
+
+/* RCGR Registers - LPASS */
+#define GCC_LPASS_SWAY_CMD_RCGR                     (0x1827004)
+#define GCC_LPASS_SWAY_CFG_RCGR                     (0x1827008)
+#define GCC_LPASS_AXIM_CMD_RCGR                     (0x182700C)
+#define GCC_LPASS_AXIM_CFG_RCGR                     (0x1827010)
+
+/* RCGR Registers - PCIe */
+#define GCC_PCIE_AUX_CMD_RCGR                       (0x1828004)
+#define GCC_PCIE_AUX_CFG_RCGR                       (0x1828008)
+#define GCC_PCIE_AUX_M                              (0x182800C)
+#define GCC_PCIE_AUX_N                              (0x1828010)
+#define GCC_PCIE_AUX_D                              (0x1828014)
+#define GCC_PCIE0_AXI_M_CMD_RCGR                    (0x1828018)
+#define GCC_PCIE0_AXI_M_CFG_RCGR                    (0x182801C)
+#define GCC_PCIE0_AXI_S_CMD_RCGR                    (0x1828020)
+#define GCC_PCIE0_AXI_S_CFG_RCGR                    (0x1828024)
+#define GCC_PCIE0_RCHNG_CMD_RCGR                    (0x1828028)
+#define GCC_PCIE0_RCHNG_CFG_RCGR                    (0x182802C)
+#define GCC_PCIE1_AXI_M_CMD_RCGR                    (0x1829018)
+#define GCC_PCIE1_AXI_M_CFG_RCGR                    (0x182901C)
+#define GCC_PCIE1_AXI_S_CMD_RCGR                    (0x1829020)
+#define GCC_PCIE1_AXI_S_CFG_RCGR                    (0x1829024)
+#define GCC_PCIE1_RCHNG_CMD_RCGR                    (0x1829028)
+#define GCC_PCIE1_RCHNG_CFG_RCGR                    (0x182902C)
+
+/* RCGR Registers - USB */
+#define GCC_USB0_MASTER_CMD_RCGR                    (0x182C004)
+#define GCC_USB0_MASTER_CFG_RCGR                    (0x182C008)
+#define GCC_USB0_MASTER_M                           (0x182C00C)
+#define GCC_USB0_MASTER_N                           (0x182C010)
+#define GCC_USB0_MASTER_D                           (0x182C014)
+#define GCC_USB0_AUX_CMD_RCGR                       (0x182C018)
+#define GCC_USB0_AUX_CFG_RCGR                       (0x182C01C)
+#define GCC_USB0_AUX_M                              (0x182C020)
+#define GCC_USB0_AUX_N                              (0x182C024)
+#define GCC_USB0_AUX_D                              (0x182C028)
+#define GCC_USB0_MOCK_UTMI_CMD_RCGR                 (0x182C02C)
+#define GCC_USB0_MOCK_UTMI_CFG_RCGR                 (0x182C030)
+#define GCC_USB0_MOCK_UTMI_M                        (0x182C034)
+#define GCC_USB0_MOCK_UTMI_N                        (0x182C038)
+#define GCC_USB0_MOCK_UTMI_D                        (0x182C03C)
+
+/* RCGR Registers - QDSS */
+#define GCC_QDSS_AT_CMD_RCGR                        (0x182D004)
+#define GCC_QDSS_AT_CFG_RCGR                        (0x182D008)
+#define GCC_QDSS_STM_CMD_RCGR                       (0x182D00C)
+#define GCC_QDSS_STM_CFG_RCGR                       (0x182D010)
+#define GCC_QDSS_TRACECLKIN_CMD_RCGR                (0x182D014)
+#define GCC_QDSS_TRACECLKIN_CFG_RCGR                (0x182D018)
+#define GCC_QDSS_TSCTR_CMD_RCGR                     (0x182D01C)
+#define GCC_QDSS_TSCTR_CFG_RCGR                     (0x182D020)
+
+/* RCGR Registers - NOC */
+#define GCC_SYSTEM_NOC_BFDCD_CMD_RCGR               (0x182E004)
+#define GCC_SYSTEM_NOC_BFDCD_CFG_RCGR               (0x182E008)
+#define GCC_PCNOC_BFDCD_CMD_RCGR                    (0x1831004)
+#define GCC_PCNOC_BFDCD_CFG_RCGR                    (0x1831008)
+
+/* RCGR Registers - QPIC */
+#define GCC_QPIC_IO_MACRO_CMD_RCGR                  (0x1832004)
+#define GCC_QPIC_IO_MACRO_CFG_RCGR                  (0x1832008)
+#define GCC_QPIC_CMD_RCGR                           (0x1832020)
+#define GCC_QPIC_CFG_RCGR                           (0x1832024)
+
+/* RCGR Registers - SDCC */
+#define GCC_SDCC1_APPS_CMD_RCGR                     (0x1833004)
+#define GCC_SDCC1_APPS_CFG_RCGR                     (0x1833008)
+#define GCC_SDCC1_APPS_M                            (0x183300C)
+#define GCC_SDCC1_APPS_N                            (0x1833010)
+#define GCC_SDCC1_APPS_D                            (0x1833014)
+#define GCC_SDCC1_ICE_CORE_CMD_RCGR                 (0x1833018)
+#define GCC_SDCC1_ICE_CORE_CFG_RCGR                 (0x183301C)
+#define GCC_SDCC1_ICE_CORE_M                        (0x1833020)
+#define GCC_SDCC1_ICE_CORE_N                        (0x1833024)
+#define GCC_SDCC1_ICE_CORE_D                        (0x1833028)
+
+/* RCGR Registers - XO */
+#define GCC_XO_CMD_RCGR                             (0x1834004)
+#define GCC_XO_CFG_RCGR                             (0x1834008)
+
+/* RCGR Registers - APC0 */
+#define GCC_APC0_VOLTAGE_DROOP_DETECTOR_CMD_RCGR    (0x1838004)
+#define GCC_APC0_VOLTAGE_DROOP_DETECTOR_CFG_RCGR    (0x1838008)
+
+/* RCGR Registers - RBCPR */
+#define GCC_RBCPR_CMD_RCGR                          (0x1839004)
+#define GCC_RBCPR_CFG_RCGR                          (0x1839008)
+
+/* RCGR Registers - PON */
+#define GCC_PON_TM2X_CMD_RCGR                       (0x183C004)
+#define GCC_PON_TM2X_CFG_RCGR                       (0x183C008)
+
+
 /* GCC Clocks */
-#define GCC_APCS_CLOCK_BRANCH_ENA_VOTE                     	(0x180B004)
-#define GCC_APCS_HYP_CLOCK_BRANCH_ENA_VOTE                 	(0x180D004)
-#define GCC_APCS_TZ_CLOCK_BRANCH_ENA_VOTE                  	(0x180C004)
-#define GCC_SPARE_CLOCK_BRANCH_ENA_VOTE                    	(0x1800004)
-#define GCC_TME_CLOCK_BRANCH_ENA_VOTE                      	(0x182F000)
 #define GCC_ADSS_PWM_CBCR                                  	(0x181C00C)
 #define GCC_AHB_CBCR                                       	(0x1834024)
 #define GCC_APC0_VOLTAGE_DROOP_DETECTOR_GPLL0_CBCR         	(0x183800C)
