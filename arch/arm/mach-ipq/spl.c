@@ -1365,6 +1365,16 @@ static int ipq_spl_xcfg_fixup(void *ctx)
 	pctx->if_tbl.if_table_entries[entry_idx].attributes = 0;
 	pctx->if_tbl.num_entries = entry_idx + 1;
 
+	/**
+	 * Initialize the QCLIB Region
+	 *
+	 * Note: The last 10 KB is reserved for QCCONFIG
+	 * and must not be cleared.
+	 */
+	memset((void *)IPQ_SPL_QCLIB_TEXT_BASE,
+		0x0,
+		IPQ_SPL_QCLIB_TEXT_SIZE - (SZ_8K + SZ_2K));
+
 	return 0;
 }
 
