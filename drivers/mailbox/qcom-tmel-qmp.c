@@ -1063,7 +1063,8 @@ static int tmel_qmp_startup(struct mbox_chan *chan,
  */
 static int tmel_qmp_shutdown(struct mbox_chan *chan)
 {
-	struct qmp_device *mdev = dev_get_priv(chan->dev);
+	struct tmel *tdev = dev_get_priv(chan->dev);
+	struct qmp_device *mdev = tdev->mdev;
 
 	if (!mdev)
 		return -EINVAL;
@@ -1072,6 +1073,8 @@ static int tmel_qmp_shutdown(struct mbox_chan *chan)
 		mdev->local_state = LOCAL_DISCONNECTING;
 		mdev->mcore.bits.ch_state = 0;
 		tmel_qmp_send_irq(mdev);
+
+		tmel_check_for_irq(tdev);
 	}
 
 	return 0;
