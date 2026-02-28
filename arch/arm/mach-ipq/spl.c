@@ -2379,11 +2379,12 @@ static struct flash_partition_table *nand_retrieve_mibib(void)
 		new_mibib_block = copy1_blockno;
 	else if (!copy1_valid && copy2_valid)
 		new_mibib_block = copy2_blockno;
-	else if (copy1_valid && copy2_valid)
+	else if (copy1_valid && copy2_valid) {
 		if (copy1_age > copy2_age)
 			new_mibib_block = copy1_blockno;
 		else
 			new_mibib_block = copy2_blockno;
+	}
 
 	if (new_mibib_block == -1) {
 		printf("Failed to determine valid MIBIB block\n");
