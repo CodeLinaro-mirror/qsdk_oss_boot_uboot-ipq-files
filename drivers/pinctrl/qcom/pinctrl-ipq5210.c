@@ -24,6 +24,10 @@ enum ipq5210_functions {
 	msm_mux_qspi_clk,
 	msm_mux_qspi_cs,
 	msm_mux_qspi_data,
+	msm_mux_mdc_mst,
+	msm_mux_mdc_slv,
+	msm_mux_mdio_mst,
+	msm_mux_mdio_slv,
 	msm_mux_NA,
 };
 
@@ -39,6 +43,10 @@ static const struct pinctrl_function msm_pinctrl_functions[] = {
 	MSM_PIN_FUNCTION(qspi_clk),
 	MSM_PIN_FUNCTION(qspi_cs),
 	MSM_PIN_FUNCTION(qspi_data),
+	MSM_PIN_FUNCTION(mdc_mst),
+	MSM_PIN_FUNCTION(mdc_slv),
+	MSM_PIN_FUNCTION(mdio_mst),
+	MSM_PIN_FUNCTION(mdio_slv),
 };
 
 typedef unsigned int msm_pin_function[10];
@@ -63,10 +71,14 @@ static const msm_pin_function ipq5210_pin_functions[] = {
 	PINGROUP(3, sdc_data, qspi_data, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(4, sdc_cmd, qspi_cs, NA, NA, NA, NA, NA, NA,NA),
 	PINGROUP(5, sdc_clk, qspi_clk, NA, NA, NA, NA, NA, NA, NA),
+	PINGROUP(24, gpio, NA, NA, NA, NA, NA, NA, NA, NA),
+	PINGROUP(26, mdc_mst, NA, NA, NA, NA, NA, NA, NA, NA),
+	PINGROUP(27, mdio_mst, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(34, NA, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(35, NA, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(38, uart1, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(39, uart1, NA, NA, NA, NA, NA, NA, NA, NA),
+	PINGROUP(45, gpio, NA, NA, NA, NA, NA, NA, NA, NA),
 };
 
 static const char *ipq5210_get_function_name(struct udevice *dev,
