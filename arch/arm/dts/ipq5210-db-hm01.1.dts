@@ -41,6 +41,26 @@
 			perst-gpios = <&tlmm 29 GPIO_ACTIVE_LOW>;
 			status = "okay";
 		};
+
+		mdio: mdio@90000 {
+			status = "okay";
+			phy4: phy@8 {
+				phy-reset-gpio = <&tlmm 45 0>;
+				phy_addr = <8>;
+				phy_type = <QCA81xx_PHY_TYPE>;
+				id = <5>;
+				uniphy_id = <1>;
+				uniphy_type = <1>;
+				xgmac;
+			};
+		};
+
+		ess_instance: ess-instance {
+			pinctrl-names = "default";
+			pinctrl-0 = <&phy_rst_pinmux>;
+			phy-handle0 = <&phy4>;
+			status = "okay";
+		};
 	};
 };
 
@@ -62,6 +82,15 @@
 			drive-strength = <6>;
 			bias-pull-down;
 			output-low;
+		};
+	};
+
+	phy_rst_pinmux: phy_rst {
+		qti_laguna0_rst {
+			pins = "gpio45";
+			drive-strength = <2>;
+			bias-pull-up;
+			output-high;
 		};
 	};
 };

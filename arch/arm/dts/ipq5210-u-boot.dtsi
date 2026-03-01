@@ -460,8 +460,14 @@
 			bridge_mode;
 			status = "disabled";
 
-			assigned-clocks = <&nsscc NSS_CC_PPE_SWITCH_CFG_CLK>;
-			assigned-clock-rates = <429000000>;
+			assigned-clocks = <&nsscc NSS_CC_PPE_SWITCH_CFG_CLK>,
+					  <&gcc GCC_NSSNOC_NSSCC_CLK>,
+					  <&nsscc NSS_CC_EIP_BFDCD_CLK>,
+					  <&nsscc NSS_CC_CFG_CLK>;
+			assigned-clock-rates = <429000000>,
+					       <429000000>,
+					       <429000000>,
+					       <100000000>;
 
 			clocks = <&gcc GCC_IM_SLEEP_CLK>,
 				<&gcc GCC_CMN_12GPLL_AHB_CLK>,
@@ -1030,16 +1036,16 @@
 	mdio_pins: mdio-state {
 		mux_0 {
 			pins = "gpio26";
-			function = "mdc";
-			drive-strength = <6>;
-			bias-pull-down;
+			function = "mdc_mst";
+			drive-strength = <8>;
+			bias-pull-up;
 		};
 
 		mux_1 {
 			pins = "gpio27";
-			function = "mdio";
-			drive-strength = <6>;
-			bias-pull-down;
+			function = "mdio_mst";
+			drive-strength = <8>;
+			bias-pull-up;
 		};
 	};
 };
@@ -1101,6 +1107,7 @@
 			     "qcom,geni-spi-fw-v1";
 		reg = <0 0x1a80000 0 0x4000>;
 		reg-names = "se_phys";
+		status = "okay";
 	};
 
 	i2c0: i2c@1a88000 {
