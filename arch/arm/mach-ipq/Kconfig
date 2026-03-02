@@ -51,6 +51,17 @@ config SPL_TEXT_SIZE
 	help
 	  This option defines the size of the u-boot SPL text in SRAM region.
 
+config SPL_DDR2_MEM_BASE
+       bool "Enable DDR2 memory region for SPL"
+       depends on SPL
+       default n
+       help
+         This option enables a second DDR memory region in the SPL memory map.
+         When enabled, the SPL will configure MMU mappings for an additional
+         DDR region at a higher address space (0x800000000). This is useful
+         for platforms with extended memory configurations that require
+         access to memory beyond the primary DDR region.
+
 config ARCH_32BIT_SUPPORT
 	bool "IPQSOC 32-bit support"
 	select CPU_V7A
