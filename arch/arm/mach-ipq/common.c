@@ -1515,7 +1515,7 @@ int ipq_board_late_init(void)
 
 	update_board_type();
 
-	if (SZ_256M == gd->ram_size && CONFIG_SYS_LOAD_ADDR > SZ_256M)
+	if (SZ_256M >= gd->ram_size && CONFIG_SYS_LOAD_ADDR > SZ_256M)
 		g_load_addr = CFG_SYS_SDRAM_BASE + SZ_64M;
 	else
 		g_load_addr = CONFIG_SYS_LOAD_ADDR;
