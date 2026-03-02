@@ -161,12 +161,12 @@
 #define GCC_UNIPHY1_SYS_CBCR			(0x17058)
 #define GCC_UNIPHY2_SYS_CBCR			(0x17068)
 
-#define GCC_NSSNOC_MEMNOC_BFDCD_CMD_RCGR	(0x17004)
 #define GCC_QDSS_AT_CMD_RCGR			(0x2D004)
 #define GCC_NSSNOC_SNOC_CMD_RCGR		(0x2E008)
 #define GCC_UNIPHY_SYS_CMD_RCGR			(0x17094)
 /* Ethernet related clocks */
 #define GCC_NSSNOC_MEMNOC_BFDCD_CMD_RCGR	(0x17004)
+#define NSS_CC_EIP_BFDCD_CMD_RCGR		(0x006A8)
 #define NSS_CC_PPE_CMD_RCGR			(0x003EC)
 #define NSS_CC_PPE_CFG_RCGR			(0x003F0)
 #define NSS_CC_CFG_CMD_RCGR			(0x0070C)
@@ -430,6 +430,24 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 		clk_rcg_set_rate(priv->base, NSS_CC_PPE_CMD_RCGR, 1,
 				 (6 << 8)); /* CMN_PLL_NSS_CLK_429M source */
 		break;
+	case NSS_CC_CFG_CLK:
+		/* NSS_CC_PON: 429 MHz)*/
+		/* Rate: 429 MHz from CMN_PLL_NSS_CLK_429M */
+		clk_rcg_set_rate(priv->base, NSS_CC_CFG_CMD_RCGR, 0x8,
+				 (2 << 8)); /* 100M source */
+		break;
+	case GCC_NSSNOC_NSSCC_CLK:
+		/* NSS_CC_PON: 429 MHz)*/
+		/* Rate: 429 MHz from CMN_PLL_NSS_CLK_429M */
+		clk_rcg_set_rate(priv->base, GCC_NSSNOC_MEMNOC_BFDCD_CMD_RCGR,
+				 1, (1 << 8)); /* 429M source */
+		break;
+	case NSS_CC_EIP_BFDCD_CLK:
+		/* NSS_CC_PON: 429 MHz)*/
+		/* Rate: 429 MHz from CMN_PLL_NSS_CLK_429M */
+		clk_rcg_set_rate(priv->base, NSS_CC_EIP_BFDCD_CMD_RCGR,
+				 1, CMN_PLL_NSS_CLK_429M); /* 429M source */
+		break;
 	case NSS_CC_PORT1_RX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
 		if (ret < 0)
@@ -558,6 +576,30 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 				    0, div, cdiv,
 				    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
 		break;
+	case NSS_CC_UNIPHY_PORT1_RX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT1_TX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT2_RX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT2_TX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT3_RX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT3_TX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT4_RX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT4_TX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT5_RX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT5_TX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT6_RX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT6_TX_CLK:
+		fallthrough;
 	case UNIPHY0_NSS_RX_CLK:
 		fallthrough;
 	case UNIPHY0_NSS_TX_CLK:

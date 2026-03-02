@@ -555,12 +555,12 @@ static void ppe_uniphy_usxgmii_mode_set(struct port_info *port)
 	ppe_uniphy_reset(port, false, true);
 	mdelay(RESET_DELAY);
 
-	writel(uniphy_mode_xpcs_autoneg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
-
 	ppe_uniphy_reset(port, true, true);
 	mdelay(RESET_DELAY);
 	ppe_uniphy_reset(port, true, false);
 	mdelay(RESET_DELAY);
+
+	writel(uniphy_mode_xpcs_autoneg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
 
 	ppe_uniphy_calibration(port);
 	ppe_uniphy_reset(port, false, false);
@@ -604,16 +604,16 @@ static void ppe_uniphy_uqxgmii_mode_set(struct port_info *port)
 	ppe_uniphy_reset(port, false, true);
 	mdelay(RESET_DELAY);
 
+	ppe_uniphy_reset(port, true, true);
+	mdelay(RESET_DELAY);
+	ppe_uniphy_reset(port, true, false);
+	mdelay(RESET_DELAY);
+
 	writel(uniphy_mode_xpcs_autoneg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
 
 	reg_value = readl(base + UNIPHYQP_USXG_OPITON1);
 	reg_value |= GMII_SRC_SEL;
 	writel(reg_value, base + UNIPHYQP_USXG_OPITON1);
-
-	ppe_uniphy_reset(port, true, true);
-	mdelay(RESET_DELAY);
-	ppe_uniphy_reset(port, true, false);
-	mdelay(RESET_DELAY);
 
 	ppe_uniphy_calibration(port);
 	ppe_uniphy_reset(port, false, false);
@@ -4105,8 +4105,6 @@ static int ipq_eth_port_set_up(struct ipq_eth_dev *priv,
 {
 	int mac_speed, i, rate = 0;
 	int ret = 0;
-	char clk_name[64];
-	struct clk pclk;
 
 	switch (port->cur_speed) {
 	case 100:
@@ -4148,22 +4146,13 @@ static int ipq_eth_port_set_up(struct ipq_eth_dev *priv,
 		/* Configure RX rate clock if available */
 		if (port->rx_clk_rate.dev) {
 			/* Get parent clock for RX rate */
-			ret = snprintf(clk_name, sizeof(clk_name), "uniphy%d_nss_rx_clk",
-				       port->uniphy_id);
-			if (ret < 0 || ret >= sizeof(clk_name))
-				goto fail;
-
-			ret = clk_get_by_name(priv->dev, clk_name, &pclk);
-			if (ret)
-				goto fail;
-
 			if (port->uniphy_mode == PORT_WRAPPER_PSGMII ||
 			    port->uniphy_mode == PORT_WRAPPER_SGMII0_RGMII4)
-				clk_set_rate(&pclk, CLK_125_MHZ);
+				clk_set_rate(&port->rx_clk, CLK_125_MHZ);
 			else
-				clk_set_rate(&pclk, CLK_312_5_MHZ);
+				clk_set_rate(&port->rx_clk, CLK_312_5_MHZ);
 
-			ret = clk_set_parent(&port->rx_clk_rate, &pclk);
+			ret = clk_set_parent(&port->rx_clk_rate, &port->rx_clk);
 			if (ret)
 				goto fail;
 
@@ -4173,16 +4162,13 @@ static int ipq_eth_port_set_up(struct ipq_eth_dev *priv,
 		/* Configure TX rate clock if available */
 		if (port->tx_clk_rate.dev) {
 			/* Get parent clock for TX rate */
-			ret = snprintf(clk_name, sizeof(clk_name), "uniphy%d_nss_tx_clk",
-				       port->uniphy_id);
-			if (ret < 0 || ret >= sizeof(clk_name))
-				goto fail;
+			if (port->uniphy_mode == PORT_WRAPPER_PSGMII ||
+			    port->uniphy_mode == PORT_WRAPPER_SGMII0_RGMII4)
+				clk_set_rate(&port->tx_clk, CLK_125_MHZ);
+			else
+				clk_set_rate(&port->tx_clk, CLK_312_5_MHZ);
 
-			ret = clk_get_by_name(priv->dev, clk_name, &pclk);
-			if (ret)
-				goto fail;
-
-			ret = clk_set_parent(&port->tx_clk_rate, &pclk);
+			ret = clk_set_parent(&port->tx_clk_rate, &port->tx_clk);
 			if (ret)
 				goto fail;
 
@@ -4588,11 +4574,9 @@ static void ipq_eth_phy_hw_reset(struct gpio_desc *gpio)
 
 	data = dm_gpio_get_value(gpio);
 	data |= BIT(1);
-	dm_gpio_set_value(gpio, data);
-	if (IS_ENABLED(CONFIG_PHY_AQUANTIA))
+	dm_gpio_set_value(gpio, 0);
 		mdelay(500);
-	else
-		mdelay(100);
+	dm_gpio_set_value(gpio, data);
 }
 
 #ifdef CONFIG_PHY_QCA_8X8X
@@ -4735,7 +4719,7 @@ static int ipq_eth_probe(struct udevice *dev)
 	struct reset_ctl_bulk resets;
 	int clk_itr, clk_cnt, ret, i, configured = 0;
 	const char **clk_names = NULL;
-#ifdef CONFIG_PHY_QCA_8X8X
+#if defined(CONFIG_PHY_QCA_8X8X) || defined(CONFIG_PHY_QCE_1204)
 	int phy_no = 0;
 #endif
 
@@ -4940,14 +4924,15 @@ static int ipq_eth_probe(struct udevice *dev)
 		if (ofnode_valid(port->node))
 			port->phydev->node = port->node;
 
-#ifdef CONFIG_PHY_QCA_8X8X
+#if defined(CONFIG_PHY_QCA_8X8X) || defined(CONFIG_PHY_QCE_1204)
 		/*
 		 * configure UQXGMII for pure PHY mode since MHT PHY requires
 		 * uniphy pre-init before configuring uniphy mode, which has
 		 * to be configured by default to UQXGMII mode regardless of
 		 * speed link up.
 		 */
-		if (port->phy_id == QCA8x8x_PHY_TYPE) {
+		if (port->phy_id == QCA8x8x_PHY_TYPE ||
+			port->phy_id == QCE1204_PHY_TYPE) {
 			port->uniphy_mode = PORT_WRAPPER_UQXGMII;
 			port->cur_uniphy_mode = PORT_WRAPPER_UQXGMII;
 			port->gmac_type = XGMAC;
