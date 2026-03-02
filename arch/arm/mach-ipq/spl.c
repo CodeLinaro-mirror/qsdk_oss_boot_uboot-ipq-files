@@ -1182,7 +1182,7 @@ static int ipq_spl_populate_smem(void *ctx)
 	    (g_mibib_parti_tbl.magic2 != FLASH_PART_MAGIC2) ||
 	    (g_mibib_parti_tbl.version != FLASH_PARTITION_VERSION)) {
 		pr_err("Invalid MIBIB partition table; skipping SMEM update\n");
-		goto out_skip_smem_mibib_update;
+		return -EINVAL;
 	}
 
 	size = sizeof(struct flash_partition_table);
@@ -1215,6 +1215,57 @@ static int ipq_spl_populate_smem(void *ctx)
 		sizeof(struct flash_partition_table));
 
 	printf("MIBIB partition table populated in SMEM\n");
+
+	/*
+	 * Populate flash block size and density for NAND
+	 */
+	struct mtd_info *mtd = get_nand_dev_by_index(0);
+
+	if (!mtd) {
+		pr_err("Failed to get NAND device for flash info\n");
+		return -ENODEV;
+	}
+
+	/*
+	 * Populate flash_block_size
+	 */
+	size = sizeof(uint32_t);
+	ret = smem_alloc(smem, -1, SMEM_BOOT_FLASH_BLOCK_SIZE, size);
+	if (ret && ret != -EEXIST) {
+		pr_err("Failed to alloc SMEM_BOOT_FLASH_BLOCK_SIZE (ret=%d)\n",
+			ret);
+		return ret;
+	}
+
+	uint32_t *flash_block_size = (uint32_t *)smem_get(smem, -1,
+						SMEM_BOOT_FLASH_BLOCK_SIZE, &size);
+	if (!flash_block_size) {
+		pr_err("Failed to get item: SMEM_BOOT_FLASH_BLOCK_SIZE\n");
+		return -ENOENT;
+	}
+	*flash_block_size = mtd->erasesize;
+
+	/*
+	 * Populate flash_density
+	 */
+	size = sizeof(uint32_t);
+	ret = smem_alloc(smem, -1, SMEM_BOOT_FLASH_DENSITY, size);
+	if (ret && ret != -EEXIST) {
+		pr_err("Failed to alloc SMEM_BOOT_FLASH_DENSITY (ret=%d)\n",
+			ret);
+		return ret;
+	}
+
+	uint32_t *flash_density = (uint32_t *)smem_get(smem, -1,
+						SMEM_BOOT_FLASH_DENSITY, &size);
+	if (!flash_density) {
+		pr_err("Failed to get item: SMEM_BOOT_FLASH_DENSITY\n");
+		return -ENOENT;
+	}
+	*flash_density = (uint32_t)mtd->size;
+
+	printf("NAND flash info populated in SMEM: block_size=0x%x, density=0x%x\n",
+		*flash_block_size, *flash_density);
 
 out_skip_smem_mibib_update:
 
