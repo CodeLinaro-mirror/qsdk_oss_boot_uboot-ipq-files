@@ -161,6 +161,20 @@
 #define GCC_UNIPHY1_SYS_CBCR			(0x17058)
 #define GCC_UNIPHY2_SYS_CBCR			(0x17068)
 
+#define GCC_APSS_DBG_CBCR			(0x2402C)
+#define GCC_APSS_TS_CBCR			(0x24030)
+#define GCC_SNOC_QOSGEN_EXTREF_CBCR		(0x2E020)
+#define GCC_SYS_NOC_AT_CBCR			(0x2E038)
+#define GCC_SNOC_XO_DCD_CBCR			(0x2E060)
+#define GCC_SNOC_TS_CBCR			(0x2E068)
+#define GCC_PCNOC_AT_CBCR			(0x31024)
+#define GCC_PCNOC_TS_CBCR			(0x3102C)
+#define GCC_CNOC_QOSGEN_EXTREF_CBCR		(0x310B0)
+
+#define GCC_APSS_AXI_CMD_RCGR			(0x24004)
+#define GCC_APSS_AHB_CMD_RCGR			(0x2400C)
+#define GCC_QDSS_TSCTR_CMD_RCGR			(0x2D01C)
+
 #define GCC_QDSS_AT_CMD_RCGR			(0x2D004)
 #define GCC_NSSNOC_SNOC_CMD_RCGR		(0x2E008)
 #define GCC_UNIPHY_SYS_CMD_RCGR			(0x17094)
@@ -198,9 +212,14 @@
 #define NSS_CC_PORT6_TX_CFG_RCGR		(0x0053C)
 
 #define GCC_NSSNOC_MEMNOC_BFDCD_SRC_SEL_GPLL0_OUT_MAIN	BIT(8)
-#define GCC_QDSS_AT_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
+#define GCC_QDSS_AT_SRC_SEL_GPLL4_OUT_MAIN		BIT(8)
 #define GCC_PCNOC_BFDCD_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
 #define GCC_SYSTEM_NOC_BFDCD_SRC_SEL_GPLL4_OUT_MAIN	(2 << 8)
+
+#define GCC_QUPV3_2X_CORE_SRC_SEL_GPLL0_OUT_MAIN	BIT(8)
+#define GCC_APSS_AXI_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
+#define GCC_APSS_AHB_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
+#define GCC_QDSS_TSCTR_SRC_SEL_GPLL4_OUT_MAIN		BIT(8)
 
 /* Clock source selections */
 #define NSS_CC_PPE_SRC_SEL_CMN_PLL_NSS_CLK_375M		(6 << 8)
@@ -315,8 +334,9 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 				     31, 0, 0, CFG_CLK_SRC_GPLL0, 16);
 		break;
 	case GCC_QUPV3_2X_CORE_CLK:
-		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_2X_CORE_CMD_RCGR,
-				     7, 0, 0, CFG_CLK_SRC_GPLL0, 16);
+		clk_rcg_set_rate_v2(priv->base, GCC_QUPV3_2X_CORE_CMD_RCGR, 0,
+				     7, 0,
+				     GCC_QUPV3_2X_CORE_SRC_SEL_GPLL0_OUT_MAIN);
 		break;
 	case GCC_PCNOC_BFDCD_CLK:
 		clk_rcg_set_rate_v2(priv->base, GCC_PCNOC_BFDCD_CMD_RCGR, 0,
@@ -619,6 +639,26 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 			ret = -EINVAL;
 		}
 		break;
+	case GCC_APSS_AXI_CLK:
+		clk_rcg_set_rate_v2(priv->base, GCC_APSS_AXI_CMD_RCGR, 0,
+				     1, 0,
+				     GCC_APSS_AXI_SRC_SEL_GPLL0_OUT_MAIN);
+		break;
+	case GCC_APSS_AHB_CLK:
+		clk_rcg_set_rate_v2(priv->base, GCC_APSS_AHB_CMD_RCGR, 0,
+				     15, 0,
+				     GCC_APSS_AHB_SRC_SEL_GPLL0_OUT_MAIN);
+		break;
+	case GCC_QDSS_TSCTR_CLK:
+		clk_rcg_set_rate_v2(priv->base, GCC_QDSS_TSCTR_CMD_RCGR, 0,
+				     3, 0,
+				     GCC_QDSS_TSCTR_SRC_SEL_GPLL4_OUT_MAIN);
+		break;
+	case GCC_QDSS_AT_CLK:
+		clk_rcg_set_rate_v2(priv->base, GCC_QDSS_AT_CMD_RCGR, 0,
+				     9, 0,
+				     GCC_QDSS_AT_SRC_SEL_GPLL4_OUT_MAIN);
+		break;
 
 	default:
 		return -EINVAL;
@@ -727,6 +767,16 @@ static const struct gate_clk ipq5210_clks[] = {
 	GATE_CLK(GCC_APCS_CLOCK_BRANCH_ENA_VOTE,0x0B004, 0x00002000),
 	GATE_CLK(GCC_MDIO_AHB_CLK,		0x17040, 0x00000001),
 	GATE_CLK(GCC_MDIO_GEPHY_AHB_CLK,	0x17098, 0x00000001),
+
+	GATE_CLK(GCC_APSS_DBG_CLK,		0x2402C, 0x00000001),
+	GATE_CLK(GCC_APSS_TS_CLK,		0x24030, 0x00000001),
+	GATE_CLK(GCC_SNOC_QOSGEN_EXTREF_CLK,	0x2E020, 0x00000001),
+	GATE_CLK(GCC_SYS_NOC_AT_CLK,		0x2E038, 0x00000001),
+	GATE_CLK(GCC_SNOC_XO_DCD_CLK,		0x2E060, 0x00000001),
+	GATE_CLK(GCC_SNOC_TS_CLK,		0x2E068, 0x00000001),
+	GATE_CLK(GCC_PCNOC_AT_CLK,		0x31024, 0x00000001),
+	GATE_CLK(GCC_PCNOC_TS_CLK,		0x3102C, 0x00000001),
+	GATE_CLK(GCC_CNOC_QOSGEN_EXTREF_CLK,	0x310B0, 0x00000001),
 };
 
 static int ipq5210_enable(struct clk *clk)
