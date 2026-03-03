@@ -680,7 +680,7 @@ static struct ipq_eth_port_config ipq5210_port_config[] = {
 			PORT_WRAPPER_PSGMII		/* 1000M */
 		},
 	},
-	/* Unused PHY Type - terminator */
+	/* QCE1204 PHY Type */
 	{
 		QCE1204_PHY_TYPE,
 		{
@@ -704,7 +704,34 @@ static struct ipq_eth_port_config ipq5210_port_config[] = {
 			PORT_WRAPPER_UQXGMII,
 			PORT_WRAPPER_UQXGMII,
 		},
-	}, {
+	},
+	/* Internal PHY Type */
+	{
+		INTERNAL_PHY_TYPE,
+		{
+			CLK_2_5_MHZ,			/* 10M */
+			CLK_25_MHZ,			/* 100M */
+			CLK_125_MHZ,			/* 1000M */
+			-1,				/* 10000M - not supported */
+			CLK_312_5_MHZ			/* 2500M */
+		},
+		{
+			GMAC,				/* 10M */
+			GMAC,				/* 100M */
+			GMAC,				/* 1000M */
+			-1,				/* 10000M - not supported */
+			GMAC				/* 2500M */
+		},
+		{
+			PORT_WRAPPER_NA,		/* 10M - NA mode (no uniphy) */
+			PORT_WRAPPER_NA,		/* 100M - NA mode (no uniphy) */
+			PORT_WRAPPER_NA,		/* 1000M - NA mode (no uniphy) */
+			-1,				/* 10000M - not supported */
+			PORT_WRAPPER_NA			/* 2500M - NA mode (no uniphy) */
+		},
+	},
+	/* Unused PHY Type - terminator */
+	{
 		UNUSED_PHY_TYPE,
 	},
 };

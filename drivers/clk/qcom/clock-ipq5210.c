@@ -228,6 +228,8 @@
 #define NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK	(4 << 8)
 #define NSS_CC_PORT4_SRC_SEL_UNIPHY1_NSS_TX_CLK		(2 << 8)
 #define NSS_CC_PORT5_SRC_SEL_UNIPHY0_NSS_TX_CLK		(2 << 8)
+#define NSS_CC_PORT4_RX_SRC_SEL_RX_GCC			(5 << 8)
+#define NSS_CC_PORT4_TX_SRC_SEL_TX_GCC			(1 << 8)
 #define CMN_PLL_NSS_CLK_429M				(6 << 8)
 #define PCNOC_BFDCD_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
 #define SYSTEM_NOC_BFDCD_SRC_SEL_GPLL4_OUT_MAIN		(2 << 8)
@@ -258,22 +260,7 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 {
 	int pclk_rate = clk_get_parent_rate(clk);
 
-	if (pclk_rate == CLK_125_MHZ) {
-		switch (rate) {
-		case CLK_2_5_MHZ:
-			*div = 9;
-			*cdiv = 9;
-			break;
-		case CLK_25_MHZ:
-			*div = 9;
-			break;
-		case CLK_125_MHZ:
-			*div = 1;
-			break;
-		default:
-			return -EINVAL;
-		}
-	} else if (pclk_rate == CLK_312_5_MHZ) {
+	if (pclk_rate == CLK_312_5_MHZ) {
 		switch (rate) {
 		case CLK_2_5_MHZ:
 			break;
@@ -299,8 +286,22 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 			return -EINVAL;
 		}
 	} else {
-		return -EINVAL;
-	};
+		/* 125MHz and no uniphy parent clk */
+		switch (rate) {
+		case CLK_2_5_MHZ:
+			*div = 9;
+			*cdiv = 9;
+			break;
+		case CLK_25_MHZ:
+			*div = 9;
+			break;
+		case CLK_125_MHZ:
+			*div = 1;
+			break;
+		default:
+			return -EINVAL;
+		}
+	}
 
 	return 0;
 }
@@ -520,17 +521,33 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
 		if (ret < 0)
 			return ret;
-		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_RX_CMD_RCGR,
-				    0, div, cdiv,
-				    NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK);
+		/* Check if parent clock exists */
+		if (clk_get_parent_rate(clk) > 0) {
+			clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_RX_CMD_RCGR,
+					    0, div, cdiv,
+					    NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK);
+		} else {
+			/* No parent, use GCC source */
+			clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_RX_CMD_RCGR,
+					    0, div, cdiv,
+					    NSS_CC_PORT4_RX_SRC_SEL_RX_GCC);
+		}
 		break;
 	case NSS_CC_PORT4_TX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
 		if (ret < 0)
 			return ret;
-		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_TX_CMD_RCGR,
-				    0, div, cdiv,
-				    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
+		/* Check if parent clock exists */
+		if (clk_get_parent_rate(clk) > 0) {
+			clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_TX_CMD_RCGR,
+					    0, div, cdiv,
+					    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
+		} else {
+			/* No parent, use GCC source */
+			clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_TX_CMD_RCGR,
+					    0, div, cdiv,
+					    NSS_CC_PORT4_TX_SRC_SEL_TX_GCC);
+		}
 		break;
 	case NSS_CC_PORT4_UNIPHY1_RX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);

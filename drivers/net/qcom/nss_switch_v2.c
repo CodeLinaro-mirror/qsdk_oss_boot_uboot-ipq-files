@@ -4145,32 +4145,38 @@ static int ipq_eth_port_set_up(struct ipq_eth_dev *priv,
 
 		/* Configure RX rate clock if available */
 		if (port->rx_clk_rate.dev) {
-			/* Get parent clock for RX rate */
-			if (port->uniphy_mode == PORT_WRAPPER_PSGMII ||
-			    port->uniphy_mode == PORT_WRAPPER_SGMII0_RGMII4)
-				clk_set_rate(&port->rx_clk, CLK_125_MHZ);
-			else
-				clk_set_rate(&port->rx_clk, CLK_312_5_MHZ);
+			/* Only set parent and configure if rx_clk is available */
+			if (port->rx_clk.dev) {
+				/* Get parent clock for RX rate */
+				if (port->uniphy_mode == PORT_WRAPPER_PSGMII ||
+				    port->uniphy_mode == PORT_WRAPPER_SGMII0_RGMII4)
+					clk_set_rate(&port->rx_clk, CLK_125_MHZ);
+				else
+					clk_set_rate(&port->rx_clk, CLK_312_5_MHZ);
 
-			ret = clk_set_parent(&port->rx_clk_rate, &port->rx_clk);
-			if (ret)
-				goto fail;
+				ret = clk_set_parent(&port->rx_clk_rate, &port->rx_clk);
+				if (ret)
+					goto fail;
+			}
 
 			clk_set_rate(&port->rx_clk_rate, rate);
 		}
 
 		/* Configure TX rate clock if available */
 		if (port->tx_clk_rate.dev) {
-			/* Get parent clock for TX rate */
-			if (port->uniphy_mode == PORT_WRAPPER_PSGMII ||
-			    port->uniphy_mode == PORT_WRAPPER_SGMII0_RGMII4)
-				clk_set_rate(&port->tx_clk, CLK_125_MHZ);
-			else
-				clk_set_rate(&port->tx_clk, CLK_312_5_MHZ);
+			/* Only set parent and configure if tx_clk is available */
+			if (port->tx_clk.dev) {
+				/* Get parent clock for TX rate */
+				if (port->uniphy_mode == PORT_WRAPPER_PSGMII ||
+				    port->uniphy_mode == PORT_WRAPPER_SGMII0_RGMII4)
+					clk_set_rate(&port->tx_clk, CLK_125_MHZ);
+				else
+					clk_set_rate(&port->tx_clk, CLK_312_5_MHZ);
 
-			ret = clk_set_parent(&port->tx_clk_rate, &port->tx_clk);
-			if (ret)
-				goto fail;
+				ret = clk_set_parent(&port->tx_clk_rate, &port->tx_clk);
+				if (ret)
+					goto fail;
+			}
 
 			clk_set_rate(&port->tx_clk_rate, rate);
 		}
@@ -4818,8 +4824,14 @@ static int ipq_eth_probe(struct udevice *dev)
 
 		port->dev = dev;
 
-		port->uniphy_base = priv->uniphy_base +
-					(port->uniphy_id * priv->uniphy_size);
+		/* Only set uniphy_base if uniphy_id is valid */
+		if (port->uniphy_id != 0xFF && port->uniphy_id < CONFIG_ETH_MAX_UNIPHY)
+			port->uniphy_base = priv->uniphy_base +
+						(port->uniphy_id * priv->uniphy_size);
+		else {
+			port->uniphy_mode = PORT_WRAPPER_NA;
+			port->cur_uniphy_mode = PORT_WRAPPER_NA;
+		}
 
 #ifdef CONFIG_MDIO_QCOM_I2C
 		if (port->i2c_bus) {
@@ -5243,73 +5255,59 @@ static int ipq_get_clock_with_fallback(struct udevice *dev,
  */
 static void ipq_port_clock_init(struct udevice *dev, struct port_info *port)
 {
-	bool mp;
+	const char *rx_fmt1, *rx_fmt2, *rx_fmt3;
+	const char *tx_fmt1, *tx_fmt2, *tx_fmt3;
+	bool has_uniphy = (port->uniphy_id != 0xFF);
+	bool multi_path = has_uniphy &&
+			  (((port->id == 4) && (port->uniphy_id != 0)) ||
+			   ((port->id == 5) && (port->uniphy_id == 0)));
 
-	/*
-	 * Determine if this port requires special clock naming:
-	 * - port 4 with uniphy != 0
-	 * - port 5 with uniphy == 0
-	 */
-	if ((port->id == 4) && port->uniphy_id != 0)
-		mp = true;
-	else if ((port->id == 5) && port->uniphy_id == 0)
-		mp = true;
-	else
-		mp = false;
-
-	/*
-	 * For special cases, use three-level fallback:
-	 * 1. nss_port{id}_uniphy{uniphy_id}_{rx|tx}_clk
-	 * 2. nss_port{id}_{rx|tx}_clk
-	 * 3. nss_cc_port{id}_{rx|tx}_clk
-	 *
-	 * For normal cases, use two-level fallback (fmt3 = NULL):
-	 * 1. nss_port{id}_{rx|tx}_clk
-	 * 2. nss_cc_port{id}_{rx|tx}_clk
-	 */
-	if (mp) {
-		/* Initialize RX rate clock with three-level fallback */
-		ipq_get_clock_with_fallback(dev, "nss_port%d_uniphy%d_rx_clk",
-					     "nss_port%d_rx_clk",
-					     "nss_cc_port%d_rx_clk",
-					     &port->rx_clk_rate, "RX rate clock",
-					     port->id, port->uniphy_id);
-
-		/* Initialize TX rate clock with three-level fallback */
-		ipq_get_clock_with_fallback(dev, "nss_port%d_uniphy%d_tx_clk",
-					     "nss_port%d_tx_clk",
-					     "nss_cc_port%d_tx_clk",
-					     &port->tx_clk_rate, "TX rate clock",
-					     port->id, port->uniphy_id);
+	/* Determine rate clock naming based on port configuration */
+	if (multi_path) {
+		/* Three-level fallback for special multi-path ports */
+		rx_fmt1 = "nss_port%d_uniphy%d_rx_clk";
+		rx_fmt2 = "nss_port%d_rx_clk";
+		rx_fmt3 = "nss_cc_port%d_rx_clk";
+		tx_fmt1 = "nss_port%d_uniphy%d_tx_clk";
+		tx_fmt2 = "nss_port%d_tx_clk";
+		tx_fmt3 = "nss_cc_port%d_tx_clk";
 	} else {
-		/* Initialize RX rate clock with two-level fallback */
-		ipq_get_clock_with_fallback(dev, "nss_port%d_rx_clk",
-					     "nss_cc_port%d_rx_clk",
-					     NULL,
-					     &port->rx_clk_rate, "RX rate clock",
-					     port->id, port->uniphy_id);
-
-		/* Initialize TX rate clock with two-level fallback */
-		ipq_get_clock_with_fallback(dev, "nss_port%d_tx_clk",
-					     "nss_cc_port%d_tx_clk",
-					     NULL,
-					     &port->tx_clk_rate, "TX rate clock",
-					     port->id, port->uniphy_id);
+		/* Two-level fallback for normal ports */
+		rx_fmt1 = "nss_port%d_rx_clk";
+		rx_fmt2 = "nss_cc_port%d_rx_clk";
+		rx_fmt3 = NULL;
+		tx_fmt1 = "nss_port%d_tx_clk";
+		tx_fmt2 = "nss_cc_port%d_tx_clk";
+		tx_fmt3 = NULL;
 	}
 
-	/* Initialize RX enable clock */
-	ipq_get_clock_with_fallback(dev, "uniphy%d_port%d_rx_clk",
-				     "nss_cc_uniphy_port%d_rx_clk",
-				     NULL,
-				     &port->rx_clk, "RX enable clock",
+	/* Initialize rate clocks (always present) */
+	ipq_get_clock_with_fallback(dev, rx_fmt1, rx_fmt2, rx_fmt3,
+				     &port->rx_clk_rate, "RX rate clock",
 				     port->id, port->uniphy_id);
 
-	/* Initialize TX enable clock */
-	ipq_get_clock_with_fallback(dev, "uniphy%d_port%d_tx_clk",
-				     "nss_cc_uniphy_port%d_tx_clk",
-				     NULL,
-				     &port->tx_clk, "TX enable clock",
+	ipq_get_clock_with_fallback(dev, tx_fmt1, tx_fmt2, tx_fmt3,
+				     &port->tx_clk_rate, "TX rate clock",
 				     port->id, port->uniphy_id);
+
+	/* Initialize enable clocks (only for ports with uniphy) */
+	if (has_uniphy) {
+		ipq_get_clock_with_fallback(dev, "uniphy%d_port%d_rx_clk",
+					     "nss_cc_uniphy_port%d_rx_clk",
+					     NULL,
+					     &port->rx_clk, "RX enable clock",
+					     port->id, port->uniphy_id);
+
+		ipq_get_clock_with_fallback(dev, "uniphy%d_port%d_tx_clk",
+					     "nss_cc_uniphy_port%d_tx_clk",
+					     NULL,
+					     &port->tx_clk, "TX enable clock",
+					     port->id, port->uniphy_id);
+	} else {
+		/* No uniphy: set enable clocks to NULL */
+		port->rx_clk.dev = NULL;
+		port->tx_clk.dev = NULL;
+	}
 }
 
 /*
@@ -5393,6 +5391,7 @@ static int ipq_eth_ofdata_to_platdata(struct udevice *dev)
 
 			memset(port, 0, sizeof(struct port_info));
 
+			port->cur_uniphy_mode = -1;
 			port->uniphy_id = uniphy_id;
 			port->node = phandle_args.node;
 			port->pnode = ofnode_get_parent(phandle_args.node);
