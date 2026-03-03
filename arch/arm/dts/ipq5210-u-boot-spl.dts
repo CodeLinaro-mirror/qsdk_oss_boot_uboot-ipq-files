@@ -251,11 +251,29 @@
 			bootph-all;
 			compatible = "qcom,ipq-init-clks";
 
-			clocks = <&gcc GCC_APCS_CLOCK_BRANCH_ENA_VOTE>;
+			clocks = <&gcc GCC_APCS_CLOCK_BRANCH_ENA_VOTE>,
+				 <&gcc GCC_APSS_DBG_CLK>,
+				 <&gcc GCC_APSS_TS_CLK>,
+				 <&gcc GCC_SNOC_QOSGEN_EXTREF_CLK>,
+				 <&gcc GCC_SYS_NOC_AT_CLK>,
+				 <&gcc GCC_SNOC_XO_DCD_CLK>,
+				 <&gcc GCC_SNOC_TS_CLK>,
+				 <&gcc GCC_PCNOC_AT_CLK>,
+				 <&gcc GCC_PCNOC_TS_CLK>,
+				 <&gcc GCC_CNOC_QOSGEN_EXTREF_CLK>;
 
 			assigned-clocks = <&gcc GCC_PCNOC_BFDCD_CLK>,
-					  <&gcc GCC_SYSTEM_NOC_BFDCD_CLK>;
-			assigned-clock-rates = <100000000 266666666>;
+					  <&gcc GCC_SYSTEM_NOC_BFDCD_CLK>,
+					  <&gcc GCC_APSS_AXI_CLK>,
+					  <&gcc GCC_APSS_AHB_CLK>,
+					  <&gcc GCC_QDSS_TSCTR_CLK>,
+					  <&gcc GCC_QDSS_AT_CLK>;
+			assigned-clock-rates = <100000000>,
+					       <266666666>,
+					       <800000000>,
+					       <100000000>,
+					       <600000000>,
+					       <240000000>;
 
 			clock-names = "apcs_branch_vote",
 					"pcnoc_bfdcd",
@@ -277,6 +295,8 @@
 			clock-names = "2x-core", "m-ahb", "s-ahb",
 					"core", "sleep";
 
+			assigned-clocks = <&gcc GCC_QUPV3_2X_CORE_CLK>;
+			assigned-clock-rates = <200000000>;
 			#address-cells = <2>;
 			#size-cells = <2>;
 
