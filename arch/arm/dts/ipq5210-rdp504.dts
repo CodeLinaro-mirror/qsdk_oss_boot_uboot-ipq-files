@@ -118,3 +118,11 @@
 		status = "okay";
 	};
 };
+
+&tmel_qmp {
+	status = "okay";
+};
+
+&tmelcom {
+	status = "okay";
+};
