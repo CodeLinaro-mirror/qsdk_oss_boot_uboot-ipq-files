@@ -146,7 +146,7 @@ struct iovec_tmel {
 struct qmp_device_cfg {
 	u32 shared_irq;
 	phys_addr_t reg;
-	u8 bit;
+	u32 bit;
 	bool issupport_check;
 };
 
@@ -1303,9 +1303,9 @@ static const struct qmp_device_cfg config_ipq_sec = {
 };
 
 static const struct qmp_device_cfg config_ipq5210_nsec = {
-	.shared_irq 		= BIT(20),
-	.reg			= 0xA600C,
-	.bit			= BIT(0),
+	.shared_irq		= BIT(20),
+	.reg			= 0xA4020,
+	.bit			= BIT(8),
 	.issupport_check	= true,
 };
 
