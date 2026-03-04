@@ -471,6 +471,7 @@
 
 			clocks = <&gcc GCC_IM_SLEEP_CLK>,
 				<&gcc GCC_CMN_12GPLL_AHB_CLK>,
+				<&gcc GCC_CMN_12GPLL_APU_CLK>,
 				<&gcc GCC_CMN_12GPLL_SYS_CLK>,
 				<&gcc GCC_UNIPHY0_AHB_CLK>,
 				<&gcc GCC_UNIPHY0_SYS_CLK>,
@@ -482,6 +483,7 @@
 				<&gcc GCC_NSSCC_CLK>,
 				<&gcc GCC_NSSNOC_SNOC_1_CLK>,
 				<&gcc GCC_NSSNOC_SNOC_CLK>,
+				<&gcc GCC_NSSNOC_MEMNOC_CLK>,
 				<&nsscc NSS_CC_NSS_CSR_CLK>,
 				<&nsscc NSS_CC_NSSNOC_NSS_CSR_CLK>,
 				<&nsscc NSS_CC_CE_APB_CLK>,
@@ -526,10 +528,14 @@
 				<&nsscc NSS_CC_UNIPHY_PORT5_RX_CLK>,
 				<&nsscc NSS_CC_UNIPHY_PORT5_TX_CLK>,
 				<&nsscc NSS_CC_UNIPHY_PORT6_RX_CLK>,
-				<&nsscc NSS_CC_UNIPHY_PORT6_TX_CLK>;
+				<&nsscc NSS_CC_UNIPHY_PORT6_TX_CLK>,
+			        <&nsscc NSS_CC_EIP_BFDCD_CLK>,
+			        <&nsscc NSS_CC_CFG_CLK>,
+				<&nsscc NSS_CC_NSSNOC_EIP_CLK>;
 
 			clock-names = "gcc_im_sleep_clk",
 				"cmn_ahb_clk",
+				"cmn_apu_clk",
 				"cmn_sys_clk",
 				"uniphy0_ahb_clk",
 				"uniphy0_sys_clk",
@@ -541,6 +547,7 @@
 				"gcc_nsscc_clk",
 				"gcc_nssnoc_snoc_1_clk",
 				"gcc_nssnoc_snoc_clk",
+				"gcc_nssnoc_memnoc_clk",
 				"nss_csr_clk",
 				"nssnoc_nss_csr_clk",
 				"nss_ce_apb_clk",
@@ -585,7 +592,10 @@
 				"uniphy1_port5_rx_clk",
 				"uniphy1_port5_tx_clk",
 				"uniphy2_port6_rx_clk",
-				"uniphy2_port6_tx_clk";
+				"uniphy2_port6_tx_clk",
+				"nss_cc_eip_bfdcd_clk",
+				"nss_cc_clk",
+				"nss_cc_nssnoc_eip_clk";
 
 			resets = <&nsscc NSS_CC_PPE_BCR>,
 				<&gcc GCC_UNIPHY0_BCR>,

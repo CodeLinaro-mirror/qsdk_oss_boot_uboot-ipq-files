@@ -442,14 +442,8 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 					8, PCIE_GPLL0_OUT_MAIN);
 		break;
 	case NSS_CC_PPE_SWITCH_CFG_CLK:
-		clk_rcg_set_rate(priv->base, NSS_CC_PPE_CMD_RCGR, 1,
-				 CMN_PLL_NSS_CLK_429M); /* CMN_PLL_NSS_CLK_429M source */
-		break;
-	case NSS_CC_PON_CLK:
-		/* NSS_CC_PON: 429 MHz)*/
-		/* Rate: 429 MHz from CMN_PLL_NSS_CLK_429M */
-		clk_rcg_set_rate(priv->base, NSS_CC_PPE_CMD_RCGR, 1,
-				 (6 << 8)); /* CMN_PLL_NSS_CLK_429M source */
+		clk_rcg_set_rate_v2(priv->base, NSS_CC_PPE_CMD_RCGR,
+				0, 1, 0, CMN_PLL_NSS_CLK_429M); /* CMN_PLL_NSS_CLK_429M source */
 		break;
 	case NSS_CC_CFG_CLK:
 		/* NSS_CC_PON: 429 MHz)*/
@@ -717,6 +711,7 @@ static const struct gate_clk ipq5210_clks[] = {
 
 	GATE_CLK(GCC_IM_SLEEP_CLK,		0x34020, 0x00000001),
 	GATE_CLK(GCC_CMN_12GPLL_AHB_CLK,	0x3A004, 0x00000001),
+	GATE_CLK(GCC_CMN_12GPLL_APU_CLK,	0x3A00C, 0x00000001),
 	GATE_CLK(GCC_CMN_12GPLL_SYS_CLK,	0x3A008, 0x00000001),
 	GATE_CLK(GCC_UNIPHY0_AHB_CLK,		0x1704C, 0x00000001),
 	GATE_CLK(GCC_UNIPHY0_SYS_CLK,		0x17048, 0x00000001),
@@ -794,6 +789,12 @@ static const struct gate_clk ipq5210_clks[] = {
 	GATE_CLK(GCC_PCNOC_AT_CLK,		0x31024, 0x00000001),
 	GATE_CLK(GCC_PCNOC_TS_CLK,		0x3102C, 0x00000001),
 	GATE_CLK(GCC_CNOC_QOSGEN_EXTREF_CLK,	0x310B0, 0x00000001),
+
+	GATE_CLK(NSS_CC_CFG_CLK,		0x00714, 0x00000001),
+	GATE_CLK(NSS_CC_EIP_BFDCD_CLK,		0x006BC, 0x00000001),
+	GATE_CLK(NSS_CC_NSSNOC_EIP_CLK,		0x006C4, 0x00000001),
+	GATE_CLK(GCC_GEPHY_SYS_CLK,		0x2A004, 0x00000001),
+	GATE_CLK(GCC_NSSNOC_MEMNOC_CLK,		0x17024, 0x00000001),
 };
 
 static int ipq5210_enable(struct clk *clk)

@@ -4731,11 +4731,6 @@ static int ipq_eth_probe(struct udevice *dev)
 
 	mem_init();
 
-	/*
-	 * configure CMN clock for ethernet
-	 */
-	ipq_config_cmn_clock();
-
 	ret = reset_get_bulk(dev, &resets);
 	if (ret && ret != -ENOENT) {
 		dev_err(dev, "Can't get reset: %d\n", ret);
@@ -4799,6 +4794,11 @@ static int ipq_eth_probe(struct udevice *dev)
 			goto fail;
 		}
 	}
+
+	/*
+	 * configure CMN clock for ethernet
+	 */
+	ipq_config_cmn_clock();
 
 	if (priv->uniphy_50mhz)
 		ipq_eth_configure_uniphy_50m(priv->uniphy_50mhz,
