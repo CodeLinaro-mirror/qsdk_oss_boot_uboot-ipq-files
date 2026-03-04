@@ -52,7 +52,7 @@
  * in a type 1 mux structure. Used to prepare the value for writing
  * to the hardware register field.
  */
-#define NOT_2D(n_val)           (~((n_val) << 1))
+#define NOT_2D(n_val)           (~(n_val))
 #define NOT_N_MINUS_M(n_val, m_val)  (~((n_val) - (m_val)))
 
 static const unsigned long ipq52xx_ena_vote_clocks[] = {
