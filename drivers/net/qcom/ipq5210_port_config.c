@@ -682,6 +682,29 @@ static struct ipq_eth_port_config ipq5210_port_config[] = {
 	},
 	/* Unused PHY Type - terminator */
 	{
+		QCE1204_PHY_TYPE,
+		{
+			CLK_1_25_MHZ,
+			CLK_12_5_MHZ,
+			CLK_125_MHZ,
+			CLK_312_5_MHZ,
+			CLK_78_125_MHZ,
+		},
+		{
+			XGMAC,
+			XGMAC,
+			XGMAC,
+			XGMAC,
+			XGMAC
+		},
+		{
+			PORT_WRAPPER_UQXGMII,
+			PORT_WRAPPER_UQXGMII,
+			PORT_WRAPPER_UQXGMII,
+			PORT_WRAPPER_UQXGMII,
+			PORT_WRAPPER_UQXGMII,
+		},
+	}, {
 		UNUSED_PHY_TYPE,
 	},
 };
