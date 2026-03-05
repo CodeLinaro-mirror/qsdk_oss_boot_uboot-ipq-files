@@ -4,12 +4,12 @@
  */
 
 
-#include <common.h>
 #include <dm.h>
 #include <errno.h>
 #include <asm/io.h>
 #include <miiphy.h>
 #include <phy.h>
+#include <clk.h>
 #include <linux/bitops.h>
 #include <linux/sizes.h>
 
@@ -42,6 +42,7 @@ static int mmd_to_ahb_addr_convert(struct mdio_ahb_priv *priv, int phy_addr,
 		return -EOPNOTSUPP;
 
 	switch (devad) {
+	case MDIO_DEVAD_NONE:
 	case MDIO_MMD_PMAPMD:
 		ahb_base_addr = AHB_PHY_MMD1_BASE;
 		break;
@@ -51,7 +52,7 @@ static int mmd_to_ahb_addr_convert(struct mdio_ahb_priv *priv, int phy_addr,
 	case MDIO_MMD_AN:
 		ahb_base_addr = AHB_PHY_MMD7_BASE;
 		break;
-	case MDIO_MMD_VEND1:
+	case MDIO_MMD_VEND2:
 		ahb_base_addr = AHB_PHY_MMD31_BASE;
 		break;
 	default:
@@ -127,18 +128,51 @@ static const struct mdio_ops mdio_ahb_ops = {
 	.write = mdio_ahb_write,
 };
 
+static int mdio_ahb_bind(struct udevice *dev)
+{
+	if (ofnode_valid(dev_ofnode(dev)))
+		device_set_name(dev, ofnode_get_name(dev_ofnode(dev)));
+
+	return 0;
+}
+
+static int ipq52xx_phy_sys_clk_enable(struct udevice *dev)
+{
+	struct clk_bulk clks;
+	int ret = -1;
+
+
+	ret = clk_get_bulk(dev, &clks);
+	if (ret) {
+		printf("Failed to get clocks: %d\n", ret);
+		return ret;
+	}
+
+	/* Enable all clocks at once */
+	ret = clk_enable_bulk(&clks);
+	if (ret) {
+		printf("Failed to enable clocks: %d\n", ret);
+		clk_release_bulk(&clks);
+		return ret;
+	}
+
+	return 0;
+}
+
 static int mdio_ahb_probe(struct udevice *dev)
 {
 	struct mdio_ahb_priv *priv = dev_get_priv(dev);
 	fdt_addr_t addr;
 	fdt_size_t size;
 
-	addr = dev_read_addr_size(dev, "reg", &size);
+	addr = dev_read_addr_size(dev, &size);
 	if (addr == FDT_ADDR_T_NONE)
 		return -EINVAL;
-
-	priv->base = map_sysmem(addr, size);
+	priv->base = (void __iomem *)(uintptr_t)addr;
 	priv->size = size;
+
+	/* will check  to enable it in clock driver */
+	ipq52xx_phy_sys_clk_enable(dev);
 
 	debug("%s: Probed MDIO AHB bus at %p, size 0x%lx\n",
 	      dev->name, priv->base, (unsigned long)size);
@@ -155,6 +189,7 @@ U_BOOT_DRIVER(mdio_ahb) = {
 	.name		= "mdio_ahb",
 	.id		= UCLASS_MDIO,
 	.of_match	= mdio_ahb_ids,
+	.bind		= mdio_ahb_bind,
 	.probe		= mdio_ahb_probe,
 	.ops		= &mdio_ahb_ops,
 	.priv_auto	= sizeof(struct mdio_ahb_priv),

@@ -42,6 +42,36 @@
 			status = "okay";
 		};
 
+		mdio_ahb: mdio-ahb@1400000 {
+			phy3: phy@3 {
+				reg = <29 0>;
+				phy_addr = <29>;
+				phy_type = <INTERNAL_PHY_TYPE>;
+				id = <4>;
+				uniphy_id = <0xFF>;
+				uniphy_type = <1>;
+
+				clocks = <&nsscc NSS_CC_EPHY_RX_CLK>,
+					 <&nsscc NSS_CC_EPHY_TX_CLK>,
+					 <&gcc GCC_GEPHY_SYS_CLK>;
+				clock-names = "ephy_rx_clk",
+					      "ephy_tx_clk",
+					      "sys_clk";
+
+				resets = <&nsscc NSS_CC_EPHY_RX_CLK_ARES>,
+					 <&nsscc NSS_CC_EPHY_TX_CLK_ARES>,
+					 <&gcc GCC_GEPHY_SYS_CLK_ARES>;
+				reset-names = "ephy_rx_reset",
+					      "ephy_tx_reset",
+					      "sys_clk_reset";
+
+				qcom,ldo-bias-reg = <0x1961000>;
+				qcom,pll-src-sel-reg = <0x9B42c>;
+				qcom,ephy-rx-mux-reg = <0x39B00610 0x0>;
+				qcom,ephy-tx-mux-reg = <0x39B00614 0x0>;
+			};
+		};
+
 		mdio: mdio@90000 {
 			status = "okay";
 			phy4: phy@8 {
@@ -59,6 +89,7 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&phy_rst_pinmux>;
 			phy-handle0 = <&phy4>;
+			phy-handle1 = <&phy3>;
 			status = "okay";
 		};
 	};

@@ -435,6 +435,16 @@
 			status = "disabled";
 		};
 
+		mdio_ahb: mdio-ahb@1400000 {
+			status = "okay";
+			compatible = "qcom,mdio-ahb-ipq52xx";
+			reg = <0x0 0x1400000 0x0 0x200000>;
+			clocks = <&gcc GCC_GEPHY_SYS_CLK>,
+				 <&gcc GCC_MDIO_GEPHY_AHB_CLK>;
+			clock-names = "gephy_sys_clk",
+				      "mdio_ahb_clk";
+		};
+
 		mdio: mdio@90000 {
 			#address-cells = <1>;
 			#size-cells = <1>;
