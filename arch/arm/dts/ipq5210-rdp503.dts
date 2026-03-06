@@ -295,7 +295,8 @@
 			phy-handle0 = <&phy0>;
 			phy-handle1 = <&phy1>;
 			phy-handle2 = <&phy2>;
-			phy-handle3 = <&phy4>;
+			phy-handle3 = <&phy3>;
+			phy-handle4 = <&phy4>;
 			status = "okay";
 		};
 	};
