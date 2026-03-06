@@ -406,6 +406,13 @@ void ipq_uboot_fdt_fixup_usb(void *blob)
 	return;
 }
 
+#ifdef CONFIG_BOOT_BANK_FIXUP
+int ipq_uboot_fdt_fixup_booted_bank(void *blob)
+{
+	return fdt_set_booted_bank_property(blob);
+}
+#endif
+
 int ipq_uboot_fdt_fixup(void *blob, enum fixup_type type)
 {
 	switch(type) {
@@ -415,6 +422,11 @@ int ipq_uboot_fdt_fixup(void *blob, enum fixup_type type)
 	case UBOOT_FIXUP_USB:
 		ipq_uboot_fdt_fixup_usb(blob);
 		break;
+#ifdef CONFIG_BOOT_BANK_FIXUP
+	case UBOOT_FIXUP_BOOTED_BANK:
+		ipq_uboot_fdt_fixup_booted_bank(blob);
+		break;
+#endif
 	default:
 		break;
 	}

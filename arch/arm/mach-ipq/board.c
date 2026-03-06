@@ -767,6 +767,9 @@ int board_fix_fdt(void *rw_fdt_blob)
 {
 	ipq_uboot_fdt_fixup(rw_fdt_blob, UBOOT_FIXUP_SMEM);
 	ipq_uboot_fdt_fixup(rw_fdt_blob, UBOOT_FIXUP_USB);
+#ifdef CONFIG_BOOT_BANK_FIXUP
+	ipq_uboot_fdt_fixup(rw_fdt_blob, UBOOT_FIXUP_BOOTED_BANK);
+#endif
 
 	return 0;
 }
