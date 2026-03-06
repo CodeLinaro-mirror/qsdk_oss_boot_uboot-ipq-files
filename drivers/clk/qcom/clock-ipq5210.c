@@ -211,6 +211,26 @@
 #define NSS_CC_PORT6_TX_CMD_RCGR		(0x00538)
 #define NSS_CC_PORT6_TX_CFG_RCGR		(0x0053C)
 
+/* UNIPHY Port DIV4 registers for XGMII2GMII bridge */
+#define NSS_CC_UNIPHY_PORT1_RX_DIV4_DIV_CDIVR	(0x00624)
+#define NSS_CC_UNIPHY_PORT1_TX_DIV4_DIV_CDIVR	(0x00628)
+#define NSS_CC_UNIPHY_PORT2_RX_DIV4_DIV_CDIVR	(0x0062C)
+#define NSS_CC_UNIPHY_PORT2_TX_DIV4_DIV_CDIVR	(0x00630)
+#define NSS_CC_UNIPHY_PORT3_RX_DIV4_DIV_CDIVR	(0x00634)
+#define NSS_CC_UNIPHY_PORT3_TX_DIV4_DIV_CDIVR	(0x00638)
+#define NSS_CC_UNIPHY_PORT4_RX_DIV4_DIV_CDIVR	(0x0063C)
+#define NSS_CC_UNIPHY_PORT4_TX_DIV4_DIV_CDIVR	(0x00640)
+
+/* UNIPHY Port DIV4 Clock Branch Control Registers */
+#define NSS_CC_UNIPHY_PORT1_RX_DIV4_CBCR	(0x00644)
+#define NSS_CC_UNIPHY_PORT1_TX_DIV4_CBCR	(0x00648)
+#define NSS_CC_UNIPHY_PORT2_RX_DIV4_CBCR	(0x0064C)
+#define NSS_CC_UNIPHY_PORT2_TX_DIV4_CBCR	(0x00650)
+#define NSS_CC_UNIPHY_PORT3_RX_DIV4_CBCR	(0x00654)
+#define NSS_CC_UNIPHY_PORT3_TX_DIV4_CBCR	(0x00658)
+#define NSS_CC_UNIPHY_PORT4_RX_DIV4_CBCR	(0x0065C)
+#define NSS_CC_UNIPHY_PORT4_TX_DIV4_CBCR	(0x00660)
+
 #define GCC_NSSNOC_MEMNOC_BFDCD_SRC_SEL_GPLL0_OUT_MAIN	BIT(8)
 #define GCC_QDSS_AT_SRC_SEL_GPLL4_OUT_MAIN		BIT(8)
 #define GCC_PCNOC_BFDCD_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
@@ -228,8 +248,8 @@
 #define NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK	(4 << 8)
 #define NSS_CC_PORT4_SRC_SEL_UNIPHY1_NSS_TX_CLK		(2 << 8)
 #define NSS_CC_PORT5_SRC_SEL_UNIPHY0_NSS_TX_CLK		(2 << 8)
-#define NSS_CC_PORT4_RX_SRC_SEL_RX_GCC			(5 << 8)
-#define NSS_CC_PORT4_TX_SRC_SEL_TX_GCC			(1 << 8)
+#define NSS_CC_PORT4_RX_SRC_SEL_RX_GCC			(1 << 8)
+#define NSS_CC_PORT4_TX_SRC_SEL_TX_GCC			(5 << 8)
 #define CMN_PLL_NSS_CLK_429M				(6 << 8)
 #define PCNOC_BFDCD_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
 #define SYSTEM_NOC_BFDCD_SRC_SEL_GPLL4_OUT_MAIN		(2 << 8)
@@ -243,10 +263,12 @@
 
 int msm_set_parent(struct clk *clk, struct clk *parent)
 {
-	assert(clk);
-	assert(parent);
+	if (!clk || !parent || !clk->dev || !parent->dev)
+		return 0;
+
 	clk->dev->parent = parent->dev;
 	dev_set_uclass_priv(parent->dev, parent);
+
 	return 0;
 }
 
@@ -256,9 +278,12 @@ ulong msm_get_rate(struct clk *clk)
 }
 
 static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
-				     int *div, int *cdiv)
+				     int *div, int *cdiv, int *div4)
 {
 	int pclk_rate = clk_get_parent_rate(clk);
+
+	/* Default DIV4 value is 1 (divide by 1) */
+	*div4 = 1;
 
 	if (pclk_rate == CLK_312_5_MHZ) {
 		switch (rate) {
@@ -272,6 +297,8 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 			break;
 		case CLK_78_125_MHZ:
 			*div = 7;
+			/* 2.5G mode: DIV4 = 4 for XGMII2GMII bridge */
+			*div4 = 4;
 			break;
 		case CLK_125_MHZ:
 			*div = 4;
@@ -286,7 +313,7 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 			return -EINVAL;
 		}
 	} else {
-		/* 125MHz and no uniphy parent clk */
+		/* 125MHz and no uniphy parent clk with maximum 312MHz*/
 		switch (rate) {
 		case CLK_2_5_MHZ:
 			*div = 9;
@@ -296,6 +323,9 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 			*div = 9;
 			break;
 		case CLK_125_MHZ:
+			*div = 1;
+			break;
+		case CLK_312_5_MHZ:
 			*div = 1;
 			break;
 		default:
@@ -309,7 +339,7 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 {
 	struct msm_clk_priv *priv = dev_get_priv(clk->dev);
-	int ret, src, div = 0, cdiv = 0;
+	int ret, src, div = 0, cdiv = 0, div4 = 1;
 
 	switch (clk->id) {
 	case GCC_QUPV3_I2C0_CLK:
@@ -464,147 +494,192 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 				 1, CMN_PLL_NSS_CLK_429M); /* 429M source */
 		break;
 	case NSS_CC_PORT1_RX_CLK:
-		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
+		/* Configure DIV4 for XGMII2GMII bridge */
+		writel(div4, priv->base + NSS_CC_UNIPHY_PORT1_RX_DIV4_DIV_CDIVR);
+		/* Enable DIV4 clock */
+		writel(0x1, priv->base + NSS_CC_UNIPHY_PORT1_RX_DIV4_CBCR);
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT1_RX_CMD_RCGR,
-				    0, div, cdiv,
+				    NSS_CC_PORT1_RX_CMD_RCGR + 0x8, div, cdiv,
 				    NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK);
 		break;
 	case NSS_CC_PORT1_TX_CLK:
-		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
+		/* Configure DIV4 for XGMII2GMII bridge */
+		writel(div4, priv->base + NSS_CC_UNIPHY_PORT1_TX_DIV4_DIV_CDIVR);
+		/* Enable DIV4 clock */
+		writel(0x1, priv->base + NSS_CC_UNIPHY_PORT1_TX_DIV4_CBCR);
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT1_TX_CMD_RCGR,
-				    0, div, cdiv,
+				    NSS_CC_PORT1_TX_CMD_RCGR + 0x8, div, cdiv,
 				    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
 		break;
 	case NSS_CC_PORT2_RX_CLK:
-		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
+		/* Configure DIV4 for XGMII2GMII bridge */
+		writel(div4, priv->base + NSS_CC_UNIPHY_PORT2_RX_DIV4_DIV_CDIVR);
+		/* Enable DIV4 clock */
+		writel(0x1, priv->base + NSS_CC_UNIPHY_PORT2_RX_DIV4_CBCR);
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT2_RX_CMD_RCGR,
-				    0, div, cdiv,
+				    NSS_CC_PORT2_RX_CMD_RCGR + 0x8, div, cdiv,
 				    NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK);
 		break;
 	case NSS_CC_PORT2_TX_CLK:
-		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
+		/* Configure DIV4 for XGMII2GMII bridge */
+		writel(div4, priv->base + NSS_CC_UNIPHY_PORT2_TX_DIV4_DIV_CDIVR);
+		/* Enable DIV4 clock */
+		writel(0x1, priv->base + NSS_CC_UNIPHY_PORT2_TX_DIV4_CBCR);
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT2_TX_CMD_RCGR,
-				    0, div, cdiv,
+				    NSS_CC_PORT2_TX_CMD_RCGR + 0x8, div, cdiv,
 				    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
 		break;
 	case NSS_CC_PORT3_RX_CLK:
-		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
+		/* Configure DIV4 for XGMII2GMII bridge */
+		writel(div4, priv->base + NSS_CC_UNIPHY_PORT3_RX_DIV4_DIV_CDIVR);
+		/* Enable DIV4 clock */
+		writel(0x1, priv->base + NSS_CC_UNIPHY_PORT3_RX_DIV4_CBCR);
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT3_RX_CMD_RCGR,
-				    0, div, cdiv,
+				    NSS_CC_PORT3_RX_CMD_RCGR + 0x8, div, cdiv,
 				    NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK);
 		break;
 	case NSS_CC_PORT3_TX_CLK:
-		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
+		/* Configure DIV4 for XGMII2GMII bridge */
+		writel(div4, priv->base + NSS_CC_UNIPHY_PORT3_TX_DIV4_DIV_CDIVR);
+		/* Enable DIV4 clock */
+		writel(0x1, priv->base + NSS_CC_UNIPHY_PORT3_TX_DIV4_CBCR);
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT3_TX_CMD_RCGR,
-				    0, div, cdiv,
+				    NSS_CC_PORT3_TX_CMD_RCGR + 0x8, div, cdiv,
 				    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
 		break;
-	case NSS_CC_PORT4_RX_CLK:
-		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
+	case NSS_CC_PORT4_RX_CLK: {
+		long parent_rate = clk_get_parent_rate(clk);
+
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
-		/* Check if parent clock exists */
-		if (clk_get_parent_rate(clk) > 0) {
+		if (parent_rate > 0) {
 			clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_RX_CMD_RCGR,
-					    0, div, cdiv,
+					    NSS_CC_PORT4_RX_CMD_RCGR + 0x8, div, cdiv,
 					    NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK);
+			writel(div4, priv->base + NSS_CC_UNIPHY_PORT4_RX_DIV4_DIV_CDIVR);
+			writel(0x1, priv->base + NSS_CC_UNIPHY_PORT4_RX_DIV4_CBCR);
 		} else {
-			/* No parent, use GCC source */
 			clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_RX_CMD_RCGR,
-					    0, div, cdiv,
+					    NSS_CC_PORT4_RX_CMD_RCGR + 0x8, div, cdiv,
 					    NSS_CC_PORT4_RX_SRC_SEL_RX_GCC);
 		}
 		break;
-	case NSS_CC_PORT4_TX_CLK:
-		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
+	}
+	case NSS_CC_PORT4_TX_CLK: {
+		long parent_rate = clk_get_parent_rate(clk);
+
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
-		/* Check if parent clock exists */
-		if (clk_get_parent_rate(clk) > 0) {
+
+		if (parent_rate > 0) {
 			clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_TX_CMD_RCGR,
-					    0, div, cdiv,
+					    NSS_CC_PORT4_TX_CMD_RCGR + 0x8, div, cdiv,
 					    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
+			writel(div4, priv->base + NSS_CC_UNIPHY_PORT4_TX_DIV4_DIV_CDIVR);
+			writel(0x1, priv->base + NSS_CC_UNIPHY_PORT4_TX_DIV4_CBCR);
 		} else {
-			/* No parent, use GCC source */
 			clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_TX_CMD_RCGR,
-					    0, div, cdiv,
+					    NSS_CC_PORT4_TX_CMD_RCGR + 0x8, div, cdiv,
 					    NSS_CC_PORT4_TX_SRC_SEL_TX_GCC);
 		}
 		break;
+	}
 	case NSS_CC_PORT4_UNIPHY1_RX_CLK:
-		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
+		/* Configure DIV4 for XGMII2GMII bridge */
+		writel(div4, priv->base + NSS_CC_UNIPHY_PORT4_RX_DIV4_DIV_CDIVR);
+		/* Enable DIV4 clock */
+		writel(0x1, priv->base + NSS_CC_UNIPHY_PORT4_RX_DIV4_CBCR);
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_RX_CMD_RCGR,
-				    0, div, cdiv,
+				    NSS_CC_PORT4_RX_CMD_RCGR + 0x8, div, cdiv,
 				    NSS_CC_PORT4_SRC_SEL_UNIPHY1_NSS_TX_CLK);
 		break;
 	case NSS_CC_PORT4_UNIPHY1_TX_CLK:
-		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
+		/* Configure DIV4 for XGMII2GMII bridge */
+		writel(div4, priv->base + NSS_CC_UNIPHY_PORT4_TX_DIV4_DIV_CDIVR);
+		/* Enable DIV4 clock */
+		writel(0x1, priv->base + NSS_CC_UNIPHY_PORT4_TX_DIV4_CBCR);
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_TX_CMD_RCGR,
-				    0, div, cdiv,
+				    NSS_CC_PORT4_TX_CMD_RCGR + 0x8, div, cdiv,
 				    NSS_CC_PORT4_SRC_SEL_UNIPHY1_NSS_TX_CLK);
 		break;
 	case NSS_CC_PORT5_RX_CLK:
-		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
+		/* Port 5 doesn't need DIV4 configuration */
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT5_RX_CMD_RCGR,
-				    0, div, cdiv,
+				    NSS_CC_PORT5_RX_CMD_RCGR + 0x8, div, cdiv,
 				    NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK);
 		break;
 	case NSS_CC_PORT5_TX_CLK:
-		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
+		/* Port 5 doesn't need DIV4 configuration */
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT5_TX_CMD_RCGR,
-				    0, div, cdiv,
+				    NSS_CC_PORT5_TX_CMD_RCGR + 0x8, div, cdiv,
 				    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
 		break;
 	case NSS_CC_PORT5_UNIPHY0_RX_CLK:
-		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
+		/* Port 5 doesn't need DIV4 configuration */
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT5_RX_CMD_RCGR,
-				    0, div, cdiv,
+				    NSS_CC_PORT5_RX_CMD_RCGR + 0x8, div, cdiv,
 				    NSS_CC_PORT5_SRC_SEL_UNIPHY0_NSS_TX_CLK);
 		break;
 	case NSS_CC_PORT5_UNIPHY0_TX_CLK:
-		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
+		/* Port 5 doesn't need DIV4 configuration */
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT5_TX_CMD_RCGR,
-				    0, div, cdiv,
+				    NSS_CC_PORT5_TX_CMD_RCGR + 0x8, div, cdiv,
 				    NSS_CC_PORT5_SRC_SEL_UNIPHY0_NSS_TX_CLK);
 		break;
 	case NSS_CC_PORT6_RX_CLK:
-		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
+		/* Port 6 doesn't need DIV4 configuration */
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT6_RX_CMD_RCGR,
-				    0, div, cdiv,
+				    NSS_CC_PORT6_RX_CMD_RCGR + 0x8, div, cdiv,
 				    NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK);
 		break;
 	case NSS_CC_PORT6_TX_CLK:
-		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
+		/* Port 6 doesn't need DIV4 configuration */
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT6_TX_CMD_RCGR,
-				    0, div, cdiv,
+				    NSS_CC_PORT6_TX_CMD_RCGR + 0x8, div, cdiv,
 				    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
 		break;
 	case NSS_CC_UNIPHY_PORT1_RX_CLK:
@@ -795,6 +870,9 @@ static const struct gate_clk ipq5210_clks[] = {
 	GATE_CLK(NSS_CC_NSSNOC_EIP_CLK,		0x006C4, 0x00000001),
 	GATE_CLK(GCC_GEPHY_SYS_CLK,		0x2A004, 0x00000001),
 	GATE_CLK(GCC_NSSNOC_MEMNOC_CLK,		0x17024, 0x00000001),
+	/* IPQ52xx internal EPHY clocks */
+	GATE_CLK(NSS_CC_EPHY_RX_CLK,		0x00618, 0x00000001),
+	GATE_CLK(NSS_CC_EPHY_TX_CLK,		0x0061C, 0x00000001),
 };
 
 static int ipq5210_enable(struct clk *clk)
@@ -884,6 +962,10 @@ static const struct qcom_reset_map ipq5210_gcc_resets[] = {
 	[NSS_CC_PORT5_MAC_CLK_ARES]	= {0x0046C, 2},
 	[NSS_CC_PORT6_MAC_CLK_ARES]	= {0x00474, 2},
 	[GCC_NSS_PARTIAL_RESET]		= {0x17008, 0},
+	/* IPQ52xx internal EPHY resets (bit 2 of CBCR) */
+	[NSS_CC_EPHY_RX_CLK_ARES]	= {0x00618, 2},
+	[NSS_CC_EPHY_TX_CLK_ARES]	= {0x0061C, 2},
+	[GCC_GEPHY_SYS_CLK_ARES]	= {0x2A004, 2},
 };
 
 static struct msm_clk_data ipq5210_gcc_data = {
