@@ -11,7 +11,6 @@
 #include <linux/bitmap.h>
 #include <malloc.h>
 #include "qcom_qce2204_ppe.h"
-#include "qcom_qce1204.h"
 
 /* Helper macro for multi-word register field modification */
 #define QCE2204_FIELD_MODIFY(field, tbl_cfg, value) \
