@@ -1088,8 +1088,8 @@ static const struct clk_ops ipq_cmnpll_clk_ops = {
 };
 
 static const struct udevice_id ipq_cmnpll_ids[] = {
-	{ .compatible = "qcom,ipq5210-cmnpll", .data = (ulong)&ipq5210_data },
-	{ .compatible = "qcom,ipq9650-cmnpll", .data = (ulong)&ipq9650_data },
+	{ .compatible = "qcom,ipq5210-cmn-pll", .data = (ulong)&ipq5210_data },
+	{ .compatible = "qcom,ipq9650-cmn-pll", .data = (ulong)&ipq9650_data },
 	{ }
 };
 
