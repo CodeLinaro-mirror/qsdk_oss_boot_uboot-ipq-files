@@ -17,6 +17,10 @@ static char pin_name[MAX_PIN_NAME_LEN] __section(".data");
 
 enum ipq5210_functions {
 	msm_mux_gpio,
+	msm_mux_i2c0_scl,
+	msm_mux_i2c0_sda,
+	msm_mux_i2c1_scl,
+	msm_mux_i2c1_sda,
 	msm_mux_uart1,
 	msm_mux_sdc_clk,
 	msm_mux_sdc_cmd,
@@ -36,6 +40,10 @@ enum ipq5210_functions {
 
 static const struct pinctrl_function msm_pinctrl_functions[] = {
 	MSM_PIN_FUNCTION(gpio),
+	MSM_PIN_FUNCTION(i2c0_scl),
+	MSM_PIN_FUNCTION(i2c0_sda),
+	MSM_PIN_FUNCTION(i2c1_scl),
+	MSM_PIN_FUNCTION(i2c1_sda),
 	MSM_PIN_FUNCTION(uart1),
 	MSM_PIN_FUNCTION(sdc_clk),
 	MSM_PIN_FUNCTION(sdc_cmd),
@@ -71,6 +79,8 @@ static const msm_pin_function ipq5210_pin_functions[] = {
 	PINGROUP(3, sdc_data, qspi_data, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(4, sdc_cmd, qspi_cs, NA, NA, NA, NA, NA, NA,NA),
 	PINGROUP(5, sdc_clk, qspi_clk, NA, NA, NA, NA, NA, NA, NA),
+	PINGROUP(20, i2c0_scl, NA, NA, NA, NA, NA, NA, NA, NA),
+	PINGROUP(21, i2c0_sda, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(24, gpio, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(26, mdc_mst, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(27, mdio_mst, NA, NA, NA, NA, NA, NA, NA, NA),

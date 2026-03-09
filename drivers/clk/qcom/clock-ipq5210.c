@@ -312,14 +312,14 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 
 	switch (clk->id) {
 	case GCC_QUPV3_I2C0_CLK:
-		/* Default: 64MHz */
+		/* Default: 32MHz */
 		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_I2C0_CMD_RCGR,
-				     0x18, 0, 0, CFG_CLK_SRC_GPLL0, 16);
+				     1, 1, 25, CFG_CLK_SRC_GPLL0, 16);
 		break;
 	case GCC_QUPV3_I2C1_CLK:
-		/* Default: 64MHz */
+		/* Default: 32MHz */
 		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_I2C1_CMD_RCGR,
-				     0x18, 0, 0, CFG_CLK_SRC_GPLL0, 16);
+				     1, 1, 25, CFG_CLK_SRC_GPLL0, 16);
 		break;
 	case GCC_QUPV3_UART1_CLK:
 		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_UART1_CMD_RCGR,
