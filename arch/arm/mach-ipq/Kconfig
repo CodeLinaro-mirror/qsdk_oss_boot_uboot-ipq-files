@@ -597,7 +597,8 @@ config DEFAULT_MMC_FLASH_SIZE
 	   partitions via GPT tools.
 
 config DEFAULT_NOR_FLASH_SIZE
-	int "Default NOR flash size (in MB)"
+	int "Default NOR flash size (in MB) multiple of 4Kb block"
+	default 4096 if TARGET_IPQ5210
 	default 8192
 	help
 	   Specifies the default SPI-NOR flash size used when generating GPT
