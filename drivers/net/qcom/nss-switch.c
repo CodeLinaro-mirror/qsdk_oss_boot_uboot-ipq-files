@@ -876,7 +876,7 @@ static void ipq_ppe_enable_port_counter(phys_addr_t reg_base)
  * ipq_vsi_setup()
  */
 static void ipq_vsi_setup(phys_addr_t reg_base, u32 vsi,
-			  u8 group_mask)
+			  u32 group_mask)
 {
 	u32 val = (group_mask << 24 | group_mask << 16 |
 				group_mask << 8 | group_mask);
@@ -891,7 +891,7 @@ static void ipq_vsi_setup(phys_addr_t reg_base, u32 vsi,
 void ipq_ppe_tdm_configuration(struct ppe_info *ppe)
 {
 	u32 i;
-	u8 *config_values = &tdm_config[ppe->tdm_mode].val[0];
+	u32 *config_values = &tdm_config[ppe->tdm_mode].val[0];
 
 	for (i = 0; i < ppe->no_reg; ++i) {
 		writel(config_values[i],
@@ -2902,7 +2902,7 @@ static int ipq_eth_probe(struct udevice *dev)
 	struct reset_ctl_bulk resets;
 	int clk_itr, clk_cnt, ret, i, configured = 0;
 	const char **clk_names = NULL;
-#ifdef CONFIG_PHY_QCA_8X8X
+#if defined(CONFIG_PHY_QCA_8X8X) || defined(CONFIG_PHY_QCE_1204)
 	int phy_no = 0;
 #endif
 
@@ -3107,14 +3107,15 @@ static int ipq_eth_probe(struct udevice *dev)
 		if (ofnode_valid(port->node))
 			port->phydev->node = port->node;
 
-#ifdef CONFIG_PHY_QCA_8X8X
+#if defined(CONFIG_PHY_QCA_8X8X) || defined(CONFIG_PHY_QCE_1204)
 		/*
 		 * configure UQXGMII for pure PHY mode since MHT PHY requires
 		 * uniphy pre-init before configuring uniphy mode, which has
 		 * to be configured by default to UQXGMII mode regardless of
 		 * speed link up.
 		 */
-		if (port->phy_id == QCA8x8x_PHY_TYPE) {
+		if (port->phy_id == QCA8x8x_PHY_TYPE  ||
+			port->phy_id == QCE1204_PHY_TYPE) {
 			port->uniphy_mode = PORT_WRAPPER_UQXGMII;
 			port->cur_uniphy_mode = PORT_WRAPPER_UQXGMII;
 			port->gmac_type = XGMAC;

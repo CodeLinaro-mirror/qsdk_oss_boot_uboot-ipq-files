@@ -10,4 +10,58 @@
 / {
 	model = "Qualcomm Technologies, Inc. IPQ5210 DB-HM02.1";
 	compatible = "qcom,ipq5210-db-hm02.1", "qcom,ipq5210";
+
+	aliases {
+		serial0 = &uart1;
+	};
+
+	soc@0 {
+		qmp_ssphy_0: ssphy@7D000 {
+			status = "okay";
+		};
+
+		qusb2_phy_0: qusb2_0@7B000 {
+			status = "okay";
+		};
+
+		usb3_1: usb3_1@8af8800 {
+			status = "okay";
+		};
+
+		pcie0: pcie@70000000 {
+			pinctrl-0 = <&pcie0_default_state>;
+			pinctrl-names = "default";
+			perst-gpios = <&tlmm 32 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+
+		pcie1: pcie@50000000 {
+			pinctrl-0 = <&pcie1_default_state>;
+			pinctrl-names = "default";
+			perst-gpios = <&tlmm 29 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+	};
+};
+
+&tlmm {
+	pcie0_default_state: pcie0-default-state {
+		perst-n-pins {
+			pins = "gpio32";
+			function = "gpio";
+			drive-strength = <6>;
+			bias-pull-down;
+			output-low;
+		};
+	};
+
+	pcie1_default_state: pcie1-default-state {
+		perst-n-pins {
+			pins = "gpio29";
+			function = "gpio";
+			drive-strength = <6>;
+			bias-pull-down;
+			output-low;
+		};
+	};
 };

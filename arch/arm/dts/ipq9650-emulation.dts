@@ -10,6 +10,66 @@
 / {
 	model = "Qualcomm Technologies, Inc. IPQ9650-EMULATION";
 	compatible = "qcom,ipq9650-emulation", "qcom,ipq9650";
+	soc@0 {
+
+		usb3_0: usb3_0@8af8800 {
+			status = "okay";
+			dwc3@8a00000 {
+				phys = <>;
+				phy-names = "";
+                        };
+
+		};
+
+		usb2_0: usb2_0@1ef8800 {
+			status = "okay";
+			dwc3@1e00000 {
+				phys = <>;
+				phy-names = "";
+                        };
+
+		};
+
+		pcie0: pcie@70000000 {
+			max-link-speed = <1>;
+			phys = <>;
+			phy-names = "";
+			perst-gpios = <&tlmm 25 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+
+		pcie4: pcie@60000000 {
+			max-link-speed = <1>;
+			phys = <>;
+			phy-names = "";
+			perst-gpios = <&tlmm 31 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+
+		pcie3: pcie@30000000 {
+			max-link-speed = <1>;
+			phys = <>;
+			phy-names = "";
+			perst-gpios = <&tlmm 41 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+
+		pcie1: pcie@50000000 {
+			max-link-speed = <1>;
+			phys = <>;
+			phy-names = "";
+			perst-gpios = <&tlmm 28 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+
+		pcie2: pcie@40000000 {
+			max-link-speed = <1>;
+			phys = <>;
+			phy-names = "";
+			perst-gpios = <&tlmm 52 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+	};
 };
 
 &tmel_qmp {

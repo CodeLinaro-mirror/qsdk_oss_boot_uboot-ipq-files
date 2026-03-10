@@ -20,6 +20,7 @@
 #define MACH_TYPE_IPQ9574_RDP449		0x8050501
 #define MACH_TYPE_IPQ9574_RDP433_MHT_PHY	0x8050601
 #define MACH_TYPE_IPQ9574_RDP453		0x8050701
+#define MACH_TYPE_IPQ9574_RDP453_QCE1204	0x8050702
 #define MACH_TYPE_IPQ9574_RDP454		0x8050801
 #define MACH_TYPE_IPQ9574_RDP433_MHT_SWT	0x8050901
 #define MACH_TYPE_IPQ9574_RDP467		0x8051301
@@ -154,6 +155,12 @@ struct machid_dts_map machid_dts[] = {
 		"ipq9574-rdp453",
 		"rdp453",
 		"al02-c8"
+	},
+	{
+		MACH_TYPE_IPQ9574_RDP453_QCE1204,
+		"ipq9574-rdp453-qce1204",
+		"rdp453-qce1204",
+		"al02-c8-qce1204"
 	},
 	{
 		MACH_TYPE_IPQ9574_RDP454,
@@ -651,6 +658,28 @@ void ipq_fdt_fixup_atf(void *blob)
 #endif
 	}
 #endif
+}
+
+#ifdef CONFIG_BOOT_BANK_FIXUP
+int ipq_uboot_fdt_fixup_booted_bank(void *blob)
+{
+	return fdt_set_booted_bank_property(blob);
+}
+#endif
+
+int ipq_uboot_fdt_fixup(void *blob, enum fixup_type type)
+{
+	switch(type) {
+#ifdef CONFIG_BOOT_BANK_FIXUP
+	case UBOOT_FIXUP_BOOTED_BANK:
+		ipq_uboot_fdt_fixup_booted_bank(blob);
+		break;
+#endif
+	default:
+		break;
+	}
+
+	return 0;
 }
 
 uint32_t is_board_support_image_auth(void)

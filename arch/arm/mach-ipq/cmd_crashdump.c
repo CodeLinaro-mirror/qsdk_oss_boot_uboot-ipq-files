@@ -96,8 +96,6 @@ typedef struct {
 #define	PT_DUMP_NAME_PREFIX			"PT"
 #define	WLAN_MOD_DUMP_NAME_PREFIX		"WLAN_MOD"
 
-#define CFG_QTI_KERN_WDT_ADDR			*((unsigned int *)0x08600658)
-
 #define QTI_WDT_SCM_TLV_TYPE_SIZE		1
 #define QTI_WDT_SCM_TLV_LEN_SIZE		2
 #define QTI_WDT_SCM_TLV_TYPE_LEN_SIZE		(QTI_WDT_SCM_TLV_TYPE_SIZE +\

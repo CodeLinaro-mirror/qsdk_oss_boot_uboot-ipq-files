@@ -50,6 +50,15 @@
 #include <asm/armv8/mmu.h>
 #endif
 #include <asm/cache.h>
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
+#include <mailbox.h>
+#include <linux/tmelcom-qmp.h>
+#endif
+#include <linux/mtd/mtd.h>
+#include <nand.h>
+#include <u-boot/crc.h>
+#include <dm/device-internal.h>
+#include <linux/ipq-enable-all-clks.h>
 
 /*******************************************************************************
  * Globals constant & typedef
@@ -73,10 +82,24 @@
 #define IF_TABLE_VERSION		0x1
 #define QCCONFIG			"qc_config"
 #define QCSDI				"qcsdi"
+/*
+ * Image version table definitions
+ */
+#define IMAGE_INDEX_TMEL			10
+
+#define DEFAULT_SHIFT			0x0
+#define DEFAULT_32BIT_MASK		0xFFFFFFFF
+#define DEFAULT_64BIT_MASK		0xFFFFFFFFFFFFFFFF
 
 /*******************************************************************************
  * Structure enum and static
  ******************************************************************************/
+/*
+ * Global variable to store TME-L patch version
+ * Explicitly initialized to empty string
+ */
+static char g_tme_version[TME_PATCH_VERSION_LENGTH] = {0};
+
 enum {
 	IPQ_SPL_RAM_FLASHLESS = 0xFD,
 	IPQ_SPL_FLASHTYPE_MAX = 0xFF
@@ -95,10 +118,18 @@ enum {
  * struct ipq_spl_fuse_info - Fuse information structure
  * @fuse_name:	Name of the fuse.
  * @fuse_addr:	Address of the fuse register.
+ * @secboot_protected: If secure boot is enabled, do not log this entry.
+ * @full_row:	Indicates full 64-bit row should be logged. Default is 32 bits.
+ * @mask:	Mask to be applied to the register value.
+ * @shift:	Shift to be applied after masking.
  */
 struct ipq_spl_fuse_info {
 	char fuse_name[24];
 	u32 fuse_addr;
+	bool secboot_protected;
+	bool full_row;
+	u64 mask;
+	u32 shift;
 };
 
 /**
@@ -137,10 +168,238 @@ struct interface_table {
 	struct interface_table_entry if_table_entries[MAX_ENTRIES];
 };
 
+/* MIBIB and partition table definitions */
+#define MIBIB_MAGIC1			0xFE569FAC
+#define MIBIB_MAGIC2			0xCD7F127A
+#define MIBIB_VERSION			4
+#define MIBIB_BLOCK_SEARCH_MAX		0x40
+#define MIBIB_PAGE_PARTITION_TABLE	1
+#define MIBIB_PAGE_LAST_PAGE		4
+#define MIBIB_PAGE_CRC			3
+
+#define FLASH_PART_MAGIC1		0x55EE73AA
+#define FLASH_PART_MAGIC2		0xE35EBDDB
+#define FLASH_PARTITION_VERSION		4
+
+#define FLASH_USR_PART_MAGIC1		0xAA7D1B9A
+#define FLASH_USR_PART_MAGIC2		0x1F7D48BC
+
+#define FLASH_MIBIB_CRC_MAGIC1		0x9D41BEA1
+#define FLASH_MIBIB_CRC_MAGIC2		0xF1DED2EA
+#define FLASH_MIBIB_CRC_VERSION		1
+
+/**
+ * Global variable to track secure boot status.
+ * This is set by ipq_spl_list_tme_fuse()
+ */
+static bool secure_boot_enabled;
+
+/* Global variables to store MIBIB partition table and bootloader offset */
+static struct flash_partition_table g_mibib_parti_tbl;
+static int g_bootldr_offset;
+
+/**
+ * struct mi_boot_info - MIBIB header structure
+ * @magic1:	First magic number for validation
+ * @magic2:	Second magic number for validation
+ * @version:	MIBIB version
+ * @age:	Age counter for determining the newest MIBIB
+ * @numparts:	Number of partitions
+ * @reserved1:	Reserved for future use
+ * @reserved2:	Reserved for future use
+ * @reserved3:	Reserved for future use
+ */
+struct mi_boot_info {
+	u32 magic1;
+	u32 magic2;
+	u32 version;
+	u32 age;
+	u32 numparts;
+	u32 reserved1;
+	u32 reserved2;
+	u32 reserved3;
+};
+
+/**
+ * struct flash_partition_entry - System partition table entry definition
+ * @name:        Name of the partition in the form of 0:ALL, 0:EFS2, etc.
+ * @offset:      Offset in blocks from beginning of device
+ * @length:      Length in blocks of the partition
+ * @attrib1:     Partition attribute 1 (e.g., read-only, SLC/MLC mode)
+ * @attrib2:     Partition attribute 2 (e.g., ECC configuration)
+ * @attrib3:     Partition attribute 3 (e.g., upgrade mechanism)
+ * @which_flash: Numeric ID of flash part (first = 0, second = 1)
+ *
+ * This structure defines a single partition entry in the system partition table.
+ * Each entry contains information about the partition's location, size, and
+ * various attributes that control how the partition is accessed and managed.
+ */
+struct flash_partition_entry {
+	/* Name of the partition in the form of 0:ALL, 0:EFS2, etc. */
+	char name[16];
+
+	/* Offset in blocks from beginning of device */
+	u32 offset;
+
+	/* length in blocks of the partition */
+	u32 length;
+
+	/* Partition attributes */
+	u8 attrib1;
+	u8 attrib2;
+	u8 attrib3;
+
+	/* Numeric ID of flash part (first = 0, second = 1) */
+	u8 which_flash;
+};
+
+/**
+ * Maximum number of partitions supported in the partition table
+ * Plus one extra entry for the "all" partition that represents the entire device
+ */
+#define FLASH_NUM_PART_ENTRIES  32
+#define FLASH_PART_ENTRY_TOTAL (FLASH_NUM_PART_ENTRIES + 1)
+
+/**
+ * struct flash_partition_table - System partition table definition
+ * @magic1:    First magic number for validation (0x55EE73AA)
+ * @magic2:    Second magic number for validation (0xE35EBDDB)
+ * @version:   Partition table version (currently 4)
+ * @numparts:  Number of valid partition entries in the table
+ * @part_entry: Array of partition entries
+ *
+ * This structure defines the system partition table that is stored in flash.
+ * It contains a header with magic numbers and version information, followed
+ * by an array of partition entries that define the layout of the flash device.
+ *
+ * WARNING: The placement of the first three elements (magic1, magic2, version)
+ * must not be changed to ensure backward compatibility.
+ */
+struct flash_partition_table {
+	/* Partition table magic numbers and version number.
+	 *   WARNING!!!!
+	 *   No matter how you change the structure, do not change
+	 *   the placement of the first three elements so that future
+	 *   compatibility will always be guaranteed at least for
+	 *   the identifiers.
+	 */
+	u32 magic1;
+	u32 magic2;
+	u32 version;
+
+	/* Partition table data.  This portion of the structure may be changed
+	 * as necessary to accommodate new features.  Be sure to increment
+	 * version number if you change it.
+	 */
+	u32 numparts;   /* number of partition entries */
+	struct flash_partition_entry part_entry[FLASH_PART_ENTRY_TOTAL];
+};
+
+/**
+ * struct flash_usr_partition_entry - User partition table entry definition
+ * @name:          Name of the partition in the form of 0:ALL, 0:EFS2, etc.
+ * @img_size:      Size in KB for the partition
+ * @padding:       Padding in KB for static handling of NAND bad blocks
+ * @which_flash:   Numeric ID of flash part (first = 0, second = 1)
+ * @reserved_flag1: Attribute 1 for this partition (copied to attrib1)
+ * @reserved_flag2: Attribute 2 for this partition (copied to attrib2)
+ * @reserved_flag3: Attribute 3 for this partition (copied to attrib3)
+ * @reserved_flag4: Layout based flags
+ *
+ * This structure defines a single entry in the user partition table.
+ * The user partition table is used during initial flash programming to
+ * create the system partition table. It contains information about the
+ * desired size and attributes of each partition.
+ */
+struct flash_usr_partition_entry {
+	/* Name of the partition in the form of 0:ALL, 0:EFS2, etc. */
+	char name[16];
+
+	/* Size in KB for the partition */
+	u32 img_size;
+
+	/* Padding in KB for static handling of NAND bad blocks in this partition */
+	/* This field can also be used to define minimum size requirement for a
+	 * parition defined in terms of number of sectors/blocks.
+	 * Please note that this is possible because there never are bad blocks on a
+	 * a NOR device
+	 */
+	u16 padding;
+
+	/* Numeric ID of flash part (first = 0, second = 1) */
+	u16 which_flash;
+
+	/* Attributes for this partition - This get copied to the attribx flags in
+	 * system partition table
+	 */
+	u8 reserved_flag1;
+	u8 reserved_flag2;
+	u8 reserved_flag3;
+
+	u8 reserved_flag4;  /* layout based flags */
+};
+
+/**
+ * struct flash_usr_partition_table - User partition table definition
+ * @magic1:    First magic number for validation (0xAA7D1B9A)
+ * @magic2:    Second magic number for validation (0x1F7D48BC)
+ * @version:   Partition table version (currently 4)
+ * @numparts:  Number of valid partition entries in the table
+ * @part_entry: Array of user partition entries
+ *
+ * This structure defines the user partition table that is used during
+ * initial flash programming to create the system partition table.
+ * It contains a header with magic numbers and version information,
+ * followed by an array of user partition entries.
+ *
+ * WARNING: The placement of the first three elements (magic1, magic2, version)
+ * must not be changed to ensure backward compatibility.
+ */
+struct flash_usr_partition_table {
+	/* Partition table magic numbers and version number.
+	 *   WARNING!!!!
+	 *   No matter how you change the structure, do not change
+	 *   the placement of the first three elements so that future
+	 *   compatibility will always be guaranteed at least for
+	 *   the identifiers.
+	 */
+	u32 magic1;
+	u32 magic2;
+	u32 version;
+
+	/* Partition table data.  This portion of the structure may be changed
+	 * as necessary to accommodate new features.  Be sure to increment
+	 * version number if you change it.
+	 */
+	u32 numparts;   /* number of partition entries */
+	struct flash_usr_partition_entry part_entry[FLASH_PART_ENTRY_TOTAL];
+};
+
+/**
+ * struct flash_mibib_crc - MIBIB CRC structure
+ * @magic1:    First magic number for validation (0x9D41BEA1)
+ * @magic2:    Second magic number for validation (0xF1DED2EA)
+ * @version:   CRC version (currently 1)
+ * @crc:       CRC32 checksum of the MIBIB contents
+ * @reserved:  Reserved fields for future use
+ *
+ * This structure is stored in the MIBIB CRC page and contains the CRC32
+ * checksum of the MIBIB contents. It is used to verify the integrity of
+ * the MIBIB during boot.
+ */
+struct flash_mibib_crc {
+	u32 magic1;
+	u32 magic2;
+	u32 version;
+	u32 crc;
+	u32 reserved[4];
+};
+
 /**
  * struct ipq_spl_img_ctx - SPL image context
  * @img_name:	Name of the image.
  * @prt_name:	Partition name where the image resides.
+ * @sw_id:	Software ID for the image.
  * @load_addr:	Load address of the image.
  * @img_sz:	Size of the image.
  * @img_off:	Offset of the image within the partition.
@@ -153,12 +412,14 @@ struct interface_table {
 struct ipq_spl_img_ctx {
 	char *img_name;
 	char *prt_name;
+	u64 sw_id;
 	u64 load_addr;
 	u64 img_sz;
 	u64 img_off;
 	u8 load;
 	u8 auth;
 	u8 optional;
+	u8 img_arch;
 	int fit_node;
 	int (*fixup)(void *ctx);
 };
@@ -210,24 +471,64 @@ static int ipq_spl_tfa_fixup(void *ctx);
 static int ipq_spl_optee_fixup(void *ctx);
 static int ipq_spl_uboot_fixup(void *ctx);
 
+/*
+ * Forward declarations for boot log functions
+ */
+static void ipq_spl_log_lcs_state(void);
+static void ipq_spl_log_debug_state(void);
+static void ipq_spl_log_otp_version(void);
+
 /**
  * fuse_info_array - Array of fuse information.
  *
  * This array contains the names and addresses of various fuses used in the
  * system. These fuses are typically used for configuration.
+ * The secboot_protected flag indicates whether the fuse should only be
+ * printed when secure boot is disabled.
+ * The full_row flag indicates whether the full 64-bit row should be logged.
  */
 static struct ipq_spl_fuse_info fuse_info_array[] = {
-	{"Boot Config", IPQ_SPL_FUSE_BOOT_CFG_ADDR},
-	{"JTAG ID", IPQ_SPL_FUSE_JTAG_ID_ADDR},
-	{"OEM ID", IPQ_SPL_FUSE_OEM_ID_ADDR},
-	{"TME-L LCS", IPQ_SPL_FUSE_TME_L_LCS_ADDR},
-	{"Serial Number", IPQ_SPL_FUSE_SERIAL_NUM_ADDR},
-	{"Product Id", IPQ_SPL_FUSE_PRODUCT_ID_ADDR},
-	{"Reset Debug", IPQ_SPL_GCC_RESET_DEBUG_ADDR},
-	{"Reset Status", IPQ_SPL_GCC_RESET_STATUS_ADDR},
-	{"FSM Status", IPQ_SPL_GCC_FSM_STATUS_ADDR},
-	{"GPR0", IPQ_SPL_DDR_GPR0_ADDR},
+	{"OEM Config Row 1", IPQ_SPL_FUSE_OEM_CONFIG_ROW_1_ADDR, true, true,
+	 DEFAULT_64BIT_MASK, DEFAULT_SHIFT},
+	{"Feature Config Row 0", IPQ_SPL_FUSE_FEATURE_CONFIG_ROW_0_ADDR,
+	 false, true, DEFAULT_64BIT_MASK, DEFAULT_SHIFT},
+	{"Feature Config Row 1", IPQ_SPL_FUSE_FEATURE_CONFIG_ROW_1_ADDR,
+	 false, true, DEFAULT_64BIT_MASK, DEFAULT_SHIFT},
+	{"Boot Config", IPQ_SPL_FUSE_BOOT_CFG_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
+	{"JTAG ID", IPQ_SPL_FUSE_JTAG_ID_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
+	{"OEM ID", IPQ_SPL_FUSE_OEM_ID_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
+	{"TME-L LCS", IPQ_SPL_FUSE_TME_L_LCS_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
+	{"Serial Number", IPQ_SPL_FUSE_SERIAL_NUM_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
+	{"Product Id", IPQ_SPL_FUSE_PRODUCT_ID_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
+	{"FEATURE ID", IPQ_SPL_FUSE_FEATURE_ID_ADDR, false, false,
+	 IPQ_SPL_FEATURE_ID_MASK, IPQ_SPL_FEATURE_ID_SHIFT},
+	{"Reset Debug", IPQ_SPL_GCC_RESET_DEBUG_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
+	{"Reset Status", IPQ_SPL_GCC_RESET_STATUS_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
+	{"FSM Status", IPQ_SPL_GCC_FSM_STATUS_ADDR, false, false,
+	 DEFAULT_32BIT_MASK, DEFAULT_SHIFT},
 };
+
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
+/**
+ * tme_fuse_info_array - Array of TME IPC based fuse information.
+ *
+ * This array contains the names and addresses of various TME IPC based fuses
+ * used in the system. These fuses are typically used for security features
+ * and configuration settings.
+ */
+static struct ipq_spl_fuse_info tme_fuse_info_array[] = {
+	{"OEM Config Row 0", IPQ_SPL_FUSE_OEM_TME_ROW_0_ADDR, true, true,
+	 DEFAULT_64BIT_MASK, DEFAULT_SHIFT},
+};
+#endif /* CONFIG_IPQ_TMEL_IPC_SUPPORT */
 
 /**
  * img_tbl_fit - Image loader table for FIT images.
@@ -238,22 +539,27 @@ static struct ipq_spl_fuse_info fuse_info_array[] = {
 struct ipq_spl_img_ctx img_tbl_fit[] = {
 	{
 		.img_name = "qcconfig-meta",
+		.sw_id = IPQ_SPL_QCLIB_DDR_SEC_AUTH_SWID,
 		.auth = true,
 		.fixup = ipq_spl_xcfg_fixup,
 	}, {
 		.img_name = "qclib-meta",
+		.sw_id = IPQ_SPL_QCLIB_DDR_SEC_AUTH_SWID,
 		.auth = true,
 		.fixup = ipq_spl_qclib_fixup,
 	}, {
 		.img_name = "tfa_bl31-meta",
+		.sw_id = IPQ_SPL_TZ_TEE_SEC_AUTH_SWID,
 		.auth = true,
 		.fixup = ipq_spl_tfa_fixup,
 	}, {
 		.img_name = "optee-meta",
+		.sw_id = IPQ_SPL_OP_TEE_SEC_AUTH_SWID,
 		.auth = true,
 		.fixup = ipq_spl_optee_fixup,
 	}, {
 		.img_name = "uboot-meta",
+		.sw_id = IPQ_SPL_APPSBL_SEC_AUTH_SWID,
 		.auth = true,
 		.fixup = ipq_spl_uboot_fixup,
 	},
@@ -280,6 +586,34 @@ void lowlevel_init(void)
 	sctlr = get_sctlr();
 	set_sctlr(sctlr & ~(CR_M));
 }
+
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
+/**
+ * ipq_spl_tmel_bypass_enabled() - Check if TMEL bypass is enabled
+ *
+ * This function reads the FEATURE_CONFIG2 register on first call and caches
+ * the result. It checks bit 0 (TMEL_BYPASS_DISABLE). If the bit is 0,
+ * TME-L authentication should be bypassed.
+ *
+ * Return: true if TMEL bypass is enabled, false otherwise
+ */
+static bool ipq_spl_tmel_bypass_enabled(void)
+{
+	static bool initialized;
+	static bool bypass;
+
+	if (!initialized) {
+		u32 feature_config2 = readl(IPQ_SPL_FEATURE_CONFIG2_REG_ADDR);
+
+		bypass = !(feature_config2 & IPQ_SPL_TMEL_BYPASS_DISABLE_MASK);
+		initialized = true;
+
+		printf("TME - %s (FEATURE_CONFIG2=0x%08X)\n",
+		       bypass ? "Disabled" : "Enabled", feature_config2);
+	}
+	return bypass;
+}
+#endif
 
 /**
  * ipq_spl_error_handler() - Centralized SPL error handler.
@@ -340,17 +674,135 @@ void ipq_spl_malloc_init_f(void)
 }
 #endif
 
+#if defined(CONFIG_CLK_QCOM_PLL)
 /**
- * ipq_spl_list_fuse() - List all fuses.
+ * ipq_spl_probe_and_enable_plls() - Probe and enable all PLLs.
+ *
+ * This function probes and enables all available PLLs in the system.
+ * Return: 0 on success, or a negative error code on failure.
+ */
+int ipq_spl_probe_and_enable_plls(void)
+{
+	int ret;
+	ofnode node, p_handle;
+	struct udevice *pll_dev;
+	u32 index, num_plls;
+
+	node = ofnode_by_compatible(ofnode_null(), "qcom,ipq-init-plls");
+	if (!ofnode_valid(node)) {
+		pr_debug("Failed to get qcom,ipq-init-plls node\n");
+		/**
+		 * No PLL node is available in device tree.
+		 * Return success.
+		 */
+		return 0;
+	}
+
+	/**
+	 * Get the number of phandles are in "plls"
+	 */
+	num_plls = ofnode_count_phandle_with_args(node, "plls", NULL, 0);
+	if (num_plls < 0) {
+		pr_debug("No plls found %d", num_plls);
+		/**
+		 * No PLLs available in device tree to be initialized.
+		 * Return success.
+		 */
+		return 0;
+	}
+
+	/**
+	 * Probe and enable all the PLL devices.
+	 */
+	for (index = 0; index < num_plls; index++) {
+		p_handle = ofnode_parse_phandle(node, "plls", index);
+		if (!ofnode_valid(p_handle)) {
+			pr_debug(" No more PLL phandles\n");
+			/**
+			 * If no more PLL phandles, break the loop with Success.
+			 */
+			break;
+		}
+
+		/* Convert the ofnode p_handle to a udevice and probe it.
+		 * The probe step initializes the PLL hardware.
+		 */
+		ret = uclass_get_device_by_ofnode(UCLASS_MISC, p_handle,
+							&pll_dev);
+		if (ret) {
+			pr_err("Failed to get PLL[%d] device: %d\n",
+				index, ret);
+			return ret;
+		}
+	}
+
+	return 0;
+}
+#endif /* CONFIG_CLK_QCOM_PLL */
+
+/**
+ * ipq_spl_board_init_clk() - Initialize board clocks.
+ *
+ * This function initializes the board-specific clocks.
+ * Return: 0 on success, or a negative error code on failure.
+ */
+int ipq_spl_board_init_clk(void)
+{
+	struct udevice *dev;
+	struct clk_bulk bulk;
+	int ret;
+
+	ret = uclass_get_device_by_name(UCLASS_NOP,
+						"qcom,ipq-init-clks", &dev);
+	if (ret) {
+		pr_debug("Failed to get qcom,ipq-init-clks device\n");
+		/**
+		 * No board init clks are in device tree to be initialized.
+		 * Return success.
+		 */
+		return 0;
+	}
+
+	/*
+	 * Enable listed clocks (gates/votes) in SPL/U-Boot
+	 * via standard bulk clock API.
+	 */
+	ret = clk_get_bulk(dev, &bulk);
+	if (!ret) {
+		ret = clk_enable_bulk(&bulk);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static const struct udevice_id ipq_init_clk_of_match[] = {
+	{ .compatible = "qcom,ipq-init-clks" },
+	{ }
+};
+
+U_BOOT_DRIVER(ipq_init_clk) = {
+	.name		= "ipq-init-clk",
+	.id		= UCLASS_NOP,
+	.of_match	= ipq_init_clk_of_match,
+};
+
+/**
+ * ipq_spl_list_fuse() - List all fuses conditionally based on secure boot.
  * @fuse_arr:	Pointer to the fuse array.
  * @fuse_cnt:	Number of fuses.
  *
- * This function lists all fuses.
+ * This function lists fuses. If a fuse is marked as secboot_protected,
+ * it will only be printed when secure boot is disabled.
+ * Supports both 32-bit and 64-bit fuse logging based on the full_row flag.
  * Return: 0 on success, or a negative error code on failure.
  */
 int ipq_spl_list_fuse(struct ipq_spl_fuse_info *fuse_arr, size_t fuse_cnt)
 {
 	size_t index;
+	u32 fuse_value_32;
+	u64 fuse_value_64;
 
 	if (!fuse_arr) {
 		pr_err("Invalid fuse array pointer\n");
@@ -363,13 +815,157 @@ int ipq_spl_list_fuse(struct ipq_spl_fuse_info *fuse_arr, size_t fuse_cnt)
 			continue;
 		}
 
-		printf("%-24s @ 0x%08X = 0x%08X\n",
-			fuse_arr[index].fuse_name,
-			fuse_arr[index].fuse_addr,
-			readl((uintptr_t)fuse_arr[index].fuse_addr));
+		/*
+		 *Entry is only printed if secboot_protected is false
+		 * or secure boot is disabled
+		 */
+		if ((fuse_arr[index].secboot_protected == false) ||
+		    (secure_boot_enabled == false)) {
+
+			if (fuse_arr[index].full_row == true) {
+				fuse_value_64 = readq((uintptr_t)fuse_arr[index].fuse_addr);
+
+				if (fuse_arr[index].mask != 0) {
+					fuse_value_64 = (fuse_value_64 & fuse_arr[index].mask) >>
+							fuse_arr[index].shift;
+				}
+
+				printf("%-24s @ 0x%08X = 0x%016llX\n",
+					fuse_arr[index].fuse_name,
+					fuse_arr[index].fuse_addr,
+					fuse_value_64);
+			} else {
+				fuse_value_32 = readl((uintptr_t)fuse_arr[index].fuse_addr);
+
+				if (fuse_arr[index].mask != 0) {
+					fuse_value_32 =
+						(fuse_value_32 & (u32)fuse_arr[index].mask) >>
+						fuse_arr[index].shift;
+				}
+
+				printf("%-24s @ 0x%08X = 0x%08X\n",
+					fuse_arr[index].fuse_name,
+					fuse_arr[index].fuse_addr,
+					fuse_value_32);
+			}
+		}
 	}
 
 	return 0;
+}
+
+/**
+ * ipq_spl_log_lcs_state() - Log TME-L LCS state
+ *
+ * This function reads the SOC LCS register and prints the decoded LCS state.
+ */
+static void ipq_spl_log_lcs_state(void)
+{
+	u32 lcs_state;
+	const char *lcs_str;
+
+	/*
+	 * Read and decode LCS state
+	 */
+	lcs_state = (readl(IPQ_SPL_FUSE_TME_L_LCS_ADDR) & IPQ_SPL_SOC_LCS_MASK) >>
+		    IPQ_SPL_SOC_LCS_SHFT;
+
+	switch (lcs_state) {
+	case 0x0:
+		lcs_str = "BLANK";
+		break;
+	case 0xE:
+		lcs_str = "DEVELOPMENT";
+		break;
+	case 0x5:
+		lcs_str = "OPERATIONAL_EXT";
+		break;
+	case 0xB:
+		lcs_str = "OPERATIONAL_INT";
+		break;
+	case 0x7:
+		lcs_str = "RMA";
+		break;
+	default:
+		lcs_str = "Unknown";
+		break;
+	}
+
+	printf("%-24s %s\n", "TME-L LCS:", lcs_str);
+}
+
+/**
+ * ipq_spl_log_debug_state() - Log debug enable/disable state
+ *
+ * This function reads the feature provisioning registers and prints
+ * the debug state for APSS, TME-L, and Q6.
+ */
+static void ipq_spl_log_debug_state(void)
+{
+	u32 feat_prov_out0;
+	u32 feat_prov_out2;
+	bool apss_debug_disabled;
+	bool tmel_debug_disabled;
+	bool q6_debug_disabled;
+
+	/*
+	 * Read feature provisioning registers
+	 */
+	feat_prov_out0 = readl(IPQ_SPL_FEAT_PROV_OUT0_ADDR);
+	feat_prov_out2 = readl(IPQ_SPL_FEAT_PROV_OUT2_ADDR);
+
+	/*
+	 * Check debug disable bits (1 = disabled, 0 = enabled)
+	 * Extract debug state bits
+	 */
+	apss_debug_disabled = (feat_prov_out0 & IPQ_SPL_FEAT_PROV_APSS_MASK) >>
+			IPQ_SPL_FEAT_PROV_APSS_SHIFT;
+	tmel_debug_disabled = feat_prov_out0 & IPQ_SPL_FEAT_PROV_TMEL_MASK;
+	q6_debug_disabled = (feat_prov_out2 & IPQ_SPL_FEAT_PROV_Q6_MASK) >>
+			IPQ_SPL_FEAT_PROV_Q6_SHIFT;
+
+	printf("%-24s APSS : %s , TME-L :%s , Q6 :%s\n",
+			"Debug state:",
+			apss_debug_disabled ? "Disabled" : "Enabled",
+			tmel_debug_disabled ? "Disabled" : "Enabled",
+			q6_debug_disabled ? "Disabled" : "Enabled");
+}
+
+/**
+ * ipq_spl_log_otp_version() - Log OTP version
+ *
+ * This function reads the QFPROM register and prints the OTP TAG and FM version.
+ */
+static void ipq_spl_log_otp_version(void)
+{
+	u32 pte_row2_lsb;
+	u32 otp_tag_version;
+	u32 otp_fm_version;
+
+	/*
+	 * Read QFPROM PTE ROW2 LSB register
+	 */
+	pte_row2_lsb = readl(IPQ_SPL_QFPROM_PTE_ROW2_LSB_ADDR);
+
+	/*
+	 * Extract TAG and FM versions
+	 */
+	otp_tag_version = (pte_row2_lsb & IPQ_SPL_OTP_TAG_VERSION_MASK) >>
+			  IPQ_SPL_OTP_TAG_VERSION_SHIFT;
+	otp_fm_version = (pte_row2_lsb & IPQ_SPL_OTP_FM_VERSION_MASK) >>
+			 IPQ_SPL_OTP_FM_VERSION_SHIFT;
+
+	printf("%-24s %d.%d\n", "OTP Version:", otp_tag_version, otp_fm_version);
+}
+
+/*
+ * ipq_spl_boot_logs() - Print boot logs
+ */
+static void ipq_spl_boot_logs(void)
+{
+	ipq_spl_log_lcs_state();
+	ipq_spl_log_debug_state();
+	ipq_spl_log_otp_version();
 }
 
 /**
@@ -524,9 +1120,155 @@ static int ipq_spl_populate_smem(void *ctx)
 	}
 	*atf_en = true;
 
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
 	/*
-	 * TODO: Populate the SMEM MIBIB Info
+	 * Populate TME-L Image Version in SMEM
 	 */
+	if (g_tme_version[0] != '\0') {
+		struct image_version_entry *img_ver_entry;
+		struct image_version_entry *tmel_entry;
+
+		img_ver_entry = (struct image_version_entry *)smem_get(smem, -1,
+							SMEM_IMAGE_VERSION_TABLE, &size);
+		if (!img_ver_entry) {
+			pr_err("Failed to get item: SMEM_IMAGE_VERSION_TABLE\n");
+			/* Non-fatal error, continue */
+		} else {
+			/*
+			 * Get pointer to TME-L entry (index 10) using pre-calculated offset
+			 */
+			tmel_entry =
+				(struct image_version_entry *)img_ver_entry + IMAGE_INDEX_TMEL;
+
+			/*
+			 * Populate TME-L version entry
+			 * Format: "10:TME-L_VERSION:OEM_VERSION"
+			 */
+			memset(tmel_entry, 0, sizeof(struct image_version_entry));
+
+			/* Set image index (10 for TME-L) */
+			tmel_entry->image_index[0] = '1';
+			tmel_entry->image_index[1] = '0';
+
+			/* Set first separator */
+			tmel_entry->image_colon_sep1[0] = ':';
+
+			/* Copy TME-L version string */
+			strlcpy(tmel_entry->image_qc_version_string, g_tme_version,
+				IMAGE_QC_VERSION_STRING_LENGTH);
+
+			/* Set second separator */
+			tmel_entry->image_colon_sep2[0] = ':';
+
+			/* Set OEM version string (empty for now) */
+			tmel_entry->image_oem_version_string[0] = '\0';
+
+			printf("TME-L version added to SMEM: %s\n", g_tme_version);
+		}
+	}
+#endif /* CONFIG_IPQ_TMEL_IPC_SUPPORT */
+
+	/*
+	 * Update MIBIB partition table in SMEM only for NAND boot
+	 */
+	if (*fltype != SMEM_BOOT_QSPI_NAND_FLASH)
+		goto out_skip_smem_mibib_update;
+
+	/*
+	 * Validate MIBIB partition table magic numbers and version
+	 * and populate MIBIB Info if valid.
+	 */
+	if ((g_mibib_parti_tbl.magic1 != FLASH_PART_MAGIC1) ||
+	    (g_mibib_parti_tbl.magic2 != FLASH_PART_MAGIC2) ||
+	    (g_mibib_parti_tbl.version != FLASH_PARTITION_VERSION)) {
+		pr_err("Invalid MIBIB partition table; skipping SMEM update\n");
+		return -EINVAL;
+	}
+
+	size = sizeof(struct flash_partition_table);
+	ret = smem_alloc(smem, -1, SMEM_AARM_PARTITION_TABLE, size);
+	if (ret) {
+		pr_err("SMEM AARM partition alloc failed (ret=%d)\n", ret);
+		return ret;
+	}
+
+	void *mibib_info = smem_get(smem, -1, SMEM_AARM_PARTITION_TABLE, &size);
+
+	if (!mibib_info) {
+		pr_err("Failed to get item: SMEM_AARM_PARTITION_TABLE\n");
+		return -ENOENT;
+	}
+
+	/*
+	 * Verify size is sufficient for the copy operation
+	 */
+	if (size < sizeof(struct flash_partition_table)) {
+		pr_err("SMEM allocation too small for MIBIB partition table\n");
+		return -EINVAL;
+	}
+
+	/*
+	 * Copy partition table to the SMEM
+	 */
+	memcpy(mibib_info,
+		&g_mibib_parti_tbl,
+		sizeof(struct flash_partition_table));
+
+	printf("MIBIB partition table populated in SMEM\n");
+
+	/*
+	 * Populate flash block size and density for NAND
+	 */
+	struct mtd_info *mtd = get_nand_dev_by_index(0);
+
+	if (!mtd) {
+		pr_err("Failed to get NAND device for flash info\n");
+		return -ENODEV;
+	}
+
+	/*
+	 * Populate flash_block_size
+	 */
+	size = sizeof(uint32_t);
+	ret = smem_alloc(smem, -1, SMEM_BOOT_FLASH_BLOCK_SIZE, size);
+	if (ret && ret != -EEXIST) {
+		pr_err("Failed to alloc SMEM_BOOT_FLASH_BLOCK_SIZE (ret=%d)\n",
+			ret);
+		return ret;
+	}
+
+	uint32_t *flash_block_size = (uint32_t *)smem_get(smem, -1,
+						SMEM_BOOT_FLASH_BLOCK_SIZE, &size);
+	if (!flash_block_size) {
+		pr_err("Failed to get item: SMEM_BOOT_FLASH_BLOCK_SIZE\n");
+		return -ENOENT;
+	}
+	*flash_block_size = mtd->erasesize;
+
+	/*
+	 * Populate flash_density
+	 */
+	size = sizeof(uint32_t);
+	ret = smem_alloc(smem, -1, SMEM_BOOT_FLASH_DENSITY, size);
+	if (ret && ret != -EEXIST) {
+		pr_err("Failed to alloc SMEM_BOOT_FLASH_DENSITY (ret=%d)\n",
+			ret);
+		return ret;
+	}
+
+	uint32_t *flash_density = (uint32_t *)smem_get(smem, -1,
+						SMEM_BOOT_FLASH_DENSITY, &size);
+	if (!flash_density) {
+		pr_err("Failed to get item: SMEM_BOOT_FLASH_DENSITY\n");
+		return -ENOENT;
+	}
+	*flash_density = (uint32_t)mtd->size;
+
+	printf("NAND flash info populated in SMEM: block_size=0x%x, density=0x%x\n",
+		*flash_block_size, *flash_density);
+
+out_skip_smem_mibib_update:
+
 	return 0;
 }
 
@@ -575,6 +1317,33 @@ static int ipq_spl_get_iftbl_entry_by_name(struct interface_table *if_tbl,
 	pr_err("Interface table entry '%s' not found\n", name);
 
 	return -ENOENT;
+}
+
+/**
+ * ipq_spl_get_img_ctx_by_name() - Get image table entry by name.
+ * @img_name:	Name of the image to find.
+ *
+ * This function searches the img_tbl_fit for any entry matching the given name
+ * and returns the pointer to the matching image entry from the table.
+ *
+ * Return: pointer to maching image table entry on success, or NULL on failure.
+ */
+
+struct ipq_spl_img_ctx *ipq_spl_get_img_ctx_by_name(char *img_name)
+{
+	u8 uc_index;
+	u8 uc_size;
+
+	if (!img_name)
+		return NULL;
+
+	uc_size = ARRAY_SIZE(img_tbl_fit);
+	for (uc_index = 0; uc_index < uc_size; uc_index++) {
+		if (strcmp(img_name, img_tbl_fit[uc_index].img_name) == 0)
+			return &img_tbl_fit[uc_index];
+	}
+
+	return NULL;
 }
 
 /**
@@ -646,6 +1415,16 @@ static int ipq_spl_xcfg_fixup(void *ctx)
 	pctx->if_tbl.if_table_entries[entry_idx].address = 0;
 	pctx->if_tbl.if_table_entries[entry_idx].attributes = 0;
 	pctx->if_tbl.num_entries = entry_idx + 1;
+
+	/**
+	 * Initialize the QCLIB Region
+	 *
+	 * Note: The last 10 KB is reserved for QCCONFIG
+	 * and must not be cleared.
+	 */
+	memset((void *)IPQ_SPL_QCLIB_TEXT_BASE,
+		0x0,
+		IPQ_SPL_QCLIB_TEXT_SIZE - (SZ_8K + SZ_2K));
 
 	return 0;
 }
@@ -720,11 +1499,6 @@ static int ipq_spl_tfa_fixup(void *ctx)
 		return -EINVAL;
 	}
 
-	if (!pctx->fit) {
-		pr_err("FIT image not loaded\n");
-		return -EINVAL;
-	}
-
 	/*
 	 * Populate SMEM in coldboot (Dload bit not set)
 	 */
@@ -765,6 +1539,232 @@ static int ipq_spl_uboot_fixup(void *ctx)
 	pr_debug("U-Boot fixup skipped\n");
 	return 0;
 }
+
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
+/**
+ * ipq_spl_list_tme_fuse() - List TME fuses conditionally based on secure boot.
+ * @fuse_arr:	Pointer to the fuse array.
+ * @fuse_cnt:	Number of fuses.
+ *
+ * This function lists fuses using TME IPC communication. If a fuse is marked
+ * as secboot_protected, it will only be printed when secure boot is disabled.
+ * It also updates the global secure_boot_enabled variable.
+ * Return: 0 on success, or a negative error code on failure.
+ */
+static int ipq_spl_list_tme_fuse(struct ipq_spl_fuse_info *fuse_arr,
+				 u8 fuse_cnt)
+{
+	int ret;
+	u8 index;
+	size_t fuse_size;
+	size_t aligned_size;
+	struct fuse_payload *fuse;
+	struct list_fuse_params fuse_params;
+
+	fuse_size = sizeof(struct fuse_payload) * fuse_cnt;
+	aligned_size = roundup(fuse_size, CONFIG_SYS_CACHELINE_SIZE);
+	fuse = malloc_cache_aligned(aligned_size);
+	if (fuse == NULL) {
+		pr_err("Failed to allocate memory for fuse data\n");
+		return -ENOMEM;
+	}
+
+	memset(fuse, 0, aligned_size);
+
+	for (index = 0; index < fuse_cnt ; index++)
+		fuse[index].fuse_addr = fuse_arr[index].fuse_addr;
+
+	fuse_params.fuse = fuse;
+	fuse_params.fuse_read_cnt = fuse_cnt;
+	fuse_params.fuse_payload_size = sizeof(struct fuse_payload);
+	fuse_params.size = fuse_size;
+
+	ret = ipq_list_fuse_tme_impl(&fuse_params);
+	if (ret)
+		goto fail;
+
+	/*
+	 * Print fuses conditionally
+	 */
+	for (index = 0; index < fuse_cnt ; index++) {
+		if (fuse[index].fuse_addr == IPQ_SPL_FUSE_OEM_TME_ROW_0_ADDR) {
+			u32 lsb_val = fuse[index].lsb_val;
+			bool qti_secure_boot = (lsb_val & BIT(1)) ? true : false;
+
+			/*
+			 * Determine secure boot status
+			 */
+			secure_boot_enabled = (lsb_val & OEM_SEC_BOOT_ENABLE) ? true : false;
+			printf("%-24s OEM : %s , OEM + QTI :%s\n",
+				"Secure Boot:",
+				secure_boot_enabled ? "On " : "Off",
+				(secure_boot_enabled && qti_secure_boot) ? "On " : "Off");
+		}
+
+		if ((fuse_arr[index].secboot_protected == false) ||
+		    (secure_boot_enabled == false)) {
+
+			if (fuse_arr[index].full_row == true) {
+				u64 fuse_value_64 =
+					((u64)fuse[index].msb_val << 32) | fuse[index].lsb_val;
+
+				if (fuse_arr[index].mask != 0) {
+					fuse_value_64 =
+						(fuse_value_64 & fuse_arr[index].mask) >>
+						fuse_arr[index].shift;
+				}
+
+				printf("%-24s @ 0x%08X = 0x%016llX\n",
+					fuse_arr[index].fuse_name,
+					fuse[index].fuse_addr,
+					fuse_value_64);
+			} else {
+				u32 fuse_value_32 = fuse[index].lsb_val;
+
+				if (fuse_arr[index].mask != 0) {
+					fuse_value_32 =
+						(fuse_value_32 & (u32)fuse_arr[index].mask) >>
+						fuse_arr[index].shift;
+				}
+
+				printf("%-24s @ 0x%08X = 0x%08X\n",
+					fuse_arr[index].fuse_name,
+					fuse[index].fuse_addr,
+					fuse_value_32);
+			}
+		}
+	}
+
+fail:
+	free(fuse);
+
+	return ret;
+}
+
+/**
+ * ipq_spl_get_tme_patch_version() - Get and store TME-L patch version.
+ *
+ * This function retrieves the TME-L patch version using TME IPC communication
+ * and stores it in the global variable g_tme_version for later use.
+ * Return: void
+ */
+static void ipq_spl_get_tme_patch_version(void)
+{
+	int ret;
+	struct tmel_get_tme_version version_msg;
+	char *version_buffer;
+
+	/*
+	 * Initialize global TME version string
+	 */
+	g_tme_version[0] = '\0';
+
+	/*
+	 * Allocate aligned buffer for TME version
+	 */
+	version_buffer = memalign(ARCH_DMA_MINALIGN, TME_PATCH_VERSION_LENGTH);
+	if (!version_buffer) {
+		pr_err("Failed to allocate memory for TME version buffer\n");
+		return;
+	}
+
+	memset(version_buffer, 0, TME_PATCH_VERSION_LENGTH);
+	version_msg.pdata = (u32)(uintptr_t)version_buffer;
+	version_msg.length = TME_PATCH_VERSION_LENGTH;
+
+	/*
+	 * Get TME-L patch version from TME
+	 */
+	ret = ipq_get_tme_version_impl(&version_msg);
+	if (ret == 0) {
+		/* Validate that returned length is within buffer bounds */
+		if (version_msg.length >= TME_PATCH_VERSION_LENGTH) {
+			pr_err("TME version length %u exceeds buffer size %d\n",
+			       version_msg.length, TME_PATCH_VERSION_LENGTH);
+		} else {
+			/* Null-terminate at actual length returned by TME */
+			version_buffer[version_msg.length] = '\0';
+			printf("TME-L Patch Version: %s\n", version_buffer);
+			/* Save TME-L version to global variable */
+			strlcpy(g_tme_version, version_buffer, TME_PATCH_VERSION_LENGTH);
+		}
+	} else {
+		pr_warn("Failed to get TME-L patch version (ret=%d)\n", ret);
+	}
+
+	free(version_buffer);
+}
+
+/**
+ * ipq_spl_auth_image() - Authenticate an image using TME.
+ * @p_img_entry: Pointer to the image context.
+ *
+ * This function authenticates an image using TME.
+ * Return: 0 on success, or a negative error code on failure.
+ */
+static int ipq_spl_auth_image(struct ipq_spl_img_ctx *p_img_entry)
+{
+	int ret;
+	struct secure_auth_params auth_params = {0};
+
+	if (!p_img_entry) {
+		pr_err("Invalid image entry\n");
+		return -EINVAL;
+	}
+
+	if (p_img_entry->auth == false) {
+		printf("Authentication disabled for %s\n",
+				p_img_entry->img_name);
+		return 0;
+	}
+
+	/*
+	 * Validate authentication parameters
+	 */
+	if (!p_img_entry->load_addr) {
+		pr_err("Image Auth: Invalid load address\n");
+		return -EINVAL;
+	}
+
+	if (!p_img_entry->img_sz) {
+		pr_err("Image Auth: Invalid image size\n");
+		return -EINVAL;
+	}
+
+	printf("Auth image with SW_ID=0x%llx, addr=0x%llx, size=0x%llx\n",
+		p_img_entry->sw_id, p_img_entry->load_addr,
+		p_img_entry->img_sz);
+
+	/*
+	 * Populate Image params
+	 */
+	auth_params.type = p_img_entry->sw_id;
+	auth_params.addr = p_img_entry->load_addr;
+	auth_params.size = p_img_entry->img_sz;
+#ifdef CONFIG_SECURE_AUTH_V3
+	auth_params.flags = 1;
+#endif
+
+	/*
+	 * Populate relocated segments information
+	 */
+	auth_params.relocate = 0;
+	auth_params.load_seg_buff = NULL;
+	auth_params.load_seg_info_size = 0;
+	auth_params.load_seg_cnt = 0;
+
+	ret = ipq_secure_auth_tme_impl(&auth_params);
+	if (ret) {
+		pr_err("Image Auth: failed (ret=%d)\n", ret);
+		return ret;
+	}
+
+	printf("Image Auth: success\n");
+
+	return 0;
+}
+
+#endif /* CONFIG_IPQ_TMEL_IPC_SUPPORT */
 
 /**
  * spl_get_load_buffer() - Allocate a cache-aligned buffer for image loading.
@@ -820,6 +1820,9 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 	int ret;
 	u8 uc_index;
 	u8 uc_size;
+	u8 img_arch;
+	u64 load_addr;
+	void *load_ptr;
 	const char *img_name = fit_get_name(fit, node, NULL);
 	struct ipq_spl_ctx *ctx = U_BOOT_GET_IPQ_SPL_CTX(ipq_default_ctx);
 
@@ -827,8 +1830,41 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 
 	if (!ctx) {
 		pr_err("Unable to get SPL context\n");
-		return;
+		goto fail;
 	}
+
+	if (!p_image || !*p_image || !p_size || !*p_size) {
+		pr_err("Invalid image parameters\n");
+		goto fail;
+	}
+
+	/*
+	 * Get the actual image load address from the FIT image.
+	 */
+	if (fit_image_get_load(fit, node, (ulong *)&load_addr)) {
+		pr_err("Failed to get load address for %s\n", img_name);
+		goto fail;
+	}
+
+	/*
+	 * Copy the p_image pointer to the actual image load address to
+	 * handle any address alignments caused by block‑based flash reads.
+	 */
+	load_ptr = map_sysmem(load_addr, *p_size);
+	memcpy(load_ptr, *p_image, *p_size);
+
+	/*
+	 * Adjust the image pointer to the final load address post-memcpy.
+	 */
+	*p_image = load_ptr;
+
+#if !(CONFIG_IS_ENABLED(SYS_ICACHE_OFF) && CONFIG_IS_ENABLED(SYS_DCACHE_OFF))
+	/*
+	 * Ensure that the image data is written to the actual
+	 * memory location before we process it.
+	 */
+	flush_cache((unsigned long)(*p_image), (unsigned long)(*p_size));
+#endif
 
 	/*
 	 * Traverse through the SPL image table
@@ -842,16 +1878,34 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 			ctx->img_tbl = &img_tbl_fit[uc_index];
 			ctx->fit = (void *)fit;
 			img_tbl_fit[uc_index].fit_node = node;
+			img_tbl_fit[uc_index].load_addr = (u64)(*p_image);
+			img_tbl_fit[uc_index].img_sz = *p_size;
 
-#if !(CONFIG_IS_ENABLED(SYS_ICACHE_OFF) && CONFIG_IS_ENABLED(SYS_DCACHE_OFF))
+			if (fit_image_get_arch(fit, node, &img_arch)) {
+				pr_err("Failed to get architecture for %s\n", img_name);
+				goto fail;
+			}
+			img_tbl_fit[uc_index].img_arch = img_arch;
+
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
 			/*
-			 * Ensure that the metadata is written to the actual
-			 * memory location before we process it.
+			 * Authenticate image if enabled and bypass is not set
 			 */
-			if ((*p_size > 0) && *p_image)
-				flush_cache((unsigned long)(*p_image),
-						(unsigned long)(*p_size));
-#endif
+			if (img_tbl_fit[uc_index].auth) {
+				if (ipq_spl_tmel_bypass_enabled()) {
+					printf("Authentication bypassed for %s (tmel_bypass=1)\n",
+						img_tbl_fit[uc_index].img_name);
+				} else {
+					ret = ipq_spl_auth_image(ctx->img_tbl);
+					if (ret) {
+						pr_err("%s auth failed (ret=%d)\n",
+						ctx->img_tbl->img_name,
+						ret);
+						goto fail;
+					}
+				}
+			}
+#endif /* CONFIG_IPQ_TMEL_IPC_SUPPORT */
 
 			/*
 			 * Do the image fixups if available
@@ -862,12 +1916,20 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 					pr_err(
 					"Failed to fixup %s image (ret=%d)\n",
 					img_name, ret);
-					ipq_spl_error_handler(NULL);
+					goto fail;
 				}
 			}
 			break;
 		}
 	}
+
+	/*
+	 * Return on success
+	 */
+	return;
+
+fail:
+	ipq_spl_error_handler(NULL);
 }
 #endif /* CONFIG_SPL_FIT_IMAGE_POST_PROCESS */
 
@@ -892,6 +1954,7 @@ struct bl_params *bl2_plat_get_bl31_params_v2(uintptr_t bl32_entry,
 	struct interface_table_entry if_tbl_entry;
 	int ret;
 	struct ipq_spl_ctx *ctx = U_BOOT_GET_IPQ_SPL_CTX(ipq_default_ctx);
+	struct ipq_spl_img_ctx *img_tbl;
 
 	/*
 	 * Populate the bl31 params with default values.
@@ -932,10 +1995,57 @@ struct bl_params *bl2_plat_get_bl31_params_v2(uintptr_t bl32_entry,
 			 * If found, populate arg0 with the QCSDI address.
 			 */
 			node->ep_info->args.arg0 = if_tbl_entry.address;
+		} else if (node->image_id == ATF_BL33_IMAGE_ID) {
+			img_tbl = ipq_spl_get_img_ctx_by_name("uboot-meta");
+
+			if (img_tbl && img_tbl->img_arch == IH_ARCH_ARM) {
+				/* SPSR = 0x1D3 for 32-bit Mode */
+				node->ep_info->spsr = SPSR_32_SVC_ARM_MASKED_LE;
+			}
 		}
 	}
 
 	return bl_params;
+}
+
+/**
+ * spl_board_prepare_for_boot() - Prepare board for booting.
+ *
+ * This function is invoked during the SPL boot sequence to carry out
+ * any board‑specific setup required before exiting SPL.
+ */
+void spl_board_prepare_for_boot(void)
+{
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
+	/* Skip TME mailbox cleanup if tmel_bypass is enabled */
+	if (ipq_spl_tmel_bypass_enabled()) {
+		printf("TME mailbox cleanup skipped (tmel_bypass=1)\n");
+		return;
+	}
+
+	/*
+	 * Disconnect the TME mailbox channel so the client does not receive
+	 * anymore data and can reliquish control of the channel.
+	 */
+	int ret;
+	struct tmelcom *tmelcom_priv;
+
+	ret = ipq_get_tmelcom_device(&tmelcom_priv);
+	if (ret || !tmelcom_priv) {
+		pr_err("Failed to find TMELCOM node %d\n", ret);
+		goto fail;
+	}
+
+	ret = mbox_free(&tmelcom_priv->mbox);
+	if (ret) {
+		pr_err("Failed to shutdown TME mailbox channel: %d\n", ret);
+		goto fail;
+	}
+
+	return;
+fail:
+	ipq_spl_error_handler(NULL);
+#endif
 }
 
 /**
@@ -1051,8 +2161,38 @@ void board_init_f(ulong dummy)
 		goto fail;
 	}
 
+#if defined(CONFIG_CLK_QCOM_PLL)
+	ret = ipq_spl_probe_and_enable_plls();
+	if (ret) {
+		pr_err("Failed to enable PLLs (ret=%d)\n", ret);
+		goto fail;
+	}
+#endif /* CONFIG_CLK_QCOM_PLL */
+
+	ret = ipq_spl_board_init_clk();
+	if (ret) {
+		pr_err("Failed to initialize board clocks (ret=%d)\n", ret);
+		goto fail;
+	}
+
 	preloader_console_init();
 
+#if defined(CONFIG_CLK_QCOM_ALL)
+	ipq_enable_all_clks();
+#endif
+
+	ipq_spl_boot_logs();
+
+#if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
+	/* Skip TME fuse listing if tmel_bypass is enabled */
+	if (!ipq_spl_tmel_bypass_enabled()) {
+		ipq_spl_list_tme_fuse(tme_fuse_info_array,
+					ARRAY_SIZE(tme_fuse_info_array));
+		ipq_spl_get_tme_patch_version();
+	} else {
+		printf("TME fuse listing skipped (tmel_bypass=1)\n");
+	}
+#endif
 	ipq_spl_list_fuse(fuse_info_array,
 				ARRAY_SIZE(fuse_info_array));
 
@@ -1079,6 +2219,380 @@ fail:
 		ipq_spl_error_handler(NULL);
 }
 #endif /* !CONFIG_SPL_FRAMEWORK_BOARD_INIT_F */
+
+/**
+ * nand_is_block_mibib() - Check if a block contains a valid MIBIB
+ * @block:	Block number to check
+ * @age:	Pointer to store the age of the MIBIB if valid
+ *
+ * This function checks if the specified block contains a valid MIBIB
+ * by verifying magic numbers, version information, and CRC32 checksum.
+ *
+ * Return: true if valid MIBIB found, false otherwise
+ */
+static bool nand_is_block_mibib(int block, u32 *age)
+{
+	struct mi_boot_info *mibib_magic;
+	struct flash_partition_table *parti_sys;
+	struct flash_usr_partition_table *parti_usr;
+	struct flash_mibib_crc *mibib_crc;
+	u8 *page_buf;
+	u32 page, crc32 = 0;
+	struct mtd_info *mtd;
+	int ret, i;
+
+	mtd = get_nand_dev_by_index(0);
+	if (!mtd) {
+		printf("Failed to get NAND device\n");
+		return false;
+	}
+
+	/* Allocate a buffer for reading pages */
+	page_buf = malloc(mtd->writesize);
+	if (!page_buf) {
+		printf("Failed to allocate page buffer\n");
+		return false;
+	}
+
+	/* Calculate page number for MIBIB header */
+	page = block * (mtd->erasesize / mtd->writesize);
+
+	/* Read the MIBIB header page */
+	size_t length = mtd->writesize;
+
+	ret = nand_read(mtd, page * mtd->writesize, &length, page_buf);
+	if (ret || length != mtd->writesize) {
+		printf("Failed to read MIBIB header page\n");
+		free(page_buf);
+		return false;
+	}
+
+	/* Check MIBIB magic numbers and version */
+	mibib_magic = (struct mi_boot_info *)page_buf;
+	if ((mibib_magic->magic1 != MIBIB_MAGIC1) ||
+	    (mibib_magic->magic2 != MIBIB_MAGIC2) ||
+	    (mibib_magic->version != MIBIB_VERSION)) {
+		free(page_buf);
+		return false;
+	}
+
+	/* Store the age number */
+	*age = mibib_magic->age;
+
+	/* Start calculating CRC32 from MIBIB header page */
+	crc32 = crc32_no_comp(crc32, (uint8_t *)page_buf, mtd->writesize);
+
+	/* Read the partition table page */
+	page++;
+	length = mtd->writesize;
+	ret = nand_read(mtd, page * mtd->writesize, &length, page_buf);
+	if (ret || length != mtd->writesize) {
+		printf("Failed to read partition table page\n");
+		free(page_buf);
+		return false;
+	}
+
+	/* Check partition table magic numbers and version */
+	parti_sys = (struct flash_partition_table *)page_buf;
+	if ((parti_sys->magic1 != FLASH_PART_MAGIC1) ||
+	    (parti_sys->magic2 != FLASH_PART_MAGIC2) ||
+	    (parti_sys->version != FLASH_PARTITION_VERSION)) {
+		free(page_buf);
+		return false;
+	}
+
+	/* Continue calculating CRC32 with partition table page */
+	crc32 = crc32_no_comp(crc32, (uint8_t *)page_buf, mtd->writesize);
+
+	/* Read and calculate CRC for remaining pages up to USR_PART page */
+	for (i = MIBIB_PAGE_PARTITION_TABLE + 1; i < MIBIB_PAGE_LAST_PAGE - 2; i++) {
+		page++;
+		length = mtd->writesize;
+		ret = nand_read(mtd, page * mtd->writesize, &length, page_buf);
+		if (ret) {
+			if (ret == -EUCLEAN) {
+				/* Page is erased, fill with 0xFF for CRC calculation */
+				memset(page_buf, 0xFF, mtd->writesize);
+			} else {
+				printf("Failed to read MIBIB page %d\n", i);
+				free(page_buf);
+				return false;
+			}
+		}
+		crc32 = crc32_no_comp(crc32, (uint8_t *)page_buf, mtd->writesize);
+	}
+
+	/* Read the USR_PART page */
+	page++;
+	length = mtd->writesize;
+	ret = nand_read(mtd, page * mtd->writesize, &length, page_buf);
+	if (ret) {
+		printf("Failed to read USR_PART page\n");
+		free(page_buf);
+		return false;
+	}
+
+	/* Validate USR_PART page */
+	parti_usr = (struct flash_usr_partition_table *)page_buf;
+	if ((parti_usr->magic1 != FLASH_USR_PART_MAGIC1) ||
+	    (parti_usr->magic2 != FLASH_USR_PART_MAGIC2) ||
+	    (parti_usr->version != FLASH_PARTITION_VERSION)) {
+		printf("USR_PART magic or version number mismatch\n");
+		free(page_buf);
+		return false;
+	}
+
+	/* Continue CRC calculation with USR_PART page */
+	crc32 = crc32_no_comp(crc32, (uint8_t *)page_buf, mtd->writesize);
+
+	/* Read the CRC page */
+	page++;
+	length = mtd->writesize;
+	ret = nand_read(mtd, page * mtd->writesize, &length, page_buf);
+	if (ret || length != mtd->writesize) {
+		printf("Failed to read MIBIB CRC page\n");
+		free(page_buf);
+		return false;
+	}
+
+	/* Check CRC magic numbers and version */
+	mibib_crc = (struct flash_mibib_crc *)page_buf;
+	if ((mibib_crc->magic1 != FLASH_MIBIB_CRC_MAGIC1) ||
+	    (mibib_crc->magic2 != FLASH_MIBIB_CRC_MAGIC2) ||
+	    (mibib_crc->version != FLASH_MIBIB_CRC_VERSION)) {
+		printf("MIBIB CRC magic or version mismatch\n");
+		free(page_buf);
+		return false;
+	}
+
+	/* Verify CRC32 checksum */
+	if (mibib_crc->crc != crc32) {
+		/*
+		 * printf("MIBIB CRC checksum mismatch: calculated=0x%08x, stored=0x%08x\n",
+		 * crc32, mibib_crc->crc);
+		 * free(page_buf); // TBD: UBOOT_SPL
+		 * return false;
+		 */
+
+	}
+
+	/* All checks passed, we have a valid MIBIB */
+	free(page_buf);
+	return true;
+}
+
+/**
+ * nand_retrieve_mibib() - Find and retrieve MIBIB from flash
+ *
+ * This function searches for valid MIBIB blocks in flash and returns
+ * the partition table from the most recent valid MIBIB.
+ *
+ * Return: Pointer to the partition table, or NULL if not found
+ */
+static struct flash_partition_table *nand_retrieve_mibib(void)
+{
+	int cur_block;
+	u32 copy1_age = 0, copy2_age = 0;
+	int copy1_blockno = -1, copy2_blockno = -1;
+	bool copy1_valid = false, copy2_valid = false;
+	int new_mibib_block = -1;
+	struct mtd_info *mtd;
+	struct flash_partition_table *parti_ptr = NULL;
+	u8 *page_buf = NULL;
+	int ret;
+
+	mtd = get_nand_dev_by_index(0);
+	if (!mtd) {
+		printf("Failed to get NAND device\n");
+		return NULL;
+	}
+
+	/* Allocate a buffer for reading pages */
+	page_buf = malloc(mtd->writesize);
+	if (!page_buf) {
+		printf("Failed to allocate page buffer\n");
+		return NULL;
+	}
+
+	/* Search for first MIBIB copy */
+	for (cur_block = 0; cur_block <= MIBIB_BLOCK_SEARCH_MAX; cur_block++) {
+		if (nand_is_block_mibib(cur_block, &copy1_age)) {
+			copy1_valid = true;
+			copy1_blockno = cur_block;
+			break;
+		}
+	}
+
+	/* If no valid MIBIB found, return NULL */
+	if (!copy1_valid) {
+		printf("No valid MIBIB found\n");
+		free(page_buf);
+		return NULL;
+	}
+
+	/* Search for second MIBIB copy */
+	for (cur_block = copy1_blockno + 1; cur_block <= MIBIB_BLOCK_SEARCH_MAX; cur_block++) {
+		if (nand_is_block_mibib(cur_block, &copy2_age)) {
+			copy2_valid = true;
+			copy2_blockno = cur_block;
+			break;
+		}
+	}
+
+	/* Determine which MIBIB copy is newer */
+	if (copy1_valid && !copy2_valid)
+		new_mibib_block = copy1_blockno;
+	else if (!copy1_valid && copy2_valid)
+		new_mibib_block = copy2_blockno;
+	else if (copy1_valid && copy2_valid) {
+		if (copy1_age > copy2_age)
+			new_mibib_block = copy1_blockno;
+		else
+			new_mibib_block = copy2_blockno;
+	}
+
+	if (new_mibib_block == -1) {
+		printf("Failed to determine valid MIBIB block\n");
+		free(page_buf);
+		return NULL;
+	}
+
+	/* Allocate memory for the partition table first */
+	parti_ptr = malloc(sizeof(struct flash_partition_table));
+	if (!parti_ptr) {
+		printf("Failed to allocate memory for partition table\n");
+		free(page_buf);
+		return NULL;
+	}
+
+	/* Read the partition table from the valid MIBIB block */
+	u32 page = (new_mibib_block * (mtd->erasesize / mtd->writesize)) +
+			MIBIB_PAGE_PARTITION_TABLE;
+
+	size_t length = mtd->writesize;
+
+	ret = nand_read(mtd, page * mtd->writesize, &length, page_buf);
+	if (ret || length != mtd->writesize) {
+		printf("Failed to read partition table\n");
+		free(page_buf);
+		free(parti_ptr);
+		return NULL;
+	}
+
+	/* Copy the partition table */
+	memcpy(parti_ptr, page_buf, sizeof(struct flash_partition_table));
+
+	/* Verify the partition table */
+	if ((parti_ptr->magic1 != FLASH_PART_MAGIC1) ||
+		(parti_ptr->magic2 != FLASH_PART_MAGIC2) ||
+		(parti_ptr->version != FLASH_PARTITION_VERSION)) {
+		printf("Invalid partition table in MIBIB\n");
+		free(page_buf);
+		free(parti_ptr);
+		return NULL;
+	}
+
+	free(page_buf);
+	return parti_ptr;
+}
+
+/**
+ * find_bootldr_partition() - Find the BOOTLDR partition in the partition table
+ * @parti_ptr:	Pointer to the partition table
+ *
+ * This function searches for the 0:BOOTLDR partition in the partition table
+ * and returns its offset.
+ *
+ * Return: Offset of the BOOTLDR partition, or 0 if not found
+ */
+static u32 find_bootldr_partition(struct flash_partition_table *parti_ptr)
+{
+	int i;
+
+	if (!parti_ptr)
+		return 0;
+
+	for (i = 0; i < parti_ptr->numparts; i++) {
+		if (strncmp(parti_ptr->part_entry[i].name, "0:BOOTLDR", 9) == 0 ||
+			strncmp(parti_ptr->part_entry[i].name, "BOOTLDR", 7) == 0)
+			return parti_ptr->part_entry[i].offset;
+	}
+
+	return 0;
+}
+
+/**
+ * spl_nand_get_uboot_raw_page() - Get the page offset of the BOOTLDR partition
+ *
+ * This function retrieves the MIBIB from flash, finds the BOOTLDR partition,
+ * and returns its page offset.
+ *
+ * Return: Page offset of the BOOTLDR partition, or 0 if not found
+ */
+int spl_nand_get_uboot_raw_page(void)
+{
+	struct mtd_info *mtd;
+	struct flash_partition_table *mibib_parti_ptr;
+
+	/*
+	 * If bootloader offset is already calculated, return it directly
+	 */
+	if (g_bootldr_offset != 0)
+		return g_bootldr_offset;
+
+	/*
+	 * Retrieve MIBIB if invalid magic
+	 */
+	if ((g_mibib_parti_tbl.magic1 != FLASH_PART_MAGIC1) ||
+	    (g_mibib_parti_tbl.magic2 != FLASH_PART_MAGIC2) ||
+	    (g_mibib_parti_tbl.version != FLASH_PARTITION_VERSION)) {
+
+		/*
+		 * Retrieve MIBIB
+		 */
+		mibib_parti_ptr = nand_retrieve_mibib();
+		if (!mibib_parti_ptr) {
+			/*
+			 * Use default offset if MIBIB not found
+			 */
+#if defined(CONFIG_SYS_NAND_U_BOOT_OFFS)
+			g_bootldr_offset = CONFIG_SYS_NAND_U_BOOT_OFFS;
+#else
+			g_bootldr_offset = 0;
+#endif
+			printf("MIBIB not found, using default offset: 0x%X\n",
+				g_bootldr_offset);
+
+			return g_bootldr_offset;
+		}
+
+		/*
+		 * Store the MIBIB struct
+		 */
+		memcpy(&g_mibib_parti_tbl,
+			mibib_parti_ptr,
+			sizeof(struct flash_partition_table));
+
+		free(mibib_parti_ptr);
+	}
+
+	/*
+	 * Find BOOTLDR partition
+	 */
+	g_bootldr_offset = find_bootldr_partition(&g_mibib_parti_tbl);
+
+	/*
+	 * Convert block offset to page offset
+	 */
+	mtd = get_nand_dev_by_index(0);
+	if (mtd)
+		g_bootldr_offset *= (mtd->erasesize);
+
+	printf("BOOTLDR partition found at page offset: 0x%X\n",
+		g_bootldr_offset);
+
+	return g_bootldr_offset;
+}
 
 
 /**

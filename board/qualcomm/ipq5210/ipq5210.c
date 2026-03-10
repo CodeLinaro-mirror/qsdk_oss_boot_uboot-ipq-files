@@ -15,13 +15,29 @@
 #define IM_SLEEP_CLK				0x1834020
 /* MACH IDs for various RDPs */
 #define MACH_TYPE_IPQ5210_EMULATION		0xf060000
+#define MACH_TYPE_IPQ5210_DB_HM01_1		0x1080000
+#define MACH_TYPE_IPQ5210_DB_HM02_1		0x1080100
+#define MACH_TYPE_IPQ5210_RDP497		0x8080000
+#define MACH_TYPE_IPQ5210_RDP498		0x8080100
+#define MACH_TYPE_IPQ5210_RDP499		0x8080200
+#define MACH_TYPE_IPQ5210_RDP500		0x8080101
+#define MACH_TYPE_IPQ5210_RDP501		0x8080102
+#define MACH_TYPE_IPQ5210_RDP502		0x8080201
+#define MACH_TYPE_IPQ5210_RDP503		0x8080202
+#define MACH_TYPE_IPQ5210_RDP504		0x8080203
+#define MACH_TYPE_IPQ5210_RDP505		0x8080300
+
+#define TIMEOUT_MS				30000
+#define CLK_SRC					32000
+#define WDT_ENABLE_REG				0xb017008
+#define WDT_RST_REG				0xb017004
+#define WDT_BARK_TIME_REG			0xb017010
+#define WDT_BITE_TIME_REG			0xb017014
 
 struct dts_fixup ipq5210_mmc_fixup [] = {
 	{ "/soc@0/nand@79b0000/", {"/soc@0/nand@79b0000/%status%?disabled"},1},
 	{ "/soc@0/mmc@7804000/", {"/soc@0/mmc@7804000/%status%?okay"}, 1},
-	{ "/soc/nand@79b0000/", {"/soc/nand@79b0000/%status%?disabled"},1},
-	{ "/soc/sdhci@7804000/", {"/soc/sdhci@7804000/%status%?okay"}, 1},
-	{}
+	{NULL}
 };
 
 struct dts_fixup *mmc_fixup = ipq5210_mmc_fixup;
@@ -31,14 +47,34 @@ struct dts_fixup ipq5210_usb_fixup [] = {
 		{"/soc@0/usb3@8a00000/dwc3@8a00000%dr_mode%?peripheral",
 		"/soc@0/usb3@8a00000/dwc3@8a00000%maximum-speed%?high-speed"},
 		2},
-	{ "/soc/usb3@8A00000/dwc3@8A00000/",
-		{ "/soc/usb3@8A00000/dwc3@8A00000%dr_mode%?peripheral",
-		"/soc/usb3@8A00000/dwc3@8A00000%maximum-speed%?high-speed"},
-		2},
-	{}
+	{NULL}
 };
 
 struct dts_fixup *usb_fixup = ipq5210_usb_fixup;
+
+#ifdef CONFIG_IPQ_EARLY_WDT
+void ipq_enable_non_sec_watchdog(void)
+{
+	/*
+	 * Enabling non-secure WDT for early failure recovery support
+	 */
+	ulong bark_timeout_s = ((TIMEOUT_MS - 1)  * CLK_SRC) / 1000;
+	ulong bite_timeout_s = (TIMEOUT_MS * CLK_SRC) / 1000;
+
+	writel(0, WDT_ENABLE_REG);
+	writel(BIT(0), WDT_RST_REG);
+	writel(bark_timeout_s, WDT_BARK_TIME_REG);
+	writel(bite_timeout_s, WDT_BITE_TIME_REG);
+	writel(BIT(0), WDT_ENABLE_REG);
+}
+#endif
+
+#if !defined(CONFIG_SPL)
+void lowlevel_init(void)
+{
+
+}
+#endif /* !CONFIG_SPL */
 
 #if CONFIG_FDT_FIXUP_PARTITIONS
 struct node_info ipq_fnodes[] = {
@@ -60,6 +96,72 @@ struct machid_dts_map machid_dts[] = {
 		"ipq5210-emulation-fbc",
 		"emulation-fbc",
 		"1",
+	},
+	{
+		MACH_TYPE_IPQ5210_DB_HM01_1,
+		"ipq5210-db-hm01.1",
+		"db-hm01.1",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_DB_HM02_1,
+		"ipq5210-db-hm02.1",
+		"db-hm02.1",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP497,
+		"ipq5210-rdp497",
+		"rdp497",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP498,
+		"ipq5210-rdp498",
+		"rdp498",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP499,
+		"ipq5210-rdp499",
+		"rdp499",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP500,
+		"ipq5210-rdp500",
+		"rdp500",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP501,
+		"ipq5210-rdp501",
+		"rdp501",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP502,
+		"ipq5210-rdp502",
+		"rdp502",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP503,
+		"ipq5210-rdp503",
+		"rdp503",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP504,
+		"ipq5210-rdp504",
+		"rdp504",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_RDP505,
+		"ipq5210-rdp505",
+		"rdp505",
+		"1"
 	},
 };
 
@@ -242,4 +344,99 @@ void ipq_update_comm_type(void)
 
 	if (bdinfo)
 		bdinfo->comm_type_map = comm_type_map;
+}
+
+int board_get_smem_target_info(struct ipq_smem_target_info *smem_tinfo_ptr)
+{
+	uint32_t tcsr_wonce0_val = readl(TCSR_TZ_WONCE0);
+	uint32_t tcsr_wonce1_val = readl(TCSR_TZ_WONCE1);
+	uint64_t ipq_smem_target_info_addr;
+	struct ipq_smem_target_info *ipq_smem_target_info_ptr;
+
+	ipq_smem_target_info_addr = tcsr_wonce0_val |
+		(((uint64_t)(tcsr_wonce1_val)) << 32);
+
+	ipq_smem_target_info_ptr = (struct ipq_smem_target_info*)
+		(uintptr_t)ipq_smem_target_info_addr;
+	if (!ipq_smem_target_info_ptr)
+		return -EFAULT;
+
+	if (ipq_smem_target_info_ptr->identifier !=
+			IPQ_SMEM_TARGET_INFO_IDENTIFIER)
+		return -EFAULT;
+
+	memcpy((void*)smem_tinfo_ptr,
+			(void*)(uintptr_t)ipq_smem_target_info_ptr,
+			sizeof(struct ipq_smem_target_info));
+	return 0;
+}
+
+void ipq_fdt_fixup_smem(void *blob)
+{
+	uint32_t reg[4];
+	struct ipq_smem_target_info ipq_smem_target_info;
+	struct ipq_smem_target_info *smem_tinfo_ptr = &ipq_smem_target_info;
+
+	if (board_get_smem_target_info(&ipq_smem_target_info))
+		return;
+
+	reg[0] = 0;
+	reg[1] = cpu_to_fdt32((uint32_t)smem_tinfo_ptr->smem_base_addr);
+	reg[2] = 0;
+	reg[3] = cpu_to_fdt32(smem_tinfo_ptr->smem_size);
+
+	fdt_find_and_setprop(blob, "/reserved-memory/smem@8a500000/",
+			"reg", reg, sizeof(reg), 0);
+}
+
+int ipq_uboot_fdt_fixup_smem(void *blob)
+{
+	uint32_t reg[4];
+	struct ipq_smem_target_info ipq_smem_target_info;
+	struct ipq_smem_target_info *smem_tinfo_ptr = &ipq_smem_target_info;
+
+	if (board_get_smem_target_info(&ipq_smem_target_info))
+		return -EFAULT;
+
+	reg[0] = 0;
+	reg[1] = cpu_to_fdt32((uint32_t)smem_tinfo_ptr->smem_base_addr);
+	reg[2] = 0;
+	reg[3] = cpu_to_fdt32(smem_tinfo_ptr->smem_size);
+
+	fdt_find_and_setprop(blob, "/reserved-memory/smem_region@8a500000",
+			"reg", reg, sizeof(reg), 0);
+	return 0;
+}
+
+void ipq_uboot_fdt_fixup_usb(void *blob)
+{
+	return;
+}
+
+#ifdef CONFIG_BOOT_BANK_FIXUP
+int ipq_uboot_fdt_fixup_booted_bank(void *blob)
+{
+	return fdt_set_booted_bank_property(blob);
+}
+#endif
+
+int ipq_uboot_fdt_fixup(void *blob, enum fixup_type type)
+{
+	switch(type) {
+	case UBOOT_FIXUP_SMEM:
+		ipq_uboot_fdt_fixup_smem(blob);
+		break;
+	case UBOOT_FIXUP_USB:
+		ipq_uboot_fdt_fixup_usb(blob);
+		break;
+#ifdef CONFIG_BOOT_BANK_FIXUP
+	case UBOOT_FIXUP_BOOTED_BANK:
+		ipq_uboot_fdt_fixup_booted_bank(blob);
+		break;
+#endif
+	default:
+		break;
+	}
+
+	return 0;
 }

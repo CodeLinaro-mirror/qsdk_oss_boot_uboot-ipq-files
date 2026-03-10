@@ -40,6 +40,7 @@
 #define TMEL_ACTION_SECBOOT_SEC_AUTH		0x04
 #define TMEL_ACTION_SECBOOT_SEC_AUTH_V2		0x0F
 #define TMEL_ACTION_SECBOOT_SS_TEAR_DOWN	0x0a
+#define TMEL_ACTION_SECBOOT_GET_STATE		0x0C
 
 /*
  *   Action ID's for TMEL_MSG_FUSE
@@ -66,6 +67,9 @@
 
 #define TMEL_MSG_UID_SECBOOT_SS_TEAR_DOWN	TMEL_MSG_UID_CREATE(TMEL_MSG_SECBOOT,\
 						TMEL_ACTION_SECBOOT_SS_TEAR_DOWN)
+
+#define TMEL_MSG_UID_SECBOOT_GET_STATE		TMEL_MSG_UID_CREATE(TMEL_MSG_SECBOOT,\
+						TMEL_ACTION_SECBOOT_GET_STATE)
 
 #define TMEL_MSG_UID_LOOPBACK_TEST_MBOX_ADD_VAL	TMEL_MSG_UID_CREATE(TMEL_MSG_LOOPBACK_TEST,\
 						TMEL_ACTION_LOOPBACK_TEST_MBOX_ADD_VAL)
@@ -139,8 +143,68 @@ struct tmelcom {
 	struct mbox_chan mbox;
 };
 
-void tmel_secboot_sec_free(void *ptr);
+/*
+ * TME PATCH VERSION structures
+ */
 
+/*
+ * TME Response Buffer structure
+ * Matches TMEResponseCBuffer from TME firmware
+ */
+struct tmel_response_buffer {
+	u32 pdata;              /* Pointer to the buffer */
+	u32 length;             /* Length of the buffer */
+	u32 length_used;        /* Actual length of the buffer used */
+} __packed;
+
+/*
+ * TME Patch Version Length
+ */
+#define TME_PATCH_VERSION_LENGTH        128
+
+/*
+ * TME State Type structure
+ * Matches tmeStateType_t from TME firmware
+ */
+struct tmel_state_type {
+	u32 tme_patch_status : 1;       /* Only 1 bit tmePatchStatus_t value */
+	u32 tme_mode : 1;               /* Only 1 bit tmeModeType_t value */
+	u32 reserve : 30;               /* 30 bits reserved */
+} __packed;
+
+/*
+ * Get TME State Response structure
+ * Matches tmeGetStateRsp_t from TME firmware
+ */
+struct tmel_get_state_rsp {
+	u32 state;                      /* Get TMEL State */
+	struct tmel_response_buffer patch_version;      /* TMEL Patch version buffer */
+	u32 status;                                     /* TME Get State Status */
+} __packed;
+
+/*
+ * Get TME State structure
+ * Matches tmeGetState_t from TME firmware
+ */
+struct tmel_get_state {
+	struct tmel_get_state_rsp rsp;
+} __packed;
+
+/*
+ * Simplified TME Get State structure for internal use
+ * Used when calling tmel_qmp_msg and tmel_qmp_send
+ */
+struct tmel_get_tme_version {
+	u32 pdata;              /* Pointer to patch version buffer */
+	u32 length;             /* Length of the buffer (should be >= TME_PATCH_VERSION_LENGTH) */
+} __packed;
+
+void tmel_secboot_sec_free(void *ptr);
 int ipq_get_tmelcom_device(struct tmelcom **tmelcom_priv);
+int ipq_list_fuse_tme_impl(void *params);
+int ipq_dump_fuse_tme_impl(void *params);
+int ipq_check_secure_boot_tme_impl(void *params);
+int ipq_secure_auth_tme_impl(void *params);
+int ipq_get_tme_version_impl(void *params);
 
 #endif  /* _LINUX_TMELCOM_QMP_H */

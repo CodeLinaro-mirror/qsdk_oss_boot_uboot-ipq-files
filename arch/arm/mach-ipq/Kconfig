@@ -142,7 +142,28 @@ config IPQ_NAND
 	  This option is required to use NAND flash devices connected via the
 	  QPIC interface on supported platforms.
 
+config SPL_SYS_NAND_SELF_INIT
+		bool "use self init nand"
+		depends on !SPL_NAND_SIMPLE
+		depends on SPL
+		help
+		  This option, if enabled, provides more flexible and linux-like
+		  NAND initialization process, in SPL.
 
+config SPL_NAND_INIT
+		bool "use nand init from nand.c"
+		depends on SPL
+		help
+		  This option, if enabled, uses the standard nand_init function from
+		  nand.c in SPL. This provides a consistent NAND initialization process
+		  between SPL and the main U-Boot, ensuring proper NAND device setup.
+
+config SPL_NAND_QTI
+		bool "support SPL QTI NAND controller"
+		depends on SPL
+		select SPL_SYS_NAND_SELF_INIT
+		help
+		  Enable this driver for NAND flash in ipq platform
 
 config IPQ_SPI_NOR
 	bool "Enable SPI NOR flash support in IPQ SOC"
@@ -179,12 +200,6 @@ config IPQ_NET
 	imply ETH_SKIP_INIT_R
 	help
 	  This config will enable the Ethernet support in IPQSOC.
-
-config ETH_MAX_MAC
-	hex "Define Maximum MAC support in SoC"
-	default 2
-	help
-	  This config defines the maximum MAC support in SoC.
 
 config ETH_MAX_UNIPHY
 	int "Maximum number of uniphy available"
@@ -274,7 +289,7 @@ config SHARED_IPC_INTERRUPT_REG
 config ETH_MAX_MAC
 	hex "Define Maximum MAC support in SoC"
 	default 2 if TARGET_IPQ5332
-	default 6 if TARGET_IPQ9574
+	default 6 if (TARGET_IPQ5210 || TARGET_IPQ9574 || TARGET_IPQ9650)
 	default 3 if TARGET_IPQ5424
 	help
 	  This config gives the maximum MAC support in SoC.
@@ -455,6 +470,14 @@ config DPR_VERSION
 	  This gives the current DPR version.
 	  It helps in executing dpr_execute in u-boot.
 
+config EDL_SUPPORT
+	bool "Enable EDL reset support"
+	default n
+	help
+	  This configuration option enables Emergency Download (EDL)
+	  mode reset support. When enabled, provides the edl_reset
+	  command to reset the device into EDL mode.
+
 config IPQ_SECURE
 	bool "IPQSOC secure call support"
 	imply IPQ_ELF_AUTH
@@ -533,7 +556,7 @@ config IPQ_PCIE
 	bool "Enable PCIE support in IPQ SOC"
 	select PCI
 	select PCIE_DW_QCOM
-	select PHY_QCOM_QMP_PCIE if TARGET_IPQ9574 || TARGET_IPQ5424 || TARGET_IPQ5210
+	select PHY_QCOM_QMP_PCIE if TARGET_IPQ9574 || TARGET_IPQ5424 || TARGET_IPQ5210 || TARGET_IPQ9650
 	select PHY_QCOM_UNIPHY_PCIE if TARGET_IPQ5332
 	select CMD_PCI
 	select PHY
@@ -547,6 +570,7 @@ config IPQ_MAX_PCIE
 	default 3 if TARGET_IPQ5332
 	default 4 if TARGET_IPQ9574
 	default 4 if TARGET_IPQ5424
+	default 5 if TARGET_IPQ9650
 	help
 	   This config declare maximum PCIE in SoC.
 
@@ -660,6 +684,13 @@ config PRPL_MMC_LABEL
 	  - "rootfs" → "rootfs-active"
 	  - "rootfs_1" → "rootfs-inactive"
 
+config BOOT_BANK_FIXUP
+	bool "Enable the fixup of booted bank information"
+	default n
+	help
+	  Enable this config to fixup u-boot and kernel device tree with
+	  booted bank information.
+
 choice
 	prompt "IPQ board select"
 
@@ -724,6 +755,8 @@ config TARGET_IPQ9574
 	imply PHY_QCA_8075
 	imply PHY_QCA_8081
 	imply PHY_AQUANTIA
+	imply PHY_QCE_1204
+	imply CLK_QCOM_NSSCC_QCE2204
 	select CMD_CACHE
 	imply IPQ_I2C
 	imply FUSE_IPQ
@@ -748,6 +781,7 @@ config TARGET_IPQ9574
 	imply PHY_QCOM_QMP_USB3 if IPQ_USB
 	imply SDX_ATTACH_SUPPORT
 	imply CB_CALIB
+	imply BOOT_BANK_FIXUP
 	help
 	  Support for IPQ95xx SoC.
 	  - Board Open Platform Specifications.
@@ -796,6 +830,7 @@ config TARGET_IPQ5424
 	imply RUNTIME_SF_ENV_UPDATE if ENV_IS_IN_SPI_FLASH
 	imply SDX_ATTACH_SUPPORT
 	imply CB_CALIB
+	imply EDL_SUPPORT
 	help
 	  Support for IPQ5424 SoC.
 	  - Board Open Platform Specifications.
@@ -815,10 +850,10 @@ config TARGET_IPQ5210
 	imply DMA_CHANNELS
 	select BAM_DMA if DMA
 	imply IPQ_USB
+	imply EDL_SUPPORT
 	imply GPT_UPDATE_PARAMS
 	imply IPQ_I2C
 	imply IPQ_PCIE
-	imply ARMV8_SWITCH_TO_EL1
 	imply LIST_FUSE
 	imply IPQ_TMEL_IPC_SUPPORT
 	imply SHA384
@@ -826,7 +861,16 @@ config TARGET_IPQ5210
 	imply IPQ_SECURE
 	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
 	imply SECURE_AUTH_V2 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
-
+	imply RUNTIME_SF_ENV_UPDATE if ENV_IS_IN_SPI_FLASH
+	imply IPQ_NET if !SPL
+	imply QCOM_NSS_SWITCH_V2 if !SPL
+	imply NSS_PPE_V4 if !SPL
+	imply PHY_QCA_81XX if !SPL
+	imply PHY_QCA_8075 if !SPL
+	imply PHY_QCA_8081 if !SPL
+	imply PHY_QCA_8033 if !SPL
+	imply PHY_QCE_1204 if !SPL
+	imply CLK_QCOM_NSSCC_QCE2204 if !SPL
 	help
 	  Support for IPQ5210 SoC.
 	  - Board Open Platform Specifications.
@@ -847,6 +891,9 @@ config TARGET_IPQ9650
 	imply GPT_UPDATE_PARAMS
 	imply DMA
 	imply DMA_CHANNELS
+	imply IPQ_USB
+	imply IPQ_PCIE
+	imply EDL_SUPPORT
 	imply LIST_FUSE
 	imply IPQ_TMEL_IPC_SUPPORT
 	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
@@ -854,6 +901,7 @@ config TARGET_IPQ9650
 	imply SCM_V2
 	imply IPQ_SECURE
 	imply SECURE_AUTH_V3 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
+	imply RUNTIME_SF_ENV_UPDATE if ENV_IS_IN_SPI_FLASH
 	help
 	  Support for IPQ9650 SoC.
 	  - Board Open Platform Specifications.

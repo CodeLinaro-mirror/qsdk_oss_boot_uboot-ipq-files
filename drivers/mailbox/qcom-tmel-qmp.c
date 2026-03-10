@@ -140,6 +140,17 @@ struct iovec_tmel {
 };
 
 /**
+ * struct qmp_device_cfg - QMP device configuration
+ * @shared_irq: IRQ to notify tx completion from APSS to TME-L
+ */
+struct qmp_device_cfg {
+	u32 shared_irq;
+	phys_addr_t reg;
+	u8 bit;
+	bool issupport_check;
+};
+
+/**
  * struct qmp_device - local information for managing a single mailbox
  * @dev: The device that corresponds to this mailbox
  * @mcore_desc: Local core (APSS) mailbox descriptor
@@ -152,6 +163,7 @@ struct iovec_tmel {
  * @link_complete: Use to block until link negotiation with remote proc
  * @ch_complete: Use to block until the channel is fully opened
  * @tx_sent: True if tx is sent and remote proc has not sent ack
+ * @shared_irq: IRQ to notify tx completion from APSS to TME-L
  */
 struct qmp_device {
 	struct udevice *dev;
@@ -169,8 +181,10 @@ struct qmp_device {
 
 	bool link_complete;
 	bool ch_complete;
+	bool is_enabled;
 
 	atomic_t tx_sent;
+	u32 shared_irq;
 };
 
 /**
@@ -253,7 +267,7 @@ static int tmel_qmp_send_data(struct qmp_device *mdev, void *data);
  */
 static inline void tmel_qmp_send_irq(struct qmp_device *mdev)
 {
-	if (!mdev)
+	if (!mdev || !mdev->dev)
 		return;
 
 	writel(mdev->mcore.val, mdev->mcore_desc);
@@ -263,7 +277,7 @@ static inline void tmel_qmp_send_irq(struct qmp_device *mdev)
 	dev_dbg(mdev->dev, "%s: mcore 0x%x ucore 0x%x", __func__,
 		mdev->mcore.val, mdev->ucore.val);
 
-	writel(BIT(20), CONFIG_SHARED_IPC_INTERRUPT_REG);
+	writel(mdev->shared_irq, CONFIG_SHARED_IPC_INTERRUPT_REG);
 }
 
 /**
@@ -840,6 +854,69 @@ int tmelcom_fuse_list_read(struct tmel *tdev, struct tmel_fuse_payload *fuse, si
 }
 
 /**
+ * tmelcom_get_tme_version() - Get TME version information
+ * @tdev: the tmel device
+ * @version_msg: message containing buffer pointer and length for version data
+ */
+int tmelcom_get_tme_version(struct tmel *tdev, struct tmel_get_tme_version *version_msg)
+{
+	int ret;
+	struct tmel_get_state msg = {0};
+	struct udevice *dev;
+	dma_addr_t dma_version;
+	void *version_buf;
+	u32 length;
+
+	if (!tdev || !version_msg)
+		return -EINVAL;
+
+	dev = tdev->dev;
+	version_buf = (void *)(uintptr_t)version_msg->pdata;
+	length = version_msg->length;
+
+	if (!dev || !version_buf || !length)
+		return -EINVAL;
+
+	if (length != TME_PATCH_VERSION_LENGTH) {
+		dev_err(dev, "Invalid buffer length %u (expected %d bytes)\n",
+			length, TME_PATCH_VERSION_LENGTH);
+		return -EINVAL;
+	}
+
+	dma_version = dma_map_single(version_buf, length, DMA_BIDIRECTIONAL);
+	if (!dma_version) {
+		dev_err(dev, "Failed to map DMA buffer\n");
+		return -ENOMEM;
+	}
+
+	msg.rsp.status = TMEL_ERROR_GENERIC;
+	msg.rsp.patch_version.pdata = (u32)dma_version;
+	msg.rsp.patch_version.length = length;
+	msg.rsp.patch_version.length_used = 0;
+
+	/* Send Get TME State IPC call to TME */
+	ret = tmel_process_request(tdev, TMEL_MSG_UID_SECBOOT_GET_STATE,
+				   &msg, sizeof(msg));
+	if (ret || msg.rsp.status)
+		dev_err(dev, "%s : IPC Failed. ret: %d, msg.status = 0x%x\n",
+			__func__, ret, msg.rsp.status);
+
+	/* Validate returned length before invalidating cache */
+	if (msg.rsp.patch_version.length_used > length) {
+		dev_err(dev, "TME returned invalid length %u > buffer size %u\n",
+			msg.rsp.patch_version.length_used, length);
+		dma_unmap_single(dma_version, length, DMA_BIDIRECTIONAL);
+		return -EOVERFLOW;
+	}
+
+	dma_unmap_single(dma_version, length, DMA_BIDIRECTIONAL);
+
+	version_msg->length = msg.rsp.patch_version.length_used;
+
+	return ret ? ret : msg.rsp.status;
+}
+
+/**
  * tmel_qmp_send() - Send message through mailbox
  * @chan: mailbox channel
  * @data: message data
@@ -881,6 +958,14 @@ static int tmel_qmp_send(struct mbox_chan *chan, const void *data)
 			ret = tmel_secboot_sec_auth_v2(tdev, sec_auth);
 		}
 		break;
+	case TMEL_MSG_UID_SECBOOT_GET_STATE:
+		{
+			struct tmel_get_tme_version *version_msg =
+				(struct tmel_get_tme_version *)tmsg->msg;
+
+			ret = tmelcom_get_tme_version(tdev, version_msg);
+		}
+		break;
 	default:
 		ret = -EINVAL;
 		break;
@@ -912,7 +997,6 @@ static int tmel_qmp_startup(struct mbox_chan *chan,
 	mdev = tdev->mdev;
 	if (!mdev)
 		return -EINVAL;
-
 	/*
 	 * Kick start the SM from the negotiation phase
 	 * Rest of the link changes would follow when remote responds.
@@ -979,7 +1063,8 @@ static int tmel_qmp_startup(struct mbox_chan *chan,
  */
 static int tmel_qmp_shutdown(struct mbox_chan *chan)
 {
-	struct qmp_device *mdev = dev_get_priv(chan->dev);
+	struct tmel *tdev = dev_get_priv(chan->dev);
+	struct qmp_device *mdev = tdev->mdev;
 
 	if (!mdev)
 		return -EINVAL;
@@ -988,6 +1073,8 @@ static int tmel_qmp_shutdown(struct mbox_chan *chan)
 		mdev->local_state = LOCAL_DISCONNECTING;
 		mdev->mcore.bits.ch_state = 0;
 		tmel_qmp_send_irq(mdev);
+
+		tmel_check_for_irq(tdev);
 	}
 
 	return 0;
@@ -1137,44 +1224,100 @@ static int tmel_qmp_parse_dt(struct udevice *dev)
 /**
  * tmel_qmp_mbox_probe() - Probe TMEL QMP mailbox device
  * @dev: device to probe
+ *
+ * Return: 0 on success, negative error code on failure
  */
 static int tmel_qmp_mbox_probe(struct udevice *dev)
 {
-	struct tmel *tdev = dev_get_priv(dev);
+	struct tmel *tdev;
 	struct qmp_device *mdev;
+	struct qmp_device_cfg *mdev_cfg;
+	bool enable;
 	int ret;
 
+	/* Validate device private data */
+	tdev = dev_get_priv(dev);
 	if (!tdev)
 		return -EINVAL;
 
+	/* Get device configuration and determine enable state */
+	mdev_cfg = (struct qmp_device_cfg *)dev_get_driver_data(dev);
+	enable = true;
+	if (mdev_cfg && mdev_cfg->issupport_check) {
+		/* Check hardware support bit - if not set, disable */
+		enable = !!(readl(mdev_cfg->reg) & mdev_cfg->bit);
+		if (!enable) {
+			dev_dbg(dev, "Device not supported by hardware\n");
+			return -ENODEV;
+		}
+	}
+
+	/* Parse device tree properties */
 	ret = tmel_qmp_parse_dt(dev);
 	if (ret) {
 		dev_err(dev, "Failed to parse device tree: %d\n", ret);
-		return -EINVAL;
+		return ret;
 	}
 
+	/* Initialize TMEL device */
 	ret = tmel_init(dev);
 	if (ret) {
 		dev_err(dev, "Failed to initialize TMEL: %d\n", ret);
-		return -EINVAL;
+		return ret;
 	}
 
+	/* Initialize QMP device */
 	mdev = qmp_init(dev);
 	if (IS_ERR(mdev)) {
-		dev_err(dev, "Failed to initialize QMP: %ld\n", PTR_ERR(mdev));
-		return -EINVAL;
+		ret = PTR_ERR(mdev);
+		dev_err(dev, "Failed to initialize QMP: %d\n", ret);
+		goto err_cleanup_tmel;
 	}
 
+	/* Link QMP device to TMEL */
 	tdev->mdev = mdev;
+	mdev->is_enabled = enable;
 
+	/* Configure device-specific settings */
+	if (mdev_cfg)
+		mdev->shared_irq = mdev_cfg->shared_irq;
+
+	/* Configure and enable interrupts */
 	set_interrupt_flags(tdev);
 	enable_interrupt(tdev);
 
 	return 0;
+
+err_cleanup_tmel:
+	/* Cleanup TMEL resources on error */
+	if (tdev->ipc_pkt) {
+		free(tdev->ipc_pkt);
+		tdev->ipc_pkt = NULL;
+	}
+	return ret;
 }
 
+static const struct qmp_device_cfg config_ipq_sec = {
+	.shared_irq		= BIT(21),
+	.issupport_check	= false,
+};
+
+static const struct qmp_device_cfg config_ipq5210_nsec = {
+	.shared_irq 		= BIT(20),
+	.reg			= 0xA600C,
+	.bit			= BIT(0),
+	.issupport_check	= true,
+};
+
 static const struct udevice_id tmel_qmp_mbox_of_match[] = {
-	{ .compatible = "qcom,tmel-qmp-mbox" },
+	{
+		.compatible = "qcom,tmel-qmp-mbox-secure",
+		.data = (ulong)&config_ipq_sec
+	},
+	{
+		.compatible = "qcom,tmel-qmp-mbox",
+		.data = (ulong)&config_ipq5210_nsec
+	},
 	{}
 };
 

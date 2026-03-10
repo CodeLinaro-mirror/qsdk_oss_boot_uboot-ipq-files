@@ -540,12 +540,6 @@ void setup_arch_cntfreq(void)
 
 int board_init(void)
 {
-#if defined(CONFIG_ARM64) && defined(CFG_EMUL_FREQUENCY_DIVIDER)
-	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
-	if ((current_el() == 3) && (sfi->flash_type != SMEM_BOOT_NO_FLASH))
-		setup_arch_cntfreq();
-#endif
-
 	/*
 	 * create device pointer
 	 */
@@ -562,6 +556,11 @@ int board_init(void)
 	ipq_board_read_smem_info(ipq_bdinfo);
 #endif
 
+#if defined(CONFIG_ARM64) && defined(CFG_EMUL_FREQUENCY_DIVIDER)
+	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
+	if (sfi && (current_el() == 3) && (sfi->flash_type != SMEM_BOOT_NO_FLASH))
+		setup_arch_cntfreq();
+#endif
 	/*
 	 * update Global bdinfo table
 	 */
@@ -628,7 +627,7 @@ int arm_reserve_mmu(void)
 	/* reserve TLB table */
 	gd->arch.tlb_size = PGTABLE_SIZE;
 
-	gd->arch.tlb_addr = (unsigned long)(memalign(SZ_64K,
+	gd->arch.tlb_addr = (unsigned long)(memalign(SZ_4K,
 							gd->arch.tlb_size));
 	if (!gd->arch.tlb_addr) {
 		pr_err("%s No enough Space for pagetable\n", __func__);
@@ -768,6 +767,9 @@ int board_fix_fdt(void *rw_fdt_blob)
 {
 	ipq_uboot_fdt_fixup(rw_fdt_blob, UBOOT_FIXUP_SMEM);
 	ipq_uboot_fdt_fixup(rw_fdt_blob, UBOOT_FIXUP_USB);
+#ifdef CONFIG_BOOT_BANK_FIXUP
+	ipq_uboot_fdt_fixup(rw_fdt_blob, UBOOT_FIXUP_BOOTED_BANK);
+#endif
 
 	return 0;
 }

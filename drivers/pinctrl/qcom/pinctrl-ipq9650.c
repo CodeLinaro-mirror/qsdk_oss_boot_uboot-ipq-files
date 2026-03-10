@@ -70,6 +70,12 @@ static const msm_pin_function ipq9650_pin_functions[] = {
 	/* I2C GPIO yet to add :TODO */
 	PINGROUP(38, uart1, NA, NA, NA, NA, NA, NA, NA, NA),
 	PINGROUP(39, uart1, NA, NA, NA, NA, NA, NA, NA, NA),
+	/* PCIE */
+	PINGROUP(25, NA, NA, NA, NA, NA, NA, NA, NA, NA),
+	PINGROUP(28, NA, NA, NA, NA, NA, NA, NA, NA, NA),
+	PINGROUP(31, NA, NA, NA, NA, NA, NA, NA, NA, NA),
+	PINGROUP(41, NA, NA, NA, NA, NA, NA, NA, NA, NA),
+	PINGROUP(52, NA, NA, NA, NA, NA, NA, NA, NA, NA),
 };
 
 static const char *ipq9650_get_function_name(struct udevice *dev,

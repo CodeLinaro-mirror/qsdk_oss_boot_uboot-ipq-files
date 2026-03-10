@@ -75,6 +75,13 @@
 #define GCC_USB1_MOCK_UTMI_DIV_CDIVR		(0x3C018)
 #define GCC_USB1_MOCK_UTMI_CMD_RCGR		(0x3C004)
 
+#define GCC_QUPV3_AHB_MST_CBCR			(0x01014)
+#define GCC_QUPV3_AHB_SLV_CBCR			(0x0102C)
+#define GCC_QUPV3_2X_CORE_CMD_RCGR		(0x0100C)
+#define GCC_QUPV3_2X_CORE_CBCR			(0x01020)
+#define GCC_QUPV3_CORE_CBCR			(0x01018)
+#define GCC_QUPV3_SLEEP_CBCR			(0x01028)
+
 #define CFG_CLK_SRC_GPLL4_OUT_AUX		(1 << 8)
 
 #define NSS_CC_PPE_SRC_SEL_CMN_PLL_NSS_CLK_375M		(6 << 8)
@@ -110,6 +117,7 @@
 #define IO_MACRO_CLK_228_MHZ				(228000000)
 #define IO_MACRO_CLK_200_MHZ				(200000000)
 #define IO_MACRO_CLK_100_MHZ				(100000000)
+#define IO_MACRO_CLK_50_MHZ				(50000000)
 #define IO_MACRO_CLK_24_MHZ				(24000000)
 
 static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
@@ -207,7 +215,7 @@ static ulong ipq5424_set_rate(struct clk *clk, ulong rate)
 	case GCC_SDCC1_ICE_CORE_CLK:
 		/* ICE Core Clock: 300 MHz */
 		clk_rcg_set_rate_mnd(priv->base, GCC_SDCC1_ICE_CORE_CMD_RCGR,
-				     4, 0, 0, CFG_CLK_SRC_GPLL2, 16);
+				     0, 3, 8, CFG_CLK_SRC_GPLL0, 8);
 		break;
 	case GCC_QUPV3_SPI0_CLK:
 		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_SPI0_CMD_RCGR,
@@ -224,6 +232,10 @@ static ulong ipq5424_set_rate(struct clk *clk, ulong rate)
 			clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_SPI1_CMD_RCGR,
 					     16, 0, 0, CFG_CLK_SRC_GPLL0, 8);
 		}
+		break;
+	case GCC_QUPV3_2X_CORE_CLK:
+		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_2X_CORE_CMD_RCGR,
+				     7, 0, 0, CFG_CLK_SRC_GPLL0, 16);
 		break;
 	case GCC_PCNOC_BFDCD_CLK:
 		clk_rcg_set_rate_v2(priv->base, GCC_PCNOC_BFDCD_CMD_RCGR, 0,
@@ -434,6 +446,9 @@ static ulong ipq5424_set_rate(struct clk *clk, ulong rate)
 			src = CFG_CLK_SRC_CXO;
 			div = 0;
 			break;
+		case IO_MACRO_CLK_50_MHZ:
+			div = 31;
+			break;
 		case IO_MACRO_CLK_100_MHZ:
 			div = 15;
 			break;
@@ -567,6 +582,12 @@ static const struct gate_clk ipq5424_clks[] = {
 	GATE_CLK(GCC_USB1_PHY_CFG_AHB_CLK,	0x3C01C,  0x00000001),
 	GATE_CLK(GCC_USB0_PIPE_CLK,		0x2C054,  0x00000001),
 	GATE_CLK(GCC_CNOC_USB_CLK,		0x310A8,  0x00000001),
+	GATE_CLK(GCC_QUPV3_AHB_MST_CLK,		0x0B004,  0x00004000),
+	GATE_CLK(GCC_QUPV3_AHB_SLV_CLK,		0x0B004,  0x00000010),
+	GATE_CLK(GCC_QUPV3_CORE_CLK,		0x0B004,  0x00008000),
+	GATE_CLK(GCC_QUPV3_2X_CORE_CLK,		0x0B004,  0x00010000),
+	GATE_CLK(GCC_QUPV3_SLEEP_CLK,		0x0B004,  0x00000020),
+	GATE_CLK(GCC_APCS_CLOCK_BRANCH_ENA_VOTE,	0x0B004,  0x000002000),
 };
 
 static int ipq5424_enable(struct clk *clk)

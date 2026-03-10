@@ -17,6 +17,13 @@
 /* MACH IDs for various RDPs */
 #define MACH_TYPE_IPQ9650_EMULATION		0xF060000
 
+#define TIMEOUT_MS				30000
+#define CLK_SRC					32000
+#define WDT_ENABLE_REG				0xF410008
+#define WDT_RST_REG				0xf410004
+#define WDT_BARK_TIME_REG			0xf410010
+#define WDT_BITE_TIME_REG			0xf410014
+
 static struct crashdump_infos dumpinfo_n[] = {
 	{
 		/* DDR Bank 0 */
@@ -108,9 +115,7 @@ uint8_t *board_dump_entries = &dump_entries_n;
 struct dts_fixup ipq9650_mmc_fixup [] = {
 	{ "/soc@0/nand@79b0000/", {"/soc@0/nand@79b0000/%status%?disabled"},1},
 	{ "/soc@0/mmc@7804000/", {"/soc@0/mmc@7804000/%status%?okay"}, 1},
-	{ "/soc/nand@79b0000/", {"/soc/nand@79b0000/%status%?disabled"},1},
-	{ "/soc/sdhci@7804000/", {"/soc/sdhci@7804000/%status%?okay"}, 1},
-	{}
+	{NULL}
 };
 
 struct dts_fixup *mmc_fixup = ipq9650_mmc_fixup;
@@ -120,11 +125,7 @@ struct dts_fixup ipq9650_usb_fixup [] = {
 		{"/soc@0/usb3@8a00000/dwc3@8a00000%dr_mode%?peripheral",
 		"/soc@0/usb3@8a00000/dwc3@8a00000%maximum-speed%?high-speed"},
 		2},
-	{ "/soc/usb3@8A00000/dwc3@8A00000/",
-		{ "/soc/usb3@8A00000/dwc3@8A00000%dr_mode%?peripheral",
-		"/soc/usb3@8A00000/dwc3@8A00000%maximum-speed%?high-speed"},
-		2},
-	{}
+	{NULL}
 };
 
 struct dts_fixup *usb_fixup = ipq9650_usb_fixup;
@@ -143,13 +144,38 @@ struct node_info * fnodes = ipq_fnodes ;
 int * fnode_entires = &ipq_fnode_entires;
 #endif
 
-#ifdef CONFIG_DTB_RESELECT
+#ifdef CONFIG_IPQ_EARLY_WDT
+void ipq_enable_non_sec_watchdog(void)
+{
+	/*
+	 * Enabling non-secure WDT for early failure recovery support
+	 */
+	ulong bark_timeout_s = ((TIMEOUT_MS - 1)  * CLK_SRC) / 1000;
+	ulong bite_timeout_s = (TIMEOUT_MS * CLK_SRC) / 1000;
+
+	writel(0, WDT_ENABLE_REG);
+	writel(BIT(0), WDT_RST_REG);
+	writel(bark_timeout_s, WDT_BARK_TIME_REG);
+	writel(bite_timeout_s, WDT_BITE_TIME_REG);
+	writel(BIT(0), WDT_ENABLE_REG);
+}
+#endif
+
+#if !defined(CONFIG_SPL)
+void lowlevel_init(void)
+{
+#ifdef CONFIG_IPQ_EARLY_WDT
+	ipq_enable_non_sec_watchdog();
+#endif
+}
+#endif /* !CONFIG_SPL */
+
 struct machid_dts_map machid_dts[] = {
 	{
 		MACH_TYPE_IPQ9650_EMULATION,
 		"ipq9650-emulation",
 		"emulation-fbc",
-		NULL
+		"1",
 	},
 };
 
@@ -171,6 +197,7 @@ const u8 comm_type_map[FUNC_MAX] = {
 	[FUNC_AUTH_ROOTFS_ELF] = COMM_TYPE_TME
 };
 
+#ifdef CONFIG_DTB_RESELECT
 void ipq_update_board_name(int machid, struct multidtb_config *dtb)
 {
 	switch(machid) {
@@ -218,7 +245,7 @@ void reset_cpu(void)
 void reset_cpu(void)
 {
 #ifdef CONFIG_IPQ_CRASHDUMP
-	reset_crashdump(RESET_V1);
+	reset_crashdump(RESET_V2);
 #endif
 	psci_sys_reset(SYSRESET_COLD);
 }
@@ -246,4 +273,106 @@ void ipq_update_comm_type(void)
 
 	if (bdinfo)
 		bdinfo->comm_type_map = comm_type_map;
+}
+
+int board_get_smem_target_info(struct ipq_smem_target_info *smem_tinfo_ptr)
+{
+	uint32_t tcsr_wonce0_val = readl(TCSR_TZ_WONCE0);
+	uint32_t tcsr_wonce1_val = readl(TCSR_TZ_WONCE1);
+	uint64_t ipq_smem_target_info_addr;
+	struct ipq_smem_target_info *ipq_smem_target_info_ptr;
+
+	if (!smem_tinfo_ptr)
+		return -EINVAL;
+
+	ipq_smem_target_info_addr = tcsr_wonce0_val |
+		(((uint64_t)(tcsr_wonce1_val)) << 32);
+
+	if (!ipq_smem_target_info_addr)
+		return -EFAULT;
+
+	ipq_smem_target_info_ptr = (struct ipq_smem_target_info*)
+		(uintptr_t)ipq_smem_target_info_addr;
+
+	if (ipq_smem_target_info_ptr->identifier !=
+			IPQ_SMEM_TARGET_INFO_IDENTIFIER)
+		return -EFAULT;
+
+	memcpy((void*)smem_tinfo_ptr,
+			(void*)(uintptr_t)ipq_smem_target_info_ptr,
+			sizeof(struct ipq_smem_target_info));
+
+	return 0;
+}
+
+void ipq_fdt_fixup_smem(void *blob)
+{
+	uint32_t reg[4];
+	struct ipq_smem_target_info ipq_smem_target_info;
+	struct ipq_smem_target_info *smem_tinfo_ptr = &ipq_smem_target_info;
+
+	if (board_get_smem_target_info(&ipq_smem_target_info))
+		return;
+
+	reg[0] = 0;
+	reg[1] = cpu_to_fdt32((uint32_t)smem_tinfo_ptr->smem_base_addr);
+	reg[2] = 0;
+	reg[3] = cpu_to_fdt32(smem_tinfo_ptr->smem_size);
+
+	int ret = fdt_find_and_setprop(blob, "/reserved-memory/smem@8a500000/",
+					"reg", reg, sizeof(reg), 0);
+	if (ret < 0)
+		debug("Warning: Failed to update SMEM FDT node: %d\n", ret);
+}
+
+int ipq_uboot_fdt_fixup_smem(void *blob)
+{
+	uint32_t reg[4];
+	struct ipq_smem_target_info ipq_smem_target_info;
+	struct ipq_smem_target_info *smem_tinfo_ptr = &ipq_smem_target_info;
+
+	if (board_get_smem_target_info(&ipq_smem_target_info))
+		return -EFAULT;
+
+	reg[0] = 0;
+	reg[1] = cpu_to_fdt32((uint32_t)smem_tinfo_ptr->smem_base_addr);
+	reg[2] = 0;
+	reg[3] = cpu_to_fdt32(smem_tinfo_ptr->smem_size);
+
+	fdt_find_and_setprop(blob, "/reserved-memory/smem_region@8a500000",
+			"reg", reg, sizeof(reg), 0);
+	return 0;
+}
+
+void ipq_uboot_fdt_fixup_usb(void *blob)
+{
+	return;
+}
+
+#ifdef CONFIG_BOOT_BANK_FIXUP
+int ipq_uboot_fdt_fixup_booted_bank(void *blob)
+{
+        return fdt_set_booted_bank_property(blob);
+}
+#endif
+
+int ipq_uboot_fdt_fixup(void *blob, enum fixup_type type)
+{
+	switch(type) {
+	case UBOOT_FIXUP_SMEM:
+		ipq_uboot_fdt_fixup_smem(blob);
+		break;
+	case UBOOT_FIXUP_USB:
+		ipq_uboot_fdt_fixup_usb(blob);
+		break;
+#ifdef CONFIG_BOOT_BANK_FIXUP
+	case UBOOT_FIXUP_BOOTED_BANK:
+		ipq_uboot_fdt_fixup_booted_bank(blob);
+		break;
+#endif
+	default:
+		break;
+	}
+
+	return 0;
 }
