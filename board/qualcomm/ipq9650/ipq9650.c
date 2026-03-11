@@ -16,6 +16,11 @@
 #define IM_SLEEP_CLK				0x1834020
 /* MACH IDs for various RDPs */
 #define MACH_TYPE_IPQ9650_EMULATION		0xF060000
+#define MACH_TYPE_IPQ9650_DB_JU01		0x1090000
+#define MACH_TYPE_IPQ9650_DB_JU02		0x1090100
+#define MACH_TYPE_IPQ9650_RDP488		0x8090000
+#define MACH_TYPE_IPQ9650_RDP506		0x8090001
+#define MACH_TYPE_IPQ9650_RDP489		0x8090100
 
 #define TIMEOUT_MS				30000
 #define CLK_SRC					32000
@@ -176,6 +181,36 @@ struct machid_dts_map machid_dts[] = {
 		"ipq9650-emulation",
 		"emulation-fbc",
 		"1",
+	},
+	{
+		MACH_TYPE_IPQ9650_DB_JU01,
+		"ipq9650-db-ju01",
+		"db-ju01",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ9650_DB_JU02,
+		"ipq9650-db-ju02",
+		"db-ju02",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ9650_RDP488,
+		"ipq9650-rdp488",
+		"rdp488",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ9650_RDP506,
+		"ipq9650-rdp506",
+		"rdp506",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ9650_RDP489,
+		"ipq9650-rdp489",
+		"rdp489",
+		"1"
 	},
 };
 
