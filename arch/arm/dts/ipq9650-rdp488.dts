@@ -10,4 +10,59 @@
 / {
 	model = "Qualcomm Technologies, Inc. IPQ9650 RDP488";
 	compatible = "qcom,ipq9650-rdp488", "qcom,ipq9650";
+
+	soc@0 {
+		pcie1: pcie@50000000 {
+			pinctrl-0 = <&pcie1_default_state>;
+			pinctrl-names = "default";
+			perst-gpios = <&tlmm 28 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+
+		pcie2: pcie@40000000 {
+			pinctrl-0 = <&pcie2_default_state>;
+			pinctrl-names = "default";
+			perst-gpios = <&tlmm 52 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+
+		pcie3: pcie@30000000 {
+			pinctrl-0 = <&pcie3_default_state>;
+			pinctrl-names = "default";
+			perst-gpios = <&tlmm 41 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+	};
+};
+
+&tlmm {
+	pcie1_default_state: pcie1-default-state {
+		perst-n-pins {
+			pins = "gpio28";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-down;
+			output-low;
+		};
+	};
+
+	pcie2_default_state: pcie2-default-state {
+		perst-n-pins {
+			pins = "gpio52";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-down;
+			output-low;
+		};
+	};
+
+	pcie3_default_state: pcie3-default-state {
+		perst-n-pins {
+			pins = "gpio41";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-down;
+			output-low;
+		};
+	};
 };
