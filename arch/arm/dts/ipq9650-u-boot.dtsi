@@ -455,7 +455,7 @@
 			reset-names = "phy", "common";
 
 			#phy-cells = <0>;
-			status = "okay";
+			status = "disabled";
 		};
 
 		/* 2L controller */
