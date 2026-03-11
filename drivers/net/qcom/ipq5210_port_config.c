@@ -1256,16 +1256,16 @@ struct ipq_sch_config		*sch_config		= ipq5210_ppe_port_scheduler0_tbl;
 
 static struct ipq_eth_sku ipq5210_uniphy[CONFIG_ETH_MAX_UNIPHY] = {
 	{
-		.reg	= 0xA6264,
-		.bit	= 0,
+		.reg	= 0xA4030,
+		.bit	= 15,
 	},
 	{
-		.reg	= 0xA626C,
-		.bit	= 0,
+		.reg	= 0xA4030,
+		.bit	= 16,
 	},
 	{
-		.reg	= 0xA6274,
-		.bit	= 0,
+		.reg	= 0xA4030,
+		.bit	= 17,
 	},
 };
 
