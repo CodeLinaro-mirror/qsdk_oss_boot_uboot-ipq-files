@@ -1166,6 +1166,23 @@ struct ipq_tdm_config		*tdm_config		= ipq9650_tdm_config;
 struct ipq_tdm_addr_config	*tdm_addr_config	= &ipq9650_tdm_addr_config;
 struct ipq_sch_config		*sch_config		= ipq9650_ppe_port_scheduler0_tbl;
 
+static struct ipq_eth_sku ipq9650_uniphy[CONFIG_ETH_MAX_UNIPHY] = {
+	{
+		.reg	= 0xA6264,
+		.bit	= 0,
+	},
+	{
+		.reg	= 0xA626C,
+		.bit	= 0,
+	},
+	{
+		.reg	= 0xA6274,
+		.bit	= 0,
+	},
+};
+
+struct ipq_eth_sku *ipq_uniphy = ipq9650_uniphy;
+
 /*
  * Common clock configuration function - dummy implementation
  */
