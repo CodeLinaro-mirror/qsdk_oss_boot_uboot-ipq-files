@@ -627,18 +627,19 @@ static void ppe_uniphy_usxgmii_mode_set(struct port_info *port)
 	reg_value |= LRX_EN | LTX_EN;
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS), reg_value);
 }
-
 /*
- * UQXGMII mode configuration
+ * UQXGMII/UDXGMII combined mode configuration - FIXED VERSION
  */
-static void ppe_uniphy_uqxgmii_mode_set(struct port_info *port)
+static void ppe_uniphy_uxgmii_mode_set(struct port_info *port)
 {
 	u32 index = port->uniphy_id;
 	phys_addr_t base = port->uniphy_base;
 	u32 reg_value = 0;
 
+	/* Step 1: Configure UNIPHY MISC2 register */
 	writel(UNIPHY_MISC2_REG_VALUE, base + UNIPHY_MISC2_REG_OFFSET);
 
+	/* Step 2: PLL Reset sequence */
 	writel(UNIPHY_PLL_RESET_REG_VALUE, base + UNIPHY_PLL_RESET_REG_OFFSET);
 	mdelay(REG_DELAY);
 
@@ -646,44 +647,55 @@ static void ppe_uniphy_uqxgmii_mode_set(struct port_info *port)
 	       base + UNIPHY_PLL_RESET_REG_OFFSET);
 	mdelay(REG_DELAY);
 
+	/* Step 3: Assert XPCS reset (keep XPCS in reset) */
 	ppe_uniphy_reset(port, false, true);
 	mdelay(RESET_DELAY);
 
+	/* Step 4: Program XPCS mode control register (25MHz autoneg mode) */
+	writel(uniphy_mode_xpcs_autoneg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
+
+	/* Step 5: Configure GMII source selection from XPCS */
+	reg_value = readl(base + UNIPHYQP_USXG_OPITON1);
+	reg_value |= GMII_SRC_SEL;
+	writel(reg_value, base + UNIPHYQP_USXG_OPITON1);
+
+	/* Step 6: Software reset sequence */
 	ppe_uniphy_reset(port, true, true);
 	mdelay(RESET_DELAY);
 	ppe_uniphy_reset(port, true, false);
 	mdelay(RESET_DELAY);
 
-	writel(uniphy_mode_xpcs_autoneg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
-
-	reg_value = readl(base + UNIPHYQP_USXG_OPITON1);
-	reg_value |= GMII_SRC_SEL;
-	writel(reg_value, base + UNIPHYQP_USXG_OPITON1);
-
+	/* Step 7: Perform calibration */
 	ppe_uniphy_calibration(port);
+
+	/* Step 8: Release XPCS reset */
 	ppe_uniphy_reset(port, false, false);
 	mdelay(RESET_DELAY);
 
+	/* Step 9: Wait for 10G-R link up */
 	ppe_uniphy_10g_r_linkup(index);
 
+	/* Step 10: Enable USXGMII in XPCS */
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS));
 	reg_value |= USXG_EN;
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS), reg_value);
 
-	/* Set QXGMII mode */
+	/* Step 11: Set QXGMII mode */
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_KR_CTRL_ADDRESS));
 	reg_value |= USXG_MODE;
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_KR_CTRL_ADDRESS), reg_value);
 
-	/* Set AM interval mode */
+	/* Step 12: Set AM interval mode */
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_STS_ADDRESS));
 	reg_value |= AM_COUNT;
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_STS_ADDRESS), reg_value);
 
+	/* Step 13: XPCS software reset */
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS));
 	reg_value |= VR_RST;
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS), reg_value);
 
+	/* Step 14: Configure auto-neg control for all 4 channels */
 	reg_value = csr_read(index, CSR1_ADDR(VR_MII_AN_CTRL_ADDRESS));
 	reg_value |= MII_AN_INTR_EN | MII_CTRL;
 	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_ADDRESS), reg_value);
@@ -691,7 +703,7 @@ static void ppe_uniphy_uqxgmii_mode_set(struct port_info *port)
 	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_CHANNEL2_ADDRESS), reg_value);
 	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_CHANNEL3_ADDRESS), reg_value);
 
-	/* Disable TICD */
+	/* Step 15: Disable TICD (IPG check) for all 4 channels */
 	reg_value = csr_read(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_ADDRESS));
 	reg_value |= IPG_CHECK;
 	csr_write(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_ADDRESS), reg_value);
@@ -699,8 +711,8 @@ static void ppe_uniphy_uqxgmii_mode_set(struct port_info *port)
 	csr_write(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_CHANNEL2_ADDRESS), reg_value);
 	csr_write(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_CHANNEL3_ADDRESS), reg_value);
 
-	/* Enable uniphy autoneg ability and usxgmii 10g speed and
-	 * full duplex
+	/* Step 16: Enable uniphy autoneg ability and usxgmii 10g speed and full duplex
+	 * for all 4 channels
 	 */
 	reg_value = csr_read(index, CSR1_ADDR(SR_MII_CTRL_ADDRESS));
 	reg_value |= AN_ENABLE;
@@ -711,9 +723,7 @@ static void ppe_uniphy_uqxgmii_mode_set(struct port_info *port)
 	csr_write(index, CSR1_ADDR(SR_MII_CTRL_CHANNEL2_ADDRESS), reg_value);
 	csr_write(index, CSR1_ADDR(SR_MII_CTRL_CHANNEL3_ADDRESS), reg_value);
 
-	/* Enable uniphy EEE transparent mode and configure EEE
-	 * related timer value
-	 */
+	/* Step 17: Enable uniphy EEE transparent mode and configure EEE related timer value */
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS));
 	reg_value |= SIGN_BIT | MULT_FACT_100NS;
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS), reg_value);
@@ -721,15 +731,13 @@ static void ppe_uniphy_uqxgmii_mode_set(struct port_info *port)
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_TXTIMER_ADDRESS));
 	reg_value |= UNIPHY_XPCS_TSL_TIMER | UNIPHY_XPCS_TLU_TIMER |
 		     UNIPHY_XPCS_TWL_TIMER;
-	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_TXTIMER_ADDRESS),
-		  reg_value);
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_TXTIMER_ADDRESS), reg_value);
 
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_RXTIMER_ADDRESS));
 	reg_value |= UNIPHY_XPCS_100US_TIMER | UNIPHY_XPCS_TWR_TIMER;
-	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_RXTIMER_ADDRESS),
-		  reg_value);
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_RXTIMER_ADDRESS), reg_value);
 
-	/* Transparent LPI mode and LPI pattern enable */
+	/* Step 18: Transparent LPI mode and LPI pattern enable */
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL1_ADDRESS));
 	reg_value |= TRN_LPI | TRN_RXLPI;
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL1_ADDRESS), reg_value);
@@ -738,7 +746,6 @@ static void ppe_uniphy_uqxgmii_mode_set(struct port_info *port)
 	reg_value |= LRX_EN | LTX_EN;
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS), reg_value);
 }
-
 /*
  * Main uniphy mode configuration function
  */
@@ -765,7 +772,9 @@ void ppe_uniphy_mode_set(struct port_info *port)
 		ppe_uniphy_10g_r_mode_set(port);
 		break;
 	case PORT_WRAPPER_UQXGMII:
-		ppe_uniphy_uqxgmii_mode_set(port);
+	case PORT_WRAPPER_UQXGMII_3CHANNELS:
+	case PORT_WRAPPER_UDXGMII:
+		ppe_uniphy_uxgmii_mode_set(port);
 		break;
 	default:
 		break;
@@ -891,20 +900,16 @@ void ppe_xgmac_configuration(phys_addr_t reg_base, u32 portid,
 	u32 speed_bits;
 	uintptr_t base, rx_config_addr, filter_addr;
 
-	switch(portid) {
-                case 1:
-                        gmacid = 0;
-                        break;
-                case 5:
-                        gmacid = 1;
-                        break;
-                case 6:
-                        gmacid = 2;
-                        break;
-                default:
-                        return;
-
-        }
+	if (ipq_edma_config.port_to_gmacid) {
+		gmacid = ipq_edma_config.port_to_gmacid(portid);
+		if (gmacid == (u32)-1)
+			return;
+	} else {
+		/* Generic formula: gmacid = portid - 1 */
+		if (portid == 0)
+			return;
+		gmacid = portid - 1;
+	}
 
 	base = reg_base + PPE_SWITCH_NSS_SWITCH_XGMAC0 +
 	       (gmacid * NSS_SWITCH_XGMAC_MAC_TX_CONFIGURATION);
@@ -1133,7 +1138,8 @@ void ppe_port_speed_set(phys_addr_t reg_base, struct port_info *port)
 
 		writel(0x73, base);
 
-		writel(port->mac_speed, base + PPE_MAC_SPEED_OFF);
+		/* If mac_speed > 2, cap it at 2; otherwise use actual value */
+		writel((port->mac_speed > 2) ? 2 : port->mac_speed, base + PPE_MAC_SPEED_OFF);
 
 		writel(0x1, base + PPE_MAC_MIB_CTL_OFF);
 	}
@@ -4218,7 +4224,21 @@ static int ipq_eth_port_set_up(struct ipq_eth_dev *priv,
 		mac_speed = 3;
 		break;
 	case 2500:
-		mac_speed = (port->xgmac) ? 4 : 2;
+		/*
+		 * For 2.5G:
+		 * - Force mac_speed = 4 for the following UNIPHY modes:
+		 *   USXGMII, 10GBASE_R, UQXGMII, UQXGMII_3CHANNELS, UDXGMII
+		 * - For other modes, depend on MAC type: XGMAC => 2.5G (4), GMAC => 1G (2)
+		 */
+		if (port->uniphy_mode == PORT_WRAPPER_USXGMII ||
+		    port->uniphy_mode == PORT_WRAPPER_10GBASE_R ||
+		    port->uniphy_mode == PORT_WRAPPER_UQXGMII ||
+		    port->uniphy_mode == PORT_WRAPPER_UQXGMII_3CHANNELS ||
+		    port->uniphy_mode == PORT_WRAPPER_UDXGMII) {
+			mac_speed = 4;
+		} else {
+			mac_speed = port->xgmac ? 4 : 2;
+		}
 		break;
 	case 5000:
 		mac_speed = 5;
@@ -4312,6 +4332,22 @@ static int ipq_eth_port_set_up(struct ipq_eth_dev *priv,
 		ipq_port_mac_clock_reset(priv->dev, port);
 
 		ppe_port_speed_set(priv->ppe.base, port);
+
+		/* Enable XGMAC PTP REF clock for XGMAC ports at port configure time */
+		if (port->gmac_type == XGMAC && port->id > 0) {
+			struct clk ptp_clk;
+			char ptp_clk_name[32];
+			u32 gmacid = ipq_edma_config.port_to_gmacid ?
+				     ipq_edma_config.port_to_gmacid(port->id) :
+				     port->id - 1;
+
+			if (gmacid != (u32)-1) {
+				snprintf(ptp_clk_name, sizeof(ptp_clk_name),
+					 "xgmac%d_ptp_ref_clk", gmacid);
+				if (!clk_get_by_name(priv->dev, ptp_clk_name, &ptp_clk))
+					clk_enable(&ptp_clk);
+			}
+		}
 
 	} else if (priv->emulation) {
 		port->gmac_type = XGMAC;
@@ -4409,7 +4445,8 @@ static int ipq_eth_start(struct udevice *dev)
 		}
 
 		if (port->phy_id != QCA8x8x_SWITCH_TYPE &&
-		    port->phy_id != QCA8337_SWITCH_TYPE)
+		    port->phy_id != QCA8337_SWITCH_TYPE &&
+		    port->phy_id != QCE2204_SWITCH_TYPE)
 			printf("PHY%d %s Speed : %d %s\n", port->id,
 			       link ? "Up" : "Down", speed,
 			       duplex ? "Full duplex" : "Half duplex");
@@ -4905,6 +4942,10 @@ static int ipq_eth_probe(struct udevice *dev)
 			continue;
 		}
 
+		/* Skip xgmac PTP REF clocks here; they are enabled at port configure time */
+		if (strstr(clk_names[clk_itr], "_ptp_ref_clk"))
+			continue;
+
 		ret = clk_get_by_name(dev, clk_names[clk_itr], &clk);
 		if (ret && ret != -ENOENT) {
 			dev_err(dev, "Failed to get clock by name (ret=%d)\n", ret);
@@ -5067,19 +5108,28 @@ static int ipq_eth_probe(struct udevice *dev)
 		 */
 		if (port->phy_id == QCA8x8x_PHY_TYPE ||
 			port->phy_id == QCE1204_PHY_TYPE) {
+			/* Default UNIPHY to UQXGMII for MHT PHY pre-init */
 			port->uniphy_mode = PORT_WRAPPER_UQXGMII;
 			port->cur_uniphy_mode = PORT_WRAPPER_UQXGMII;
-			port->gmac_type = XGMAC;
-			port->cur_gmac_type = XGMAC;
 
+			/* Select MAC type once and mirror to current */
+			port->gmac_type = port->xgmac ? XGMAC : GMAC;
+			port->cur_gmac_type = port->gmac_type;
+
+			/* Pre-init UNIPHY only for first PHY instance */
 			if (phy_no == 0)
 				ppe_uniphy_mode_set(port);
 
+			/* Program port mux once after mode/type selection */
 			ppe_port_mux_set(priv->ppe.base, port);
 			++phy_no;
 		} else if (port->phy_id == QCA8x8x_SWITCH_TYPE) {
 			port->uniphy_mode = PORT_WRAPPER_SGMII_PLUS;
 			port->cur_uniphy_mode = PORT_WRAPPER_SGMII_PLUS;
+			ppe_uniphy_mode_set(port);
+		} else if (port->phy_id == QCE2204_SWITCH_TYPE) {
+			port->uniphy_mode = PORT_WRAPPER_10GBASE_R;
+			port->cur_uniphy_mode = PORT_WRAPPER_10GBASE_R;
 			ppe_uniphy_mode_set(port);
 		}
 #endif

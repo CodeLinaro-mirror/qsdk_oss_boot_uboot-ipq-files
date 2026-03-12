@@ -541,7 +541,10 @@
 				<&nsscc NSS_CC_UNIPHY_PORT6_TX_CLK>,
 			        <&nsscc NSS_CC_EIP_BFDCD_CLK>,
 			        <&nsscc NSS_CC_CFG_CLK>,
-				<&nsscc NSS_CC_NSSNOC_EIP_CLK>;
+			        <&nsscc NSS_CC_NSSNOC_EIP_CLK>,
+				<&nsscc NSS_CC_XGMAC0_PTP_REF_CLK>,
+				<&nsscc NSS_CC_XGMAC1_PTP_REF_CLK>,
+				<&nsscc NSS_CC_XGMAC2_PTP_REF_CLK>;
 
 			clock-names = "gcc_im_sleep_clk",
 				"cmn_ahb_clk",
@@ -605,7 +608,10 @@
 				"uniphy2_port6_tx_clk",
 				"nss_cc_eip_bfdcd_clk",
 				"nss_cc_clk",
-				"nss_cc_nssnoc_eip_clk";
+				"nss_cc_nssnoc_eip_clk",
+				"xgmac0_ptp_ref_clk",
+				"xgmac1_ptp_ref_clk",
+				"xgmac2_ptp_ref_clk";
 
 			resets = <&nsscc NSS_CC_PPE_BCR>,
 				<&gcc GCC_UNIPHY0_BCR>,

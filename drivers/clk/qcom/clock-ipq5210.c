@@ -125,9 +125,9 @@
 #define NSS_CC_PORT6_TX_CBCR			(0x005A0)
 
 /* PTP Reference Clocks */
-#define NSS_CC_XGMAC0_PTP_REF_CBCR		(0x00468)
-#define NSS_CC_XGMAC1_PTP_REF_CBCR		(0x0046C)
-#define NSS_CC_XGMAC2_PTP_REF_CBCR		(0x00470)
+#define NSS_CC_XGMAC0_PTP_REF_CBCR		(0x00488)
+#define NSS_CC_XGMAC1_PTP_REF_CBCR		(0x0048C)
+#define NSS_CC_XGMAC2_PTP_REF_CBCR		(0x00490)
 
 /* Debug Clock */
 #define NSS_CC_DEBUG_CBCR			(0x00750)
@@ -282,8 +282,8 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 {
 	int pclk_rate = clk_get_parent_rate(clk);
 
-	/* Default DIV4 value is 1 (divide by 1) */
-	*div4 = 1;
+	/* Default DIV4 value is 0 (divide by 1, since register value N divides by N+1) */
+	*div4 = 0;
 
 	if (pclk_rate == CLK_312_5_MHZ) {
 		switch (rate) {
@@ -297,8 +297,8 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 			break;
 		case CLK_78_125_MHZ:
 			*div = 7;
-			/* 2.5G mode: DIV4 = 4 for XGMII2GMII bridge */
-			*div4 = 4;
+			/* 2.5G mode: DIV4 = 3 for divide-by-4 XGMII2GMII bridge (3+1=4) */
+			*div4 = 3;
 			break;
 		case CLK_125_MHZ:
 			*div = 4;
@@ -308,6 +308,7 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 			break;
 		case CLK_312_5_MHZ:
 			*div = 1;
+			*div4 = 3;
 			break;
 		default:
 			return -EINVAL;
@@ -581,6 +582,8 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 			clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_RX_CMD_RCGR,
 					    NSS_CC_PORT4_RX_CMD_RCGR + 0x8, div, cdiv,
 					    NSS_CC_PORT4_RX_SRC_SEL_RX_GCC);
+			writel(0, priv->base + NSS_CC_UNIPHY_PORT4_RX_DIV4_DIV_CDIVR);
+			writel(0x1, priv->base + NSS_CC_UNIPHY_PORT4_RX_DIV4_CBCR);
 		}
 		break;
 	}
@@ -601,6 +604,8 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 			clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_TX_CMD_RCGR,
 					    NSS_CC_PORT4_TX_CMD_RCGR + 0x8, div, cdiv,
 					    NSS_CC_PORT4_TX_SRC_SEL_TX_GCC);
+			writel(0, priv->base + NSS_CC_UNIPHY_PORT4_TX_DIV4_DIV_CDIVR);
+			writel(0x1, priv->base + NSS_CC_UNIPHY_PORT4_TX_DIV4_CBCR);
 		}
 		break;
 	}
@@ -828,9 +833,9 @@ static const struct gate_clk ipq5210_clks[] = {
 	GATE_CLK(NSS_CC_PORT5_TX_CLK,		0x00590, 0x00000001),
 	GATE_CLK(NSS_CC_PORT6_RX_CLK,		0x00598, 0x00000001),
 	GATE_CLK(NSS_CC_PORT6_TX_CLK,		0x005A0, 0x00000001),
-	GATE_CLK(NSS_CC_XGMAC0_PTP_REF_CLK,	0x00468, 0x00000001),
-	GATE_CLK(NSS_CC_XGMAC1_PTP_REF_CLK,	0x0046C, 0x00000001),
-	GATE_CLK(NSS_CC_XGMAC2_PTP_REF_CLK,	0x00470, 0x00000001),
+	GATE_CLK(NSS_CC_XGMAC0_PTP_REF_CLK,	0x00488, 0x00000001),
+	GATE_CLK(NSS_CC_XGMAC1_PTP_REF_CLK,	0x0048C, 0x00000001),
+	GATE_CLK(NSS_CC_XGMAC2_PTP_REF_CLK,	0x00490, 0x00000001),
 	GATE_CLK(NSS_CC_DEBUG_CLK,		0x00750, 0x00000001),
 	GATE_CLK(NSS_CC_CE_APB_CLK,		0x00610, 0x00000001),
 	GATE_CLK(NSS_CC_UNIPHY_PORT1_RX_CLK,	0x005E0, 0x00000001),

@@ -687,15 +687,15 @@ static struct ipq_eth_port_config ipq5210_port_config[] = {
 			CLK_1_25_MHZ,
 			CLK_12_5_MHZ,
 			CLK_125_MHZ,
+			-1,
 			CLK_312_5_MHZ,
-			CLK_78_125_MHZ,
 		},
 		{
-			XGMAC,
-			XGMAC,
-			XGMAC,
-			XGMAC,
-			XGMAC
+			GMAC,
+			GMAC,
+			GMAC,
+			GMAC,
+			GMAC
 		},
 		{
 			PORT_WRAPPER_UQXGMII,
@@ -920,6 +920,25 @@ static struct ppe_port_config ipq5210_port_cfg = {
 };
 
 /*
+ * IPQ5210 port-to-XGMAC-ID mapping.
+ *
+ * IPQ5210 has only 3 XGMACs shared across 6 ports:
+ *   Port 1 -> XGMAC0 (gmacid = 0)
+ *   Port 5 -> XGMAC1 (gmacid = 1)
+ *   Port 6 -> XGMAC2 (gmacid = 2)
+ * All other ports have no XGMAC; returns (u32)-1 for those.
+ */
+static u32 ipq5210_port_to_gmacid(u32 portid)
+{
+	switch (portid) {
+	case 1: return 0;
+	case 5: return 1;
+	case 6: return 2;
+	default: return (u32)-1;
+	}
+}
+
+/*
  * EDMA Configuration
  * Architecture with 24 TX rings, 20 RX fill rings
  */
@@ -950,6 +969,7 @@ struct edma_config ipq_edma_config = {
 	.ipo_action		= 6,
 	.tdm_ctrl_val		= 0x80000010,
 	.hw_cfg			= &ipq5210_hw_cfg,
+	.port_to_gmacid		= ipq5210_port_to_gmacid,
 };
 
 /*
