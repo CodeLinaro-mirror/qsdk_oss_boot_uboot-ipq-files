@@ -16,8 +16,6 @@
 enum {
 	CLK_ALPHA_PLL_TYPE_DEFAULT,
 	CLK_ALPHA_PLL_TYPE_HUAYRA,
-	CLK_ALPHA_PLL_TYPE_HUAYRA_V2,
-	CLK_ALPHA_PLL_TYPE_HUAYRA_V3,
 	CLK_ALPHA_PLL_TYPE_BRAMMO,
 	CLK_ALPHA_PLL_TYPE_FABIA,
 	CLK_ALPHA_PLL_TYPE_TRION,
@@ -27,6 +25,7 @@ enum {
 	CLK_ALPHA_PLL_TYPE_ZONDA_OLE,
 	CLK_ALPHA_PLL_TYPE_LUCID_EVO,
 	CLK_ALPHA_PLL_TYPE_LUCID_OLE,
+	CLK_ALPHA_PLL_TYPE_LUCID_FAST_N6RF,
 	CLK_ALPHA_PLL_TYPE_RIVIAN_EVO,
 	CLK_ALPHA_PLL_TYPE_DEFAULT_EVO,
 	CLK_ALPHA_PLL_TYPE_BRAMMO_EVO,
@@ -129,6 +128,9 @@ struct alpha_pll_config {
 	u32 aux_output_mask;
 	u32 aux2_output_mask;
 	u32 early_output_mask;
+	u32 test_output_mask;
+	u32 even_output_mask;
+	u32 odd_output_mask;
 	u32 alpha_en_mask;
 	u32 alpha_mode_mask;
 	u32 pre_div_val;
@@ -137,6 +139,8 @@ struct alpha_pll_config {
 	u32 post_div_mask;
 	u32 aux_post_div_val;
 	u32 aux_post_div_mask;
+	u32 post_div_odd_val;
+	u32 post_div_even_val;
 	u32 vco_val;
 	u32 vco_mask;
 	u32 status_val;

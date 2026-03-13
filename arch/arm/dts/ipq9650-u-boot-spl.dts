@@ -205,6 +205,45 @@
 			#power-domain-cells = <1>;
 		};
 
+		gpll0: pll@1820000 {
+			bootph-all;
+			compatible = "qcom,ipq9650-clk-pll",
+					"qcom,ipq-clk-pll";
+			reg = <0 0x01820000 0 0x1000>;
+			#clock-cells = <0>;
+			clock-output-names = "gpll0";
+			status = "okay";
+		};
+
+		gpll2: pll@1821000 {
+			bootph-all;
+			compatible = "qcom,ipq9650-clk-pll",
+					"qcom,ipq-clk-pll";
+			reg = <0 0x01821000 0 0x1000>;
+			#clock-cells = <0>;
+			clock-output-names = "gpll2";
+			fsm-vote-addr = <0x0180B000>;
+			fsm-vote-mask = <0x2>;
+			status = "okay";
+		};
+
+		gpll4: pll@1822000 {
+			bootph-all;
+			compatible = "qcom,ipq9650-clk-pll",
+					"qcom,ipq-clk-pll";
+			reg = <0 0x01822000 0 0x1000>;
+			#clock-cells = <0>;
+			clock-output-names = "gpll4";
+			status = "okay";
+		};
+
+		pll_init: qcom,ipq-init-plls {
+			bootph-all;
+			compatible = "qcom,ipq-init-plls";
+			plls = <&gpll0 &gpll2 &gpll4>;
+			status = "okay";
+		};
+
 		board_init_clks: qcom,ipq-init-clks {
 			bootph-all;
 			compatible = "qcom,ipq-init-clks";
