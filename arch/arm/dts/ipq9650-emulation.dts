@@ -80,18 +80,18 @@
 	status = "okay";
 };
 
-&i2c2 {
+&i2c0 {
 	status = "okay";
 };
 
-&i2c2_fw {
+&i2c0_fw {
 	status = "okay";
 };
 
-&i2c3 {
+&i2c1 {
 	status = "okay";
 };
 
-&i2c3_fw {
+&i2c1_fw {
 	status = "okay";
 };
