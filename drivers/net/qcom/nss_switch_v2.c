@@ -4890,6 +4890,56 @@ static int ipq_eth_probe(struct udevice *dev)
 
 	mem_init();
 
+	/* Step 1: Enable all clocks (clocks must be stable before reset) */
+	clk_cnt = dev_read_string_list(dev, "clock-names", &clk_names);
+	if (clk_cnt <= 0) {
+		dev_err(dev, "Failed to get clock names\n");
+		goto fail;
+	}
+
+	for (clk_itr = 0; clk_itr < clk_cnt; clk_itr++) {
+		/*
+		 * Uniphy clocks: only enable if the corresponding uniphy
+		 * is present and enabled in the SKU. Skip disabled uniphys to
+		 * avoid enabling clocks for hardware that is not available.
+		 *
+		 * Supports two naming patterns:
+		 * - gcc_uniphy0_sys_clk, gcc_uniphy0_ahb_clk
+		 * - uniphy0_ahb_clk, uniphy0_sys_clk
+		 */
+		if (!strncmp(clk_names[clk_itr], "gcc_uniphy", 10)) {
+			int uniphy_id = clk_names[clk_itr][10] - '0';
+
+			if (ipq_uniphy && ipq_uniphy[uniphy_id].status != SKU_ENABLED)
+				continue;
+		} else if (!strncmp(clk_names[clk_itr], "uniphy", 6) &&
+			   isdigit(clk_names[clk_itr][6])) {
+			int uniphy_id = clk_names[clk_itr][6] - '0';
+
+			if (ipq_uniphy && ipq_uniphy[uniphy_id].status != SKU_ENABLED)
+				continue;
+		}
+
+		/* Skip xgmac PTP REF clocks - enabled at port configure time */
+		if (strstr(clk_names[clk_itr], "_ptp_ref_clk"))
+			continue;
+
+		ret = clk_get_by_name(dev, clk_names[clk_itr], &clk);
+		if (ret && ret != -ENOENT) {
+			dev_err(dev, "Failed to get clock '%s': %d\n",
+				clk_names[clk_itr], ret);
+			goto fail;
+		}
+
+		ret = clk_enable(&clk);
+		if (ret) {
+			dev_err(dev, "Failed to enable clock '%s': %d\n",
+				clk_names[clk_itr], ret);
+			goto fail;
+		}
+	}
+
+	/* Step 2: Assert/deassert resets after clocks are stable */
 	ret = reset_get_bulk(dev, &resets);
 	if (ret && ret != -ENOENT) {
 		dev_err(dev, "Can't get reset: %d\n", ret);
@@ -4906,61 +4956,7 @@ static int ipq_eth_probe(struct udevice *dev)
 	if (ret)
 		return ret;
 
-	clk_cnt = dev_read_string_list(dev, "clock-names", &clk_names);
-	if (clk_cnt <= 0) {
-		dev_err(dev, "Failed to get clock names (ret=%d)\n", ret);
-		goto fail;
-	}
-
-	for (clk_itr = 0 ; clk_itr < clk_cnt ; clk_itr++) {
-		if (!strncmp(clk_names[clk_itr], "gcc_uniphy", 10)) {
-			int uniphy_id = clk_names[clk_itr][10] - 48; //Extract uniphy_id
-
-			if (ipq_uniphy && ipq_uniphy[uniphy_id].status == SKU_ENABLED) {
-				ret = clk_get_by_name(dev, clk_names[clk_itr], &clk);
-				if (ret && ret != -ENOENT) {
-					dev_err(dev, "Failed to get clock by name (ret=%d)\n", ret);
-					goto fail;
-				}
-				ret = clk_enable(&clk);
-				if (ret) {
-					dev_err(dev, "Failed to enable clock (ret=%d)\n", ret);
-					goto fail;
-				}
-			} else {
-				ret = clk_get_by_name(dev, clk_names[clk_itr], &clk);
-				if (ret && ret != -ENOENT) {
-					dev_err(dev, "Failed to get clock by name (ret=%d)\n", ret);
-					goto fail;
-				}
-				ret = clk_enable(&clk);
-				if (ret) {
-					dev_err(dev, "Failed to enable clock (ret=%d)\n", ret);
-					goto fail;
-				}
-			}
-			continue;
-		}
-
-		/* Skip xgmac PTP REF clocks here; they are enabled at port configure time */
-		if (strstr(clk_names[clk_itr], "_ptp_ref_clk"))
-			continue;
-
-		ret = clk_get_by_name(dev, clk_names[clk_itr], &clk);
-		if (ret && ret != -ENOENT) {
-			dev_err(dev, "Failed to get clock by name (ret=%d)\n", ret);
-			goto fail;
-		}
-		ret = clk_enable(&clk);
-		if (ret) {
-			dev_err(dev, "Failed to enable clock (ret=%d)\n", ret);
-			goto fail;
-		}
-	}
-
-	/*
-	 * configure CMN clock for ethernet
-	 */
+	/* Step 3: Configure CMN clock */
 	ipq_config_cmn_clock();
 
 	if (priv->uniphy_50mhz)

@@ -1325,6 +1325,14 @@ void ipq_config_cmn_clock(void)
 {
 	unsigned int reg_val;
 
+	/* Skip initialization if CMN PLL clocks are already fully enabled and locked */
+	reg_val = readl(CMN_BLK_ADDR + CMN_PLL_POWER_ON_AND_RESET);
+	if (reg_val == CLK_ENABLE_MASK_FULL) {
+		reg_val = readl(CMN_BLK_ADDR + CMN_PLL_LOCKED);
+		if (reg_val & CMN_PLL_CLKS_LOCKED)
+			return;
+	}
+
 	/*
 	 * Step 1: Configure reference clock to 48 MHz
 	 * uses ref_48mhz_clk (derived from xo_clk) as reference (from DTS)

@@ -971,6 +971,10 @@ static const struct qcom_reset_map ipq5210_gcc_resets[] = {
 	[NSS_CC_EPHY_RX_CLK_ARES]	= {0x00618, 2},
 	[NSS_CC_EPHY_TX_CLK_ARES]	= {0x0061C, 2},
 	[GCC_GEPHY_SYS_CLK_ARES]	= {0x2A004, 2},
+	/* NSS_CC_PPE_EDMA_CBCR bit 2 (CLK_ARES): resets EDMA core */
+	[NSS_CC_PPE_EDMA_CLK_ARES]	= {0x00440, 2},
+	/* NSS_CC_PPE_EDMA_CFG_CBCR bit 2 (CLK_ARES): resets EDMA CFG core */
+	[NSS_CC_PPE_EDMA_CFG_CLK_ARES]	= {0x00448, 2},
 };
 
 static struct msm_clk_data ipq5210_gcc_data = {

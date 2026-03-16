@@ -614,6 +614,8 @@
 				"xgmac2_ptp_ref_clk";
 
 			resets = <&nsscc NSS_CC_PPE_BCR>,
+				<&nsscc NSS_CC_PPE_EDMA_CLK_ARES>,
+				<&nsscc NSS_CC_PPE_EDMA_CFG_CLK_ARES>,
 				<&gcc GCC_UNIPHY0_BCR>,
 				<&gcc GCC_UNIPHY1_BCR>,
 				<&gcc GCC_UNIPHY2_BCR>,
@@ -658,6 +660,8 @@
 				<&nsscc NSS_CC_PORT6_MAC_CLK_ARES>;
 
 			reset-names = "ppe_rst",
+				"ppe_edma_rst",
+				"ppe_edma_cfg_rst",
 				"uniphy0_soft_rst",
 				"uniphy1_soft_rst",
 				"uniphy2_soft_rst",
