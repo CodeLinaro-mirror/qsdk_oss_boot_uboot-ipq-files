@@ -892,6 +892,9 @@ config TARGET_IPQ9650
 	imply DMA
 	imply DMA_CHANNELS
 	imply IPQ_USB
+	imply PHY if IPQ_USB
+	imply PHY_QCOM_USB_FEMTO if IPQ_USB
+	imply PHY_QCOM_QMP_USB3 if IPQ_USB
 	imply IPQ_PCIE
 	imply EDL_SUPPORT
 	imply LIST_FUSE
