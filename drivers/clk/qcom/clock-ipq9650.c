@@ -70,6 +70,9 @@
 #define IO_MACRO_CLK_50_MHZ				(50000000)
 #define IO_MACRO_CLK_24_MHZ				(24000000)
 
+#define GCC_QUPV3_I2C0_CMD_RCGR			(0x3034)
+#define GCC_QUPV3_I2C1_CMD_RCGR			(0x3050)
+
 /* Clock rate constants */
 #define CLK_1_25_MHZ				(1250000UL)
 #define CLK_2_5_MHZ				(2500000UL)
@@ -323,8 +326,15 @@ static ulong ipq9650_set_rate(struct clk *clk, ulong rate)
 				     31, 0, 0, CFG_CLK_SRC_GPLL0, 16);
 		break;
 	case GCC_QUPV3_I2C_SE2_CLK:
+		/* Default: 64MHz */
+		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_I2C0_CMD_RCGR,
+					0x18, 0, 0, CFG_CLK_SRC_GPLL0, 16);
+
 		break;
 	case GCC_QUPV3_I2C_SE3_CLK:
+		/* Default: 64MHz */
+		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_I2C1_CMD_RCGR,
+					0x18, 0, 0, CFG_CLK_SRC_GPLL0, 16);
 		break;
 	case GCC_QPIC_CLK:
 		/* GCC_QPIC_CLK: 100 MHz  */
