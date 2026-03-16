@@ -191,7 +191,7 @@
 		};
 
 		qmp_ssphy_0: ssphy@7d000 {
-			compatible = "qcom,ipq9574-qmp-usb3-phy";
+			compatible = "qcom,ipq9650-qmp-usb3-phy";
 			#address-cells = <2>;
 			#size-cells = <2>;
 			reg = <0x0 0x7d000 0x0 0x1c0>,
@@ -208,8 +208,7 @@
 		};
 
 		qusb2_phy_0: qusb2_0@7b000 {
-			compatible = "qcom,ipq5424-qusb2-phy",
-					"qcom,ipq9574-qusb2-phy";
+			compatible = "qcom,ipq9650-usb-hs-phy";
 			#address-cells = <2>;
 			#size-cells = <2>;
 			reg = <0x0 0x07b000 0x0 0x114>;
@@ -222,8 +221,7 @@
 		};
 
 		qusb2_phy_1: qusb2_1@71000 {
-			compatible = "qcom,ipq5424-qusb2-phy",
-					"qcom,ipq9574-qusb2-phy";
+			compatible = "qcom,ipq9650-usb-hs-phy";
 			#address-cells = <2>;
 			#size-cells = <2>;
 			reg = <0x0 0x071000 0x0 0x114>;

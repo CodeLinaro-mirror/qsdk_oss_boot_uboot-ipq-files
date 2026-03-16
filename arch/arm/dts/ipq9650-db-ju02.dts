@@ -12,6 +12,26 @@
 	compatible = "qcom,ipq9650-db-ju02", "qcom,ipq9650";
 
 	soc@0 {
+		qusb2_phy_0: qusb2_0@7b000 {
+			status = "okay";
+		};
+
+		qmp_ssphy_0: ssphy@7d000 {
+			status = "okay";
+		};
+
+		usb3_0: usb3_0@8af8800 {
+			status = "okay";
+		};
+
+		qusb2_phy_1: qusb2_1@71000 {
+			status = "okay";
+		};
+
+		usb2_0: usb2_0@1ef8800 {
+			status = "okay";
+		};
+
 		pcie1: pcie@50000000 {
 			pinctrl-0 = <&pcie1_default_state>;
 			pinctrl-names = "default";
