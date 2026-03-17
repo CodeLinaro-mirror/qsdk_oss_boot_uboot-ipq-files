@@ -45,7 +45,7 @@
 		};
 
 		mdio_ahb: mdio-ahb@1400000 {
-			phy3: phy@3 {
+			phy3: phy@29 {
 				reg = <29 0>;
 				phy_addr = <29>;
 				phy_type = <INTERNAL_PHY_TYPE>;
@@ -85,13 +85,13 @@
 			};
 
 			phy0: phy@0 {
+				phy-reset-gpio = <&tlmm 24 0>;
 				reg = <0 0>;
 				phy_addr = <0>;
 				phy_type = <QCE1204_PHY_TYPE>;
 				id = <1>;
 				uniphy_id = <0>;
 				uniphy_type = <0>;
-				xgmac;
 				qcom,package-mode = "qusgmii";
 				base_addr = <0>;
 
@@ -243,7 +243,6 @@
 				id = <2>;
 				uniphy_id = <0>;
 				uniphy_type = <0>;
-				xgmac;
 				qcom,package-mode = "qusgmii";
 
 				clocks = <&qce2204_cc QCE2204_NSSCC_MAC2_GEPHY1_TX_CLK>,
@@ -264,7 +263,6 @@
 				id = <3>;
 				uniphy_id = <0>;
 				uniphy_type = <0>;
-				xgmac;
 				qcom,package-mode = "qusgmii";
 
 				clocks = <&qce2204_cc QCE2204_NSSCC_MAC3_GEPHY2_TX_CLK>,

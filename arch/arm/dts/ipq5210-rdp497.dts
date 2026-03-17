@@ -29,7 +29,7 @@
 		};
 
 		mdio_ahb: mdio-ahb@1400000 {
-			phy2: phy@2 {
+			phy1: phy@29 {
 				reg = <29 0>;
 				phy_addr = <29>;
 				phy_type = <INTERNAL_PHY_TYPE>;
@@ -75,7 +75,7 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&phy_rst_pinmux>;
 			phy-handle0 = <&phy0>;
-			phy-handle1 = <&phy2>;
+			phy-handle1 = <&phy1>;
 			status = "okay";
 		};
 	};

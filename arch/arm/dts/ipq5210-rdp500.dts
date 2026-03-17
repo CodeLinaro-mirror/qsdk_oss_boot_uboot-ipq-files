@@ -36,7 +36,7 @@
 		};
 
 		mdio_ahb: mdio-ahb@1400000 {
-			phy3: phy@3 {
+			phy3: phy@29 {
 				reg = <29 0>;
 				phy_addr = <29>;
 				phy_type = <INTERNAL_PHY_TYPE>;
