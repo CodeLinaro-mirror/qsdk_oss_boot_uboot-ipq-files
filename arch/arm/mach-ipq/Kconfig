@@ -710,6 +710,9 @@ config TARGET_IPQ5332
 	imply PHY_QCA_8081
 	imply PHY_QCA_8033
 	imply PHY_AQUANTIA
+	imply PHY_QCE_1204
+	imply PHY_QCE_2204
+	imply CLK_QCOM_NSSCC_QCE2204
 	select CMD_CACHE
 	imply IPQ_I2C
 	imply FUSE_IPQ
@@ -806,6 +809,9 @@ config TARGET_IPQ5424
 	imply PHY_QCA_81XX
 	imply PHY_QCA_8081
 	imply PHY_AQUANTIA
+	imply PHY_QCE_1204
+	imply PHY_QCE_2204
+	imply CLK_QCOM_NSSCC_QCE2204
 	select CMD_CACHE
 	imply IPQ_I2C
 	imply QCOM_GENI_SE
