@@ -3119,6 +3119,18 @@ static int populate_cfg(struct cal_dt_config *dt_cfg, struct cal_config *cfg)
 	if (get_pci_dev_by_slot(dt_cfg->pci_slot_id, &dev))
 		return -ENODEV;
 
+	if ((!dt_cfg->caldata_offset) || (!dt_cfg->caldb_offset))
+		return -EINVAL;
+
+	/* Check for integer overflow and validate caldb region bounds */
+	if (dt_cfg->caldb_offset > dt_cfg->rmem_size ||
+	    dt_cfg->caldb_size > dt_cfg->rmem_size ||
+	    dt_cfg->caldb_offset > (dt_cfg->rmem_size - dt_cfg->caldb_size)) {
+		printf("caldb region exceeds rmem for PCI slot %d!\n",
+		       dt_cfg->pci_slot_id);
+		return -ENOMEM;
+	}
+
 	/* Memory Layout for miniFW for calibration
 	 *
 	 * +==========+===============+=========+
@@ -3293,6 +3305,8 @@ int cal_qcn9224(int debug)
 			       cfg->dev_cfg[i].hremote_addr);
 			printf("caldb_addr[%d]: 0x%x\n", i,
 			       cfg->dev_cfg[i].caldb_addr);
+			printf("caldb_size[%d]: 0x%x\n", i,
+			       cfg->dev_cfg[i].caldb_size);
 			printf("host_ddr_status[%d]: 0x%x\n", i,
 			       cfg->dev_cfg[i].host_ddr_status);
 			printf("rddm_addr[%d]: 0x%x\n", i,
