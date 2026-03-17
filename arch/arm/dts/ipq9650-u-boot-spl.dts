@@ -205,14 +205,70 @@
 			#power-domain-cells = <1>;
 		};
 
+		board_init_clks: qcom,ipq-init-clks {
+			bootph-all;
+			compatible = "qcom,ipq-init-clks";
+
+			clocks = <&gcc GCC_MPM_AHB_CLK>,
+				 <&gcc GCC_GEMNOC_ANOC_CLK>,
+				 <&gcc GCC_ANOC0_AXI_CLK>,
+				 <&gcc GCC_APSS_DBG_CLK>,
+				 <&gcc GCC_APSS_TS_CLK>,
+				 <&gcc GCC_SNOC_QOSGEN_EXTREF_CLK>,
+				 <&gcc GCC_SYS_NOC_AT_CLK>,
+				 <&gcc GCC_SNOC_XO_DCD_CLK>,
+				 <&gcc GCC_SNOC_TS_CLK>,
+				 <&gcc GCC_PCNOC_AT_CLK>,
+				 <&gcc GCC_PCNOC_TS_CLK>,
+				 <&gcc GCC_CNOC_QOSGEN_EXTREF_CLK>,
+				 <&gcc GCC_AGGRNOC_ATB_CLK>,
+				 <&gcc GCC_AGGRNOC_TS_CLK>;
+
+			assigned-clocks = <&gcc GCC_PCNOC_BFDCD_CLK>,
+					  <&gcc GCC_SYSTEM_NOC_BFDCD_CLK>,
+					  <&gcc GCC_APSS_AXI_CLK>,
+					  <&gcc GCC_APSS_AHB_CLK>,
+					  <&gcc GCC_QDSS_TSCTR_CLK>,
+					  <&gcc GCC_QDSS_AT_CLK>,
+					  <&gcc GCC_ANOC0_AXI_BFDCD_CLK>,
+					  <&gcc GCC_XO_CLK>;
+
+			assigned-clock-rates = <100000000>,
+					       <266666666>,
+					       <800000000>,
+					       <100000000>,
+					       <600000000>,
+					       <240000000>,
+					       <342000000>,
+					       <24000000>;
+
+			clock-names = "pcnoc_bfdcd",
+					"sysnoc_bfdcd",
+					"apss_axi",
+					"apss_ahb",
+					"qdss_tsctr",
+					"qdss_at",
+					"anoc_axi_bfdcd",
+					"xo";
+
+			status = "okay";
+		};
+
 		qupv3: geniqup@1ac0000 {
 			bootph-all;
 			compatible = "qcom,geni-se-qup";
 			reg = <0 0x01ac0000 0 0x2000>;
-			clocks = <&gcc GCC_QUPV3_AHB_MST_CLK>,
-				 <&gcc GCC_QUPV3_AHB_SLV_CLK>;
-			clock-names = "m-ahb", "s-ahb";
 			ranges;
+			clocks = <&gcc GCC_QUPV3_2X_CORE_CLK>,
+				 <&gcc GCC_QUPV3_AHB_MST_CLK>,
+				 <&gcc GCC_QUPV3_AHB_SLV_CLK>,
+				 <&gcc GCC_QUPV3_CORE_CLK>,
+				 <&gcc GCC_QUPV3_SLEEP_CLK>;
+			clock-names = "2x-core", "m-ahb", "s-ahb",
+					"core", "sleep";
+
+			assigned-clocks = <&gcc GCC_QUPV3_2X_CORE_CLK>;
+			assigned-clock-rates = <200000000>;
 			#address-cells = <2>;
 			#size-cells = <2>;
 
