@@ -63,7 +63,6 @@ extern uint32_t g_load_addr;
 #define CONFIG_MACH_TYPE                        (g_board_machid)
 #define CFG_CUSTOM_LOAD_ADDR			(g_load_addr)
 
-#define CFG_EMULATION
 /* override the counter frequency incase of emulation platform */
 #ifdef CFG_EMULATION
 #define CFG_EMUL_FREQUENCY_DIVIDER		200
