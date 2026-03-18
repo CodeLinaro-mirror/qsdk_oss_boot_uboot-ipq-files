@@ -51,6 +51,9 @@ DECLARE_GLOBAL_DATA_PTR;
 #define TMEL_ERROR_TMELCOM_FAILURE	(0x6u)
 #define TMEL_ERROR_TMEL_BUSY		(0x7u)
 
+/* PRNG parameters */
+#define PRNG_MAX_LENGTH			0x200
+
 /* IRQ check parameters */
 #define IRQ_CHECK_TIMEOUT		100000
 #define IRQ_CHECK_DELAY_US		10
@@ -916,6 +919,80 @@ int tmelcom_get_tme_version(struct tmel *tdev, struct tmel_get_tme_version *vers
 	return ret ? ret : msg.rsp.status;
 }
 
+#ifdef CONFIG_IPQ_TMEL_PRNG_IPC_SUPPORT
+/**
+ * tmelcom_prng_get() - Get random data from PRNG
+ * @tdev: the tmel device
+ * @prng_msg: message containing buffer pointer and length for PRNG data
+ */
+int tmelcom_prng_get(struct tmel *tdev, struct tmel_get_prng *prng_msg)
+{
+	int ret;
+	struct tmel_prng_get_msg msg = {0};
+	struct udevice *dev;
+	dma_addr_t dma_prng;
+	void *prng_buf;
+	u32 length;
+
+	if (!tdev || !prng_msg)
+		return -EINVAL;
+
+	dev = tdev->dev;
+	prng_buf = (void *)(uintptr_t)prng_msg->pdata;
+	length = prng_msg->length;
+
+	if (!dev || !prng_buf || !length)
+		return -EINVAL;
+
+	/* Validate length does not exceed maximum allowed size */
+	if (length > PRNG_MAX_LENGTH) {
+		dev_err(dev, "PRNG length %u exceeds maximum allowed size 0x%x\n",
+			length, PRNG_MAX_LENGTH);
+		return -EINVAL;
+	}
+
+	/* Additional validation: ensure length doesn't cause overflow */
+	if (length > (UINT32_MAX - ARCH_DMA_MINALIGN)) {
+		dev_err(dev, "PRNG length %u could cause integer overflow\n", length);
+		return -EINVAL;
+	}
+
+	dma_prng = dma_map_single(prng_buf, length, DMA_BIDIRECTIONAL);
+        if (!dma_prng) {
+               dev_err(dev, "Failed to map DMA buffer\n");
+               return -ENOMEM;
+        }
+
+	msg.input.length = length;
+	msg.output.status = TMEL_ERROR_GENERIC;
+	msg.output.prng_buf.pdata = (u32)dma_prng;
+	msg.output.prng_buf.length = length;
+	msg.output.prng_buf.length_used = 0;
+
+	/* Send PRNG get IPC call to TME */
+	ret = tmel_process_request(tdev, TMEL_MSG_UID_HCS_PRNG_GET,
+				   &msg, sizeof(msg));
+	if (ret || msg.output.status)
+		dev_err(dev, "%s : IPC Failed. ret: %d, msg.status = 0x%x\n",
+			__func__, ret, msg.output.status);
+
+	/* Validate returned length before unmapping */
+        if (msg.output.prng_buf.length_used > length) {
+                dev_err(dev, "TME returned invalid length %u > buffer size %u\n",
+                        msg.output.prng_buf.length_used, length);
+                dma_unmap_single(dma_prng, length, DMA_BIDIRECTIONAL);
+                return -EOVERFLOW;
+        }
+
+	dma_unmap_single(dma_prng, length, DMA_BIDIRECTIONAL);
+
+	/* Update the length used in the response */
+	prng_msg->length = msg.output.prng_buf.length_used;
+
+	return ret ? ret : msg.output.status;
+}
+#endif /* CONFIG_IPQ_TMEL_PRNG_IPC_SUPPORT */
+
 /**
  * tmel_qmp_send() - Send message through mailbox
  * @chan: mailbox channel
@@ -966,6 +1043,15 @@ static int tmel_qmp_send(struct mbox_chan *chan, const void *data)
 			ret = tmelcom_get_tme_version(tdev, version_msg);
 		}
 		break;
+#ifdef CONFIG_IPQ_TMEL_PRNG_IPC_SUPPORT
+	case TMEL_MSG_UID_HCS_PRNG_GET:
+		{
+			struct tmel_get_prng *prng_msg = (struct tmel_get_prng *)tmsg->msg;
+
+			ret = tmelcom_prng_get(tdev, prng_msg);
+		}
+		break;
+#endif
 	default:
 		ret = -EINVAL;
 		break;

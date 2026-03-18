@@ -32,7 +32,8 @@
  * All definitions of supported messageTypes.
  */
 #define TMEL_MSG_SECBOOT	0x00
-#define TMEL_MSG_FUSE           0x03
+#define TMEL_MSG_FUSE		0x03
+#define TMEL_MSG_HCS		0x0B
 
 /*
  * Action IDs for TMEL_MSG_SECBOOT
@@ -57,6 +58,11 @@
 #define TMEL_ACTION_FUSE_ROM_PATCH_REQ                   0x09
 
 /*
+ * Action ID's for TMEL_MSG_HCS
+ */
+#define TMEL_ACTION_HCS_PRNG_GET			0x0C
+
+/*
  * UIDs for TMEL_MSG_SECBOOT
  */
 #define TMEL_MSG_UID_SECBOOT_SEC_AUTH	TMEL_MSG_UID_CREATE(TMEL_MSG_SECBOOT,\
@@ -79,6 +85,17 @@
  */
 #define TMEL_MSG_UID_FUSE_READ_MULTIPLE_ROW	TMEL_MSG_UID_CREATE(TMEL_MSG_FUSE,\
 						TMEL_ACTION_FUSE_READ_MULTIPLE_ROW)
+
+/*
+ * UIDs for TMEL_MSG_HCS
+ */
+#define TMEL_MSG_UID_HCS_PRNG_GET		TMEL_MSG_UID_CREATE(TMEL_MSG_HCS,\
+						TMEL_ACTION_HCS_PRNG_GET)
+
+/*
+ * Parameter ID for HCS PRNG GET
+ */
+#define TMEL_MSG_UID_HCS_PRNG_GET_PARAM_ID	0x08
 
 #define TMEL_MAX_FUSE_ADDR_SIZE 8
 
@@ -199,6 +216,55 @@ struct tmel_get_tme_version {
 	u32 length;             /* Length of the buffer (should be >= TME_PATCH_VERSION_LENGTH) */
 } __packed;
 
+/*
+ * PRNG service structures
+ */
+
+/*
+ * Sequencer status response structure
+ * Matches TMESequencerStatusRsp_t from TME firmware
+ */
+struct tmel_sequencer_status_resp {
+	u32 tme_error_status;		/* TME FW Response status */
+	u32 seq_error_status;		/* Contents of CSR_CMD_ERROR_STATUS */
+	u32 seq_kp_error_status0;	/* CRYPTO_ENGINE_CRYPTO_KEY_POLICY_ERROR_STATUS0 */
+	u32 seq_kp_error_status1;	/* CRYPTO_ENGINE_CRYPTO_KEY_POLICY_ERROR_STATUS1 */
+	u32 seq_rsp_status;		/* Contents of CSR_CMD_RESPONSE_STATUS */
+} __packed;
+
+/*
+ * Get PRNG request structure
+ */
+struct tmel_prng_get_req {
+	u32 length;		/* Length of random data to be generated */
+} __packed;
+
+/*
+ * Get PRNG response structure
+ * Matches TMEPRNGGetResponse_t from TME firmware
+ */
+struct tmel_prng_get_resp {
+	struct tmel_response_buffer prng_buf;		/* Buffer to store random data */
+	u32 status;				/* TME-FW IPC layer status */
+	struct tmel_sequencer_status_resp seq_status;	/* Sequencer status */
+} __packed;
+
+/*
+ * Get PRNG message structure
+ */
+struct tmel_prng_get_msg {
+	struct tmel_prng_get_req input;
+	struct tmel_prng_get_resp output;
+} __packed;
+
+/*
+ * Simplified PRNG Get structure for internal use
+ */
+struct tmel_get_prng {
+	u32 length;
+	u32 pdata;
+} __packed;
+
 void tmel_secboot_sec_free(void *ptr);
 int ipq_get_tmelcom_device(struct tmelcom **tmelcom_priv);
 int ipq_list_fuse_tme_impl(void *params);
@@ -206,5 +272,6 @@ int ipq_dump_fuse_tme_impl(void *params);
 int ipq_check_secure_boot_tme_impl(void *params);
 int ipq_secure_auth_tme_impl(void *params);
 int ipq_get_tme_version_impl(void *params);
+int ipq_prng_get_tme_impl(void *params);
 
 #endif  /* _LINUX_TMELCOM_QMP_H */
