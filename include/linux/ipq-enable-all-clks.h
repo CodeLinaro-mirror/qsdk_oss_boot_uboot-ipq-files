@@ -276,6 +276,8 @@
 #define GCC_CNOC_LPASS_CFG_CBCR                            	(0x1831020)
 #define GCC_CNOC_PCIE0_1LANE_S_CBCR                        	(0x1831088)
 #define GCC_CNOC_PCIE1_2LANE_S_CBCR                        	(0x183108C)
+#define GCC_SNOC_PCIE0_AXI_M_CBCR                               (0x182E04C)
+#define GCC_SNOC_PCIE1_AXI_M_CBCR                               (0x182E050)
 #define GCC_CNOC_QDSS_STM_AXI_CBCR                         	(0x18310A0)
 #define GCC_CNOC_QOSGEN_EXTREF_CBCR                        	(0x18310B0)
 #define GCC_CNOC_TME_CFG_CBCR                              	(0x18310A4)
