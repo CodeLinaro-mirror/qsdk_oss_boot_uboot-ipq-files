@@ -48,13 +48,13 @@
 			};
 
 			phy0: phy@0 {
+				phy-reset-gpio = <&tlmm 24 0>;
 				reg = <0 0>;
 				phy_addr = <0>;
 				phy_type = <QCE1204_PHY_TYPE>;
 				id = <1>;
 				uniphy_id = <0>;
 				uniphy_type = <0>;
-				xgmac;
 				qcom,package-mode = "qusgmii";
 				base_addr = <0>;
 
@@ -206,7 +206,6 @@
 				id = <2>;
 				uniphy_id = <0>;
 				uniphy_type = <0>;
-				xgmac;
 				qcom,package-mode = "qusgmii";
 
 				clocks = <&qce2204_cc QCE2204_NSSCC_MAC2_GEPHY1_TX_CLK>,
@@ -220,7 +219,47 @@
 				reset-names = "tx_reset", "rx_reset", "sys_reset";
 			};
 
-			phy2: phy@8 {
+			phy2: phy@2 {
+				reg = <2 0>;
+				phy_addr = <2>;
+				phy_type = <QCE1204_PHY_TYPE>;
+				id = <3>;
+				uniphy_id = <0>;
+				uniphy_type = <0>;
+				qcom,package-mode = "qusgmii";
+
+				clocks = <&qce2204_cc QCE2204_NSSCC_MAC3_GEPHY2_TX_CLK>,
+					<&qce2204_cc QCE2204_NSSCC_MAC3_GEPHY2_RX_CLK>,
+					<&qce2204_cc QCE2204_NSSCC_GEPHY2_SYS_CLK>;
+				clock-names = "tx_clk", "rx_clk", "sys_clk";
+
+				resets = <&qce2204_cc QCE2204_NSSCC_MAC3_GEPHY2_TX_ARES>,
+					<&qce2204_cc QCE2204_NSSCC_MAC3_GEPHY2_RX_ARES>,
+					<&qce2204_cc QCE2204_NSSCC_GEPHY2_SYS_ARES>;
+				reset-names = "tx_reset", "rx_reset", "sys_reset";
+			};
+
+			phy3: phy@3 {
+				reg = <3 0>;
+				phy_addr = <3>;
+				phy_type = <QCE1204_PHY_TYPE>;
+				id = <4>;
+				uniphy_id = <0>;
+				uniphy_type = <0>;
+				qcom,package-mode = "qusgmii";
+
+				clocks = <&qce2204_cc QCE2204_NSSCC_MAC4_GEPHY3_TX_CLK>,
+					<&qce2204_cc QCE2204_NSSCC_MAC4_GEPHY3_RX_CLK>,
+					<&qce2204_cc QCE2204_NSSCC_GEPHY3_SYS_CLK>;
+				clock-names = "tx_clk", "rx_clk", "sys_clk";
+
+				resets = <&qce2204_cc QCE2204_NSSCC_MAC4_GEPHY3_TX_ARES>,
+					<&qce2204_cc QCE2204_NSSCC_MAC4_GEPHY3_RX_ARES>,
+					<&qce2204_cc QCE2204_NSSCC_GEPHY3_SYS_ARES>;
+				reset-names = "tx_reset", "rx_reset", "sys_reset";
+			};
+
+			phy4: phy@8 {
 				phy-reset-gpio = <&tlmm 45 0>;
 				phy_addr = <8>;
 				phy_type = <QCA81xx_PHY_TYPE>;
@@ -237,6 +276,8 @@
 			phy-handle0 = <&phy0>;
 			phy-handle1 = <&phy1>;
 			phy-handle2 = <&phy2>;
+			phy-handle3 = <&phy3>;
+			phy-handle4 = <&phy4>;
 			status = "okay";
 		};
 	};

@@ -1041,18 +1041,73 @@ enum ipq_edma_tx {
 };
 
 enum port_wrapper_cfg {
-	PORT_WRAPPER_PSGMII = 0,
-	PORT_WRAPPER_SGMII0_RGMII4 = 1,
-	PORT_WRAPPER_USXGMII = 2,
-	PORT_WRAPPER_SGMII1_RGMII4 = 3,
-	PORT_WRAPPER_SGMII4_RGMII4 = 4,
-	PORT_WRAPPER_QSGMII = 5,
-	PORT_WRAPPER_SGMII_PLUS = 6,
-	PORT_WRAPPER_10GBASE_R = 7,
-	PORT_WRAPPER_SGMII_FIBER = 8,
-	PORT_WRAPPER_UQXGMII = 9,
-	PORT_WRAPPER_EMULATION = 10,
+	PORT_WRAPPER_PSGMII = 0,              /* 0 - PSGMII mode */
+	PORT_WRAPPER_PSGMII_RGMII5,           /* 1 - PSGMII + RGMII5 */
+	PORT_WRAPPER_SGMII0_RGMII5,           /* 2 - SGMII0 + RGMII5 */
+	PORT_WRAPPER_SGMII1_RGMII5,           /* 3 - SGMII1 + RGMII5 */
+	PORT_WRAPPER_PSGMII_RMII0,            /* 4 - PSGMII + RMII0 */
+	PORT_WRAPPER_PSGMII_RMII1,            /* 5 - PSGMII + RMII1 */
+	PORT_WRAPPER_PSGMII_RMII0_RMII1,      /* 6 - PSGMII + RMII0 + RMII1 */
+	PORT_WRAPPER_PSGMII_RGMII4,           /* 7 - PSGMII + RGMII4 */
+	PORT_WRAPPER_SGMII0_RGMII4,           /* 8 - SGMII0 + RGMII4 */
+	PORT_WRAPPER_SGMII1_RGMII4,           /* 9 - SGMII1 + RGMII4 */
+	PORT_WRAPPER_SGMII4_RGMII4,           /* 10 - SGMII4 + RGMII4 */
+	PORT_WRAPPER_QSGMII,                  /* 11 - QSGMII mode */
+	PORT_WRAPPER_SGMII_PLUS,              /* 12 - SGMII+ mode */
+	PORT_WRAPPER_USXGMII,                 /* 13 - USXGMII mode */
+	PORT_WRAPPER_10GBASE_R,               /* 14 - 10GBASE-R mode */
+	PORT_WRAPPER_SGMII_CHANNEL0,          /* 15 - SGMII Channel 0 */
+	PORT_WRAPPER_SGMII_CHANNEL1,          /* 16 - SGMII Channel 1 */
+	PORT_WRAPPER_SGMII_CHANNEL4,          /* 17 - SGMII Channel 4 */
+	PORT_WRAPPER_RGMII,                   /* 18 - RGMII mode */
+	PORT_WRAPPER_PSGMII_FIBER,            /* 19 - PSGMII Fiber */
+	PORT_WRAPPER_SGMII_FIBER,             /* 20 - SGMII Fiber */
+	PORT_WRAPPER_UQXGMII,                 /* 21 - UQXGMII (4 channels PHY) */
+	PORT_WRAPPER_UDXGMII,                 /* 22 - UDXGMII mode */
+	PORT_WRAPPER_UQXGMII_3CHANNELS,       /* 23 - UQXGMII (3 channels PHY) */
+	PORT_WRAPPER_25GBASE_R,               /* 24 - 25GBASE-R mode */
+	PORT_WRAPPER_GPON,                    /* 25 - GPON mode */
+	PORT_WRAPPER_XGPON,                   /* 26 - XGPON mode */
+	PORT_WRAPPER_XGSPON,                  /* 27 - XGSPON mode */
+	PORT_WRAPPER_EMULATION,
+	PORT_WRAPPER_NA,
+	PORT_WRAPPER_MAX = 0xFF               /* Maximum value marker */
 };
+
+/*
+ * Helper macros for mode checking
+ */
+#define IS_USXGMII_MODE(mode)     ((mode) == PORT_WRAPPER_USXGMII)
+#define IS_UQXGMII_MODE(mode)     ((mode) == PORT_WRAPPER_UQXGMII || \
+                                   (mode) == PORT_WRAPPER_UQXGMII_3CHANNELS)
+#define IS_UDXGMII_MODE(mode)     ((mode) == PORT_WRAPPER_UDXGMII)
+#define IS_10GBASE_R_MODE(mode)   ((mode) == PORT_WRAPPER_10GBASE_R)
+#define IS_25GBASE_R_MODE(mode)   ((mode) == PORT_WRAPPER_25GBASE_R)
+#define IS_SGMII_MODE(mode)       ((mode) == PORT_WRAPPER_SGMII_PLUS || \
+                                   (mode) == PORT_WRAPPER_SGMII_CHANNEL0 || \
+                                   (mode) == PORT_WRAPPER_SGMII_CHANNEL1 || \
+                                   (mode) == PORT_WRAPPER_SGMII_CHANNEL4 || \
+                                   (mode) == PORT_WRAPPER_SGMII_FIBER)
+#define IS_QSGMII_MODE(mode)      ((mode) == PORT_WRAPPER_QSGMII)
+#define IS_PSGMII_MODE(mode)      ((mode) == PORT_WRAPPER_PSGMII || \
+                                   (mode) == PORT_WRAPPER_PSGMII_RGMII5 || \
+                                   (mode) == PORT_WRAPPER_PSGMII_RMII0 || \
+                                   (mode) == PORT_WRAPPER_PSGMII_RMII1 || \
+                                   (mode) == PORT_WRAPPER_PSGMII_RMII0_RMII1 || \
+                                   (mode) == PORT_WRAPPER_PSGMII_RGMII4 || \
+                                   (mode) == PORT_WRAPPER_PSGMII_FIBER)
+#define IS_RGMII_MODE(mode)       ((mode) == PORT_WRAPPER_RGMII || \
+                                   (mode) == PORT_WRAPPER_PSGMII_RGMII5 || \
+                                   (mode) == PORT_WRAPPER_SGMII0_RGMII5 || \
+                                   (mode) == PORT_WRAPPER_SGMII1_RGMII5 || \
+                                   (mode) == PORT_WRAPPER_PSGMII_RGMII4 || \
+                                   (mode) == PORT_WRAPPER_SGMII0_RGMII4 || \
+                                   (mode) == PORT_WRAPPER_SGMII1_RGMII4 || \
+                                   (mode) == PORT_WRAPPER_SGMII4_RGMII4)
+#define IS_PON_MODE(mode)         ((mode) == PORT_WRAPPER_GPON || \
+                                   (mode) == PORT_WRAPPER_XGPON || \
+                                   (mode) == PORT_WRAPPER_XGSPON)
+
 
 enum {
 	TCP_PKT,
@@ -1390,6 +1445,12 @@ struct edma_config {
 	u8 rx_map;
 	u8 ipo_action;
 	bool  hw_reset;
+	/*
+	 * Optional chip-specific port-to-XGMAC-ID mapping.
+	 * If NULL, the generic formula (gmacid = portid - 1) is used.
+	 * Returns (u32)-1 to indicate the port has no XGMAC on this SoC.
+	 */
+	u32 (*port_to_gmacid)(u32 portid);
 };
 
 extern struct edma_config ipq_edma_config;
