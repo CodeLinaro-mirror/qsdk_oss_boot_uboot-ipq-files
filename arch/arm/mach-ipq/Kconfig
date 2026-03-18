@@ -646,6 +646,16 @@ config IPQ_TMEL_PRNG_IPC_SUPPORT
 	  to request cryptographically secure random data from the TME-L
 	  firmware during the boot process.
 
+config IPQ_LCP_DARE
+       bool "Enable LCP DARE Key Support"
+       depends on IPQ_TMEL_PRNG_IPC_SUPPORT
+       default n
+       help
+         Enable support for retrieving LCP-DARE keys via TMEL IPC.
+         This feature allows the bootloader to obtain encryption keys for
+         LCP DARE operations during the boot process. The keys are stored
+         in the QCLib interface table for use by subsequent boot stages.
+
 config IPQ_BOARD_DEFAULT
 	bool "Enable default config for all SoC"
 	default y
