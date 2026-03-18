@@ -95,3 +95,13 @@
 &i2c1_fw {
 	status = "okay";
 };
+
+&uart1 {
+	reg = <0 0x1a84000 0 0x4000>;
+	clocks = <&gcc GCC_QUPV3_UART1_CLK>;
+	clock-names = "se";
+};
+
+&uart1_fw {
+	reg = <0 0x01a84000 0 0x4000>;
+};

@@ -79,10 +79,19 @@
 			#interrupt-cells = <2>;
 
 			uart1_pins: uart1-state {
-				pins = "gpio38", "gpio39";
-				function = "uart1";
-				drive-strength = <8>;
-				bias-pull-up;
+				rx-pins {
+					pins = "gpio43";
+					function = "qup_se4_l3";
+					drive-strength = <8>;
+					bias-pull-down;
+				};
+
+				tx-pins {
+					pins = "gpio44";
+					function = "qup_se4_l2";
+					drive-strength = <8>;
+					bias-pull-down;
+				};
 			};
 		};
 
@@ -140,10 +149,10 @@
 
 			status = "disabled";
 
-			uart1: serial@1a84000 {
+			uart1: serial@1a90000 {
 				compatible = "qcom,geni-debug-uart";
-				reg = <0 0x1a84000 0 0x4000>;
-				clocks = <&gcc GCC_QUPV3_UART1_CLK>;
+				reg = <0 0x1a98000 0 0x4000>;
+				clocks = <&gcc GCC_QUPV3_UART2_CLK>;
 				clock-names = "se";
 				status = "disabled";
 			};
@@ -837,28 +846,28 @@
 	spi0_pinmux: spi0 {
 		spi0_sclk {
 			pins = "gpio6";
-			function = "spi0_clk";
+			function = "qup_se0_l2";
 			drive-strength = <8>;
 			bias-pull-down;
 		};
 
 		spi0_cs0 {
 			pins = "gpio7";
-			function = "spi0_cs";
+			function = "qup_se0_l3";
 			drive-strength = <8>;
-			bias-pull-up;
+			bias-pull-down;
 		};
 
 		spi0_miso {
 			pins = "gpio8";
-			function = "spi0_miso";
+			function = "qup_se0_l0";
 			drive-strength = <8>;
 			bias-pull-down;
 		};
 
 		spi0_mosi {
 			pins = "gpio9";
-			function = "spi0_mosi";
+			function = "qup_se0_l1";
 			drive-strength = <8>;
 			bias-pull-down;
 		};
@@ -904,7 +913,7 @@
 
 &qupv3 {
 	status = "okay";
-	uart1: serial@1a84000 {
+	uart1: serial@1a90000 {
 		pinctrl-0 = <&uart1_pins>;
 		pinctrl-names = "default";
 		qup-se-fw-load = <&uart1_fw>;
@@ -913,7 +922,7 @@
 
 	uart1_fw: uart_firmware@0 {
 		compatible = "qcom,ipq9650-geni-uart-fw-v1", "qcom,geni-uart-fw-v1";
-		reg = <0 0x01a84000 0 0x4000>;
+		reg = <0 0x01a90000 0 0x4000>;
 		status = "okay";
 	};
 
