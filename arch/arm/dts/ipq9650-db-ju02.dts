@@ -65,4 +65,50 @@
 			output-low;
 		};
 	};
+
+	i2c0_pinmux: i2c0 {
+		i2c0_scl {
+			pins = "gpio33";
+			function = "i2c0_scl";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+
+		i2c0_sda {
+			pins = "gpio34";
+			function = "i2c0_sda";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+	};
+
+	i2c1_pinmux: i2c1 {
+		i2c1_scl {
+			pins = "gpio16";
+			function = "i2c1_scl";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+
+		i2c1_sda {
+			pins = "gpio17";
+			function = "i2c1_sda";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+	};
+};
+
+&qupv3 {
+	i2c0: i2c@1a88000 {
+		pinctrl-0 = <&i2c0_pinmux>;
+		pinctrl-names = "default";
+		status = "okay";
+	};
+
+	i2c1: i2c@1a8c000 {
+		pinctrl-0 = <&i2c1_pinmux>;
+		pinctrl-names = "default";
+		status = "okay";
+	};
 };
