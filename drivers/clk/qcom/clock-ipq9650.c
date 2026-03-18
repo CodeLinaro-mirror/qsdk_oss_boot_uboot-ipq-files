@@ -34,10 +34,12 @@
 
 #define CFG_CLK_SRC_GPLL4_OUT_AUX		(1 << 8)
 
+#define PCIE_GPLL0_OUT_AUX				(2 << 8)
 #define PCIE_GPLL4_OUT_MAIN				(2 << 8)
 #define PCIE_GPLL0_OUT_MAIN				(1 << 8)
 
 /* PCIE clock control registers */
+#define GCC_PCIE_AUX_CMD_RCGR				0x28004
 #define GCC_PCIE0_RCHNG_CMD_RCGR			0x28028
 #define GCC_PCIE0_AXI_M_CMD_RCGR 			0x28018
 #define GCC_PCIE0_AXI_S_CMD_RCGR			0x28020
@@ -57,7 +59,6 @@
 #define GCC_PCIE2_RCHNG_CMD_RCGR			0x2A028
 #define GCC_PCIE2_AXI_M_CMD_RCGR 			0x2A018
 #define GCC_PCIE2_AXI_S_CMD_RCGR			0x2A020
-
 
 #define IO_MACRO_CLK_400_MHZ				(400000000)
 #define IO_MACRO_CLK_320_MHZ				(320000000)
@@ -167,78 +168,95 @@ static ulong ipq9650_set_rate(struct clk *clk, ulong rate)
 		break;
 	case GCC_PCIE0_AUX_CLK:
 		fallthrough;
+	case GCC_PCIE1_AUX_CLK:
+		fallthrough;
+	case GCC_PCIE2_AUX_CLK:
+		fallthrough;
+	case GCC_PCIE3_AUX_CLK:
+		fallthrough;
+	case GCC_PCIE4_AUX_CLK:
+		/* GCC_PCIE_AUX_CLK: 20 MHz */
+		clk_rcg_set_rate_mnd(priv->base, GCC_PCIE_AUX_CMD_RCGR,
+					0x1F, 2, 5, PCIE_GPLL0_OUT_AUX, 16);
 	case GCC_PCIE0_RCHNG_CLK:
 		/* GCC_PCIE0_RCHNG_CLK: 100 MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE0_RCHNG_CMD_RCGR,
 					8, PCIE_GPLL0_OUT_MAIN);
+		break;
 	case GCC_PCIE0_AXI_M_CLK:
 		/* GCC_PCIE0_AXI_M_CLK: 200 MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE0_AXI_M_CMD_RCGR,
 					6, PCIE_GPLL4_OUT_MAIN);
+		break;
 	case GCC_PCIE0_AXI_S_CLK:
 		/* GCC_PCIE0_AXI_S_CLK: 200 MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE0_AXI_S_CMD_RCGR,
 					6, PCIE_GPLL4_OUT_MAIN);
+		break;
 
-	case GCC_PCIE4_AUX_CLK:
-		fallthrough;
 	case GCC_PCIE4_RCHNG_CLK:
 		/* GCC_PCIE4_RCHNG_CLK: 100 MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE4_RCHNG_CMD_RCGR,
 					8, PCIE_GPLL0_OUT_MAIN);
+		break;
 	case GCC_PCIE4_AXI_M_CLK:
 		/* GCC_PCIE4_AXI_M_CLK: 200 MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE4_AXI_M_CMD_RCGR,
 					6, PCIE_GPLL4_OUT_MAIN);
+		break;
 	case GCC_PCIE4_AXI_S_CLK:
 		/* GCC_PCIE4_AXI_S_CLK: 200 MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE4_AXI_S_CMD_RCGR,
 					6, PCIE_GPLL4_OUT_MAIN);
+		break;
 
-	case GCC_PCIE3_AUX_CLK:
-		fallthrough;
 	case GCC_PCIE3_RCHNG_CLK:
 		/* GCC_PCIE3_RCHNG_CLK: 100 MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE3_RCHNG_CMD_RCGR,
 					8, PCIE_GPLL0_OUT_MAIN);
+		break;
 	case GCC_PCIE3_AXI_M_CLK:
 		/* GCC_PCIE3_AXI_M_CLK: 266.67 MHz */
 		clk_rcg_set_rate_v2(priv->base, GCC_PCIE3_AXI_M_CMD_RCGR,
 					0, 8, 0, PCIE_GPLL4_OUT_MAIN);
+		break;
 	case GCC_PCIE3_AXI_S_CLK:
 		/* GCC_PCIE3_AXI_S_CLK: 200 MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE3_AXI_S_CMD_RCGR,
 					6, PCIE_GPLL4_OUT_MAIN);
+		break;
 
-	case GCC_PCIE1_AUX_CLK:
-		fallthrough;
 	case GCC_PCIE1_RCHNG_CLK:
 		/* GCC_PCIE1_RCHNG_CLK: 100 MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE1_RCHNG_CMD_RCGR,
 					8, PCIE_GPLL0_OUT_MAIN);
+		break;
 	case GCC_PCIE1_AXI_M_CLK:
 		/* GCC_PCIE1_AXI_M_CLK: 266.67 MHz */
 		clk_rcg_set_rate_v2(priv->base, GCC_PCIE1_AXI_M_CMD_RCGR,
 					0, 8, 0, PCIE_GPLL4_OUT_MAIN);
+		break;
 	case GCC_PCIE1_AXI_S_CLK:
 		/* GCC_PCIE1_AXI_S_CLK: 200 MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE1_AXI_S_CMD_RCGR,
 					6, PCIE_GPLL4_OUT_MAIN);
+		break;
 
-	case GCC_PCIE2_AUX_CLK:
-		fallthrough;
 	case GCC_PCIE2_RCHNG_CLK:
 		/* GCC_PCIE2_RCHNG_CLK: 100 MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE2_RCHNG_CMD_RCGR,
 					8, PCIE_GPLL0_OUT_MAIN);
+		break;
 	case GCC_PCIE2_AXI_M_CLK:
 		/* GCC_PCIE2_AXI_M_CLK: 266.67 MHz */
 		clk_rcg_set_rate_v2(priv->base, GCC_PCIE2_AXI_M_CMD_RCGR,
 					0, 8, 0, PCIE_GPLL4_OUT_MAIN);
+		break;
 	case GCC_PCIE2_AXI_S_CLK:
 		/* GCC_PCIE2_AXI_S_CLK: 200 MHz */
 		clk_rcg_set_rate(priv->base, GCC_PCIE2_AXI_S_CMD_RCGR,
 					6, PCIE_GPLL4_OUT_MAIN);
+		break;
 
 	default:
 		return -EINVAL;
