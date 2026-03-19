@@ -120,6 +120,7 @@ uint8_t *board_dump_entries = &dump_entries_n;
 struct dts_fixup ipq9650_mmc_fixup [] = {
 	{ "/soc@0/nand@79b0000/", {"/soc@0/nand@79b0000/%status%?disabled"},1},
 	{ "/soc@0/mmc@7804000/", {"/soc@0/mmc@7804000/%status%?okay"}, 1},
+	{ "/soc@0/dma-controller@7984000/", {"/soc@0/dma-controller@7984000/%status%?disabled"}, 1},
 	{NULL}
 };
 
