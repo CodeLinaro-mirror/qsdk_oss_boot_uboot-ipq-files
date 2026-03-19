@@ -2493,7 +2493,8 @@ static int ipq_eth_start(struct udevice *dev)
 		}
 
 		if ((port->phy_id != QCA8x8x_SWITCH_TYPE) &&
-			(port->phy_id != QCA8337_SWITCH_TYPE))
+			(port->phy_id != QCA8337_SWITCH_TYPE) &&
+			(port->phy_id != QCE2204_SWITCH_TYPE))
 			printf("PHY%d %s Speed : %d %s\n", port->id,
 			       (link ? "Up" : "Down"), speed,
 				duplex ? "Full duplex" : "Half duplex");
@@ -3129,6 +3130,10 @@ static int ipq_eth_probe(struct udevice *dev)
 		} else if (port->phy_id == QCA8x8x_SWITCH_TYPE) {
 			port->uniphy_mode = PORT_WRAPPER_SGMII_PLUS;
 			port->cur_uniphy_mode = PORT_WRAPPER_SGMII_PLUS;
+			ppe_uniphy_mode_set(port);
+		} else if (port->phy_id == QCE2204_SWITCH_TYPE) {
+			port->uniphy_mode = PORT_WRAPPER_10GBASE_R;
+			port->cur_uniphy_mode = PORT_WRAPPER_10GBASE_R;
 			ppe_uniphy_mode_set(port);
 		}
 #endif
