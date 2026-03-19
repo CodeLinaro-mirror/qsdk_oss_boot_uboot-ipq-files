@@ -6,6 +6,8 @@
 #ifndef __IPQ_CLKS_OFFSETS_H__
 #define __IPQ_CLKS_OFFSETS_H__
 
+#include <generated/autoconf.h>
+
 /* Return codes */
 #define HERMOSA_GCC_SUCCESS             0
 #define HERMOSA_GCC_ERROR              -1
@@ -89,6 +91,42 @@
 /* RCGR Registers - QUPV3 */
 #define GCC_QUPV3_2X_CORE_CMD_RCGR                  (0x180100C)
 #define GCC_QUPV3_2X_CORE_CFG_RCGR                  (0x1801010)
+
+/* Target-specific QUPV3 SE0-SE5 registers */
+#ifdef CONFIG_TARGET_IPQ9650
+/* IPQ9650 (Juhu) QUPV3 SE0-SE5 */
+#define GCC_QUPV3_WRAP_SE0_CMD_RCGR                 (0x1802018)
+#define GCC_QUPV3_WRAP_SE0_CFG_RCGR                 (0x180201C)
+#define GCC_QUPV3_WRAP_SE0_M                        (0x1802020)
+#define GCC_QUPV3_WRAP_SE0_N                        (0x1802024)
+#define GCC_QUPV3_WRAP_SE0_D                        (0x1802028)
+#define GCC_QUPV3_WRAP_SE1_CMD_RCGR                 (0x1803018)
+#define GCC_QUPV3_WRAP_SE1_CFG_RCGR                 (0x180301C)
+#define GCC_QUPV3_WRAP_SE1_M                        (0x1803020)
+#define GCC_QUPV3_WRAP_SE1_N                        (0x1803024)
+#define GCC_QUPV3_WRAP_SE1_D                        (0x1803028)
+#define GCC_QUPV3_WRAP_SE2_CMD_RCGR                 (0x1803034)
+#define GCC_QUPV3_WRAP_SE2_CFG_RCGR                 (0x1803038)
+#define GCC_QUPV3_WRAP_SE2_M                        (0x180303C)
+#define GCC_QUPV3_WRAP_SE2_N                        (0x1803040)
+#define GCC_QUPV3_WRAP_SE2_D                        (0x1803044)
+#define GCC_QUPV3_WRAP_SE3_CMD_RCGR                 (0x1803050)
+#define GCC_QUPV3_WRAP_SE3_CFG_RCGR                 (0x1803054)
+#define GCC_QUPV3_WRAP_SE3_M                        (0x1803058)
+#define GCC_QUPV3_WRAP_SE3_N                        (0x180305C)
+#define GCC_QUPV3_WRAP_SE3_D                        (0x1803060)
+#define GCC_QUPV3_WRAP_SE4_CMD_RCGR                 (0x180306C)
+#define GCC_QUPV3_WRAP_SE4_CFG_RCGR                 (0x1803070)
+#define GCC_QUPV3_WRAP_SE4_M                        (0x1803074)
+#define GCC_QUPV3_WRAP_SE4_N                        (0x1803078)
+#define GCC_QUPV3_WRAP_SE4_D                        (0x180307C)
+#define GCC_QUPV3_WRAP_SE5_CMD_RCGR                 (0x1803090)
+#define GCC_QUPV3_WRAP_SE5_CFG_RCGR                 (0x1803094)
+#define GCC_QUPV3_WRAP_SE5_M                        (0x1803098)
+#define GCC_QUPV3_WRAP_SE5_N                        (0x180309C)
+#define GCC_QUPV3_WRAP_SE5_D                        (0x18030A0)
+#else
+/* IPQ5210 QUPV3 SE0-SE5 */
 #define GCC_QUPV3_WRAP_SE0_CMD_RCGR                 (0x1804004)
 #define GCC_QUPV3_WRAP_SE0_CFG_RCGR                 (0x1804008)
 #define GCC_QUPV3_WRAP_SE0_M                        (0x180400C)
@@ -119,6 +157,7 @@
 #define GCC_QUPV3_WRAP_SE5_M                        (0x180303C)
 #define GCC_QUPV3_WRAP_SE5_N                        (0x1803040)
 #define GCC_QUPV3_WRAP_SE5_D                        (0x1803044)
+#endif
 
 /* RCGR Registers - GP */
 #define GCC_GP1_CMD_RCGR                            (0x1808004)
@@ -126,6 +165,22 @@
 #define GCC_GP1_M                                   (0x180800C)
 #define GCC_GP1_N                                   (0x1808010)
 #define GCC_GP1_D                                   (0x1808014)
+
+/* Target-specific GP2/GP3 registers */
+#ifdef CONFIG_TARGET_IPQ9650
+/* IPQ9650 (Juhu) GP2/GP3 */
+#define GCC_GP2_CMD_RCGR                            (0x180801C)
+#define GCC_GP2_CFG_RCGR                            (0x1808020)
+#define GCC_GP2_M                                   (0x1808024)
+#define GCC_GP2_N                                   (0x1808028)
+#define GCC_GP2_D                                   (0x180802C)
+#define GCC_GP3_CMD_RCGR                            (0x1808034)
+#define GCC_GP3_CFG_RCGR                            (0x1808038)
+#define GCC_GP3_M                                   (0x180803C)
+#define GCC_GP3_N                                   (0x1808040)
+#define GCC_GP3_D                                   (0x1808044)
+#else
+/* IPQ5210 GP2/GP3 */
 #define GCC_GP2_CMD_RCGR                            (0x1809004)
 #define GCC_GP2_CFG_RCGR                            (0x1809008)
 #define GCC_GP2_M                                   (0x180900C)
@@ -136,6 +191,7 @@
 #define GCC_GP3_M                                   (0x180A00C)
 #define GCC_GP3_N                                   (0x180A010)
 #define GCC_GP3_D                                   (0x180A014)
+#endif
 
 /* RCGR Registers - NSS */
 #define GCC_NSSNOC_MEMNOC_BFDCD_CMD_RCGR            (0x1817004)
@@ -257,6 +313,91 @@
 #define GCC_PON_TM2X_CMD_RCGR                       (0x183C004)
 #define GCC_PON_TM2X_CFG_RCGR                       (0x183C008)
 
+/* IPQ9650-specific RCGR Registers - PCIe2/3/4 */
+#ifdef CONFIG_TARGET_IPQ9650
+#define GCC_PCIE2_AXI_M_CMD_RCGR                    (0x182A018)
+#define GCC_PCIE2_AXI_M_CFG_RCGR                    (0x182A01C)
+#define GCC_PCIE2_AXI_S_CMD_RCGR                    (0x182A020)
+#define GCC_PCIE2_AXI_S_CFG_RCGR                    (0x182A024)
+#define GCC_PCIE2_RCHNG_CMD_RCGR                    (0x182A028)
+#define GCC_PCIE2_RCHNG_CFG_RCGR                    (0x182A02C)
+
+#define GCC_PCIE3_AXI_M_CMD_RCGR                    (0x182B018)
+#define GCC_PCIE3_AXI_M_CFG_RCGR                    (0x182B01C)
+#define GCC_PCIE3_AXI_S_CMD_RCGR                    (0x182B020)
+#define GCC_PCIE3_AXI_S_CFG_RCGR                    (0x182B024)
+#define GCC_PCIE3_RCHNG_CMD_RCGR                    (0x182B028)
+#define GCC_PCIE3_RCHNG_CFG_RCGR                    (0x182B02C)
+
+#define GCC_PCIE4_AXI_M_CMD_RCGR                    (0x1825004)
+#define GCC_PCIE4_AXI_M_CFG_RCGR                    (0x1825008)
+#define GCC_PCIE4_AXI_S_CMD_RCGR                    (0x182500C)
+#define GCC_PCIE4_AXI_S_CFG_RCGR                    (0x1825010)
+#define GCC_PCIE4_RCHNG_CMD_RCGR                    (0x1825014)
+#define GCC_PCIE4_RCHNG_CFG_RCGR                    (0x1825018)
+
+/* IPQ9650-specific RCGR Registers - USB1 */
+#define GCC_USB1_MOCK_UTMI_CMD_RCGR                 (0x183C004)
+#define GCC_USB1_MOCK_UTMI_CFG_RCGR                 (0x183C008)
+#define GCC_USB1_MOCK_UTMI_M                        (0x183C00C)
+#define GCC_USB1_MOCK_UTMI_N                        (0x183C010)
+#define GCC_USB1_MOCK_UTMI_D                        (0x183C014)
+
+/* IPQ9650-specific RCGR Registers - QUPV3 SE6/7 */
+#define GCC_QUPV3_WRAP_SE6_CMD_RCGR                 (0x1804004)
+#define GCC_QUPV3_WRAP_SE6_CFG_RCGR                 (0x1804008)
+#define GCC_QUPV3_WRAP_SE6_M                        (0x180400C)
+#define GCC_QUPV3_WRAP_SE6_N                        (0x1804010)
+#define GCC_QUPV3_WRAP_SE6_D                        (0x1804014)
+
+#define GCC_QUPV3_WRAP_SE7_CMD_RCGR                 (0x1804020)
+#define GCC_QUPV3_WRAP_SE7_CFG_RCGR                 (0x1804024)
+#define GCC_QUPV3_WRAP_SE7_M                        (0x1804028)
+#define GCC_QUPV3_WRAP_SE7_N                        (0x180402C)
+#define GCC_QUPV3_WRAP_SE7_D                        (0x1804030)
+
+/* IPQ9650-specific RCGR Registers - GEMNOC */
+#define GCC_GEMNOC_ANOC_PCIE_CMD_RCGR               (0x1819070)
+#define GCC_GEMNOC_ANOC_PCIE_CFG_RCGR               (0x1819074)
+
+/* IPQ9650-specific RCGR Registers - REFGEN */
+#define GCC_REFGEN_CORE_CMD_RCGR                    (0x1823004)
+#define GCC_REFGEN_CORE_CFG_RCGR                    (0x1823008)
+
+/* IPQ9650-specific RCGR Registers - TSENS */
+#define GCC_TSENS_AOSS_CMD_RCGR                     (0x183700C)
+#define GCC_TSENS_AOSS_CFG_RCGR                     (0x1837010)
+
+/* IPQ9650-specific RCGR Registers - QMIP */
+#define GCC_QMIP_CORE_CMD_RCGR                      (0x180A004)
+#define GCC_QMIP_CORE_CFG_RCGR                      (0x180A008)
+
+/* IPQ9650-specific RCGR Registers - APSS_TCU */
+#define GCC_APSS_TCU_CMD_RCGR                       (0x180F018)
+#define GCC_APSS_TCU_CFG_RCGR                       (0x180F01C)
+
+/* IPQ9650-specific RCGR Registers - ANOC0 */
+#define GCC_ANOC0_AXI_BFDCD_CMD_RCGR                (0x182E088)
+#define GCC_ANOC0_AXI_BFDCD_CFG_RCGR                (0x182E08C)
+
+/* IPQ9650-specific RCGR Registers - SLEEP */
+#define GCC_SLEEP_CMD_RCGR                          (0x183400C)
+#define GCC_SLEEP_CFG_RCGR                          (0x1834010)
+
+/* IPQ9650-specific RCGR Registers - PrimeSS */
+#define GCC_PRIMESS_CMD_RCGR                        (0x182600C)
+#define GCC_PRIMESS_CFG_RCGR                        (0x1826010)
+#define GCC_PRIMESS_AXIM_CMD_RCGR                   (0x1826014)
+#define GCC_PRIMESS_AXIM_CFG_RCGR                   (0x1826018)
+#define GCC_PRIMESS_AHBM_CMD_RCGR                   (0x182601C)
+#define GCC_PRIMESS_AHBM_CFG_RCGR                   (0x1826020)
+
+/* IPQ9650-specific RCGR Registers - TuringSS */
+#define GCC_TURING_EPCB_RX_CMD_RCGR                 (0x181800C)
+#define GCC_TURING_EPCB_RX_CFG_RCGR                 (0x1818010)
+#define GCC_TURING_Q6_AXIM_BFDCD_CMD_RCGR           (0x1818014)
+#define GCC_TURING_Q6_AXIM_BFDCD_CFG_RCGR           (0x1818018)
+#endif /* CONFIG_TARGET_IPQ9650 */
 
 /* GCC Clocks */
 #define GCC_ADSS_PWM_CBCR                                  	(0x181C00C)
@@ -273,7 +414,11 @@
 #define GCC_CMN_12GPLL_SYS_CBCR                            	(0x183A008)
 #define GCC_CNOC_APSS_AHB_CBCR                             	(0x183109C)
 #define GCC_CNOC_AXI_CBCR                                  	(0x1831098)
-#define GCC_CNOC_LPASS_CFG_CBCR                            	(0x1831020)
+#ifdef CONFIG_TARGET_IPQ9650
+#define GCC_CNOC_LPASS_CFG_CBCR                             (0x1831080)
+#else
+#define GCC_CNOC_LPASS_CFG_CBCR                             (0x1831020)
+#endif
 #define GCC_CNOC_PCIE0_1LANE_S_CBCR                        	(0x1831088)
 #define GCC_CNOC_PCIE1_2LANE_S_CBCR                        	(0x183108C)
 #define GCC_CNOC_QDSS_STM_AXI_CBCR                         	(0x18310A0)
@@ -289,7 +434,11 @@
 #define GCC_DDRSS_SMS_SLOW_CBCR                            	(0x181902C)
 #define GCC_DEBUG_CBCR                                     	(0x1806068)
 #define GCC_GEMNOC_AHB_CBCR                                	(0x181900C)
-#define GCC_GEMNOC_APSS_CBCR                               	(0x181901C)
+#ifdef CONFIG_TARGET_IPQ9650
+#define GCC_GEMNOC_APSS_CBCR                                (0x1819060)
+#else
+#define GCC_GEMNOC_APSS_CBCR                                (0x181901C)
+#endif
 #define GCC_GEMNOC_CNOC_CBCR                               	(0x1819038)
 #define GCC_GEMNOC_NSSNOC_CBCR                             	(0x1819014)
 #define GCC_GEMNOC_QOSGEN_EXTREF_CBCR                      	(0x1819024)
@@ -298,8 +447,17 @@
 #define GCC_GEMNOC_XO_DBG_CBCR                             	(0x1819040)
 #define GCC_GEPHY_SYS_CBCR                                 	(0x182A004)
 #define GCC_GP1_CBCR                                       	(0x1808018)
-#define GCC_GP2_CBCR                                       	(0x1809018)
-#define GCC_GP3_CBCR                                       	(0x180A018)
+
+/* Target-specific GP2/GP3 CBCR registers */
+#ifdef CONFIG_TARGET_IPQ9650
+/* IPQ9650 (Juhu) GP2/GP3 CBCR */
+#define GCC_GP2_CBCR                                        (0x1808030)
+#define GCC_GP3_CBCR                                        (0x1808048)
+#else
+/* IPQ5210 GP2/GP3 CBCR */
+#define GCC_GP2_CBCR                                        (0x1809018)
+#define GCC_GP3_CBCR                                        (0x180A018)
+#endif
 #define GCC_IMEM_AXI_CBCR                                  	(0x180E004)
 #define GCC_IMEM_CFG_AHB_CBCR                              	(0x180E00C)
 #define GCC_IM_SLEEP_CBCR                                  	(0x1834020)
@@ -308,7 +466,11 @@
 #define GCC_LPASS_SWAY_CBCR                                	(0x1827014)
 #define GCC_MDIO_AHB_CBCR                                  	(0x1817040)
 #define GCC_MDIO_GEPHY_AHB_CBCR                            	(0x1817098)
-#define GCC_MPM_AHB_CBCR                                   	(0x1837004)
+#ifdef CONFIG_TARGET_IPQ9650
+#define GCC_MPM_AHB_CBCR                                    (0x1837014)
+#else
+#define GCC_MPM_AHB_CBCR                                    (0x1837004)
+#endif
 #define GCC_NSSCC_CBCR                                     	(0x1817034)
 #define GCC_NSSCFG_CBCR                                    	(0x181702C)
 #define GCC_NSSNOC_ATB_CBCR                                	(0x1817014)
@@ -379,12 +541,25 @@
 #define GCC_QUPV3_AHB_SLV_CBCR                             	(0x180102C)
 #define GCC_QUPV3_CORE_CBCR                                	(0x1801018)
 #define GCC_QUPV3_SLEEP_CBCR                               	(0x1801028)
-#define GCC_QUPV3_WRAP_SE0_CBCR                            	(0x1804020)
-#define GCC_QUPV3_WRAP_SE1_CBCR                            	(0x1805020)
-#define GCC_QUPV3_WRAP_SE2_CBCR                            	(0x180202C)
-#define GCC_QUPV3_WRAP_SE3_CBCR                            	(0x1802048)
-#define GCC_QUPV3_WRAP_SE4_CBCR                            	(0x180302C)
-#define GCC_QUPV3_WRAP_SE5_CBCR                            	(0x1803048)
+
+/* Target-specific QUPV3 SE0-SE5 CBCR registers */
+#ifdef CONFIG_TARGET_IPQ9650
+/* IPQ9650 (Juhu) QUPV3 SE0-SE5 CBCR */
+#define GCC_QUPV3_WRAP_SE0_CBCR                             (0x180202C)
+#define GCC_QUPV3_WRAP_SE1_CBCR                             (0x180302C)
+#define GCC_QUPV3_WRAP_SE2_CBCR                             (0x1803048)
+#define GCC_QUPV3_WRAP_SE3_CBCR                             (0x1803064)
+#define GCC_QUPV3_WRAP_SE4_CBCR                             (0x1803080)
+#define GCC_QUPV3_WRAP_SE5_CBCR                             (0x18030A4)
+#else
+/* IPQ5210 QUPV3 SE0-SE5 CBCR */
+#define GCC_QUPV3_WRAP_SE0_CBCR                             (0x1804020)
+#define GCC_QUPV3_WRAP_SE1_CBCR                             (0x1805020)
+#define GCC_QUPV3_WRAP_SE2_CBCR                             (0x180202C)
+#define GCC_QUPV3_WRAP_SE3_CBCR                             (0x1802048)
+#define GCC_QUPV3_WRAP_SE4_CBCR                             (0x180302C)
+#define GCC_QUPV3_WRAP_SE5_CBCR                             (0x1803048)
+#endif
 #define GCC_RBCPR_AHB_CBCR                                 	(0x1839010)
 #define GCC_RBCPR_CBCR                                     	(0x183900C)
 #define GCC_SDCC1_AHB_CBCR                                 	(0x183303C)
@@ -395,7 +570,11 @@
 #define GCC_SEC_CTRL_BOOT_ROM_PATCH_CBCR                   	(0x181A03C)
 #define GCC_SEC_CTRL_CBCR                                  	(0x181A020)
 #define GCC_SEC_CTRL_SENSE_CBCR                            	(0x181A028)
-#define GCC_SNOC_LPASS_CBCR                                	(0x182E028)
+#ifdef CONFIG_TARGET_IPQ9650
+#define GCC_SNOC_LPASS_CBCR                                 (0x182E044)
+#else
+#define GCC_SNOC_LPASS_CBCR                                 (0x182E028)
+#endif
 #define GCC_SNOC_PCIE0_AXI_M_CBCR                          	(0x182E04C)
 #define GCC_SNOC_PCIE1_AXI_M_CBCR                          	(0x182E050)
 #define GCC_SNOC_PCNOC_AHB_CBCR                            	(0x182E03C)
@@ -409,7 +588,11 @@
 #define GCC_SPDM_PCNOC_CY_CBCR                             	(0x1836008)
 #define GCC_SPDM_SNOC_CY_CBCR                              	(0x1836010)
 #define GCC_SYS_NOC_AT_CBCR                                	(0x182E038)
-#define GCC_SYS_NOC_AXI_CBCR                               	(0x182E01C)
+#ifdef CONFIG_TARGET_IPQ9650
+#define GCC_SYS_NOC_AXI_CBCR                                (0x182E014)
+#else
+#define GCC_SYS_NOC_AXI_CBCR                                (0x182E01C)
+#endif
 #define GCC_TCSR_AHB_CBCR                                  	(0x183D004)
 #define GCC_TIC_CBCR                                       	(0x1812004)
 #define GCC_TLMM_AHB_CBCR                                  	(0x183E004)
@@ -440,6 +623,107 @@
 #define GCC_USB0_SLEEP_CBCR                                	(0x182C058)
 #define GCC_XO_CBCR                                        	(0x1834018)
 #define GCC_XO_DIV4_CBCR                                   	(0x183401C)
+
+/* IPQ9650-specific CBCR Clocks */
+#ifdef CONFIG_TARGET_IPQ9650
+#define GCC_PCIE2_AHB_CBCR                                  (0x182A030)
+#define GCC_PCIE2_AXI_M_CBCR                                (0x182A038)
+#define GCC_PCIE2_AXI_S_CBCR                                (0x182A040)
+#define GCC_PCIE2_AXI_S_BRIDGE_CBCR                         (0x182A048)
+#define GCC_PCIE2_PIPE_CBCR                                 (0x182A068)
+#define GCC_PCIE2_AUX_CBCR                                  (0x182A078)
+
+#define GCC_PCIE3_AHB_CBCR                                  (0x182B030)
+#define GCC_PCIE3_AXI_M_CBCR                                (0x182B038)
+#define GCC_PCIE3_AXI_S_CBCR                                (0x182B040)
+#define GCC_PCIE3_AXI_S_BRIDGE_CBCR                         (0x182B048)
+#define GCC_PCIE3_PIPE_CBCR                                 (0x182B068)
+#define GCC_PCIE3_AUX_CBCR                                  (0x182B07C)
+
+#define GCC_PCIE4_AHB_CBCR                                  (0x182501C)
+#define GCC_PCIE4_AUX_CBCR                                  (0x1825020)
+#define GCC_PCIE4_AXI_M_CBCR                                (0x1825028)
+#define GCC_PCIE4_AXI_S_CBCR                                (0x1825030)
+#define GCC_PCIE4_AXI_S_BRIDGE_CBCR                         (0x1825038)
+#define GCC_PCIE4_PIPE_CBCR                                 (0x182503C)
+
+#define GCC_USB1_PHY_CFG_AHB_CBCR                           (0x183C01C)
+#define GCC_USB1_SLEEP_CBCR                                 (0x183C020)
+#define GCC_USB1_MOCK_UTMI_CBCR                             (0x183C024)
+#define GCC_USB1_MASTER_CBCR                                (0x183C028)
+
+#define GCC_QUPV3_WRAP_SE6_CBCR                             (0x1804018)
+#define GCC_QUPV3_WRAP_SE7_CBCR                             (0x1804034)
+
+#define GCC_GEMNOC_ANOC_CBCR                                (0x1819044)
+#define GCC_GEMNOC_ANOC_PCIE_CBCR                           (0x1819078)
+#define GCC_GEMNOC_TCU_CBCR                                 (0x1819058)
+
+#define GCC_REFGEN_CMN_UPHY_CORE_CBCR                       (0x182300C)
+#define GCC_REFGEN_CMN_UPHY_HCLK_CBCR                       (0x1823010)
+#define GCC_REFGEN_PCIE_CORE_CBCR                           (0x1823020)
+#define GCC_REFGEN_PCIE_HCLK_CBCR                           (0x1823024)
+
+#define GCC_TSENS_AOSS_CBCR                                 (0x1837018)
+#define GCC_QMIP_CORE_CBCR                                  (0x180A00C)
+#define GCC_APSS_TCU_ASYNC_CBCR                             (0x180F020)
+#define GCC_ANOC0_AXI_CBCR                                  (0x182E0B4)
+
+#define GCC_ANOC_PCIE0_1LANE_M_CBCR                         (0x182E07C)
+#define GCC_ANOC_PCIE2_2LANE_M_CBCR                         (0x182E080)
+#define GCC_ANOC_PCIE1_2LANE_M_CBCR                         (0x182E084)
+#define GCC_ANOC_PCIE3_2LANE_M_CBCR                         (0x182E0BC)
+#define GCC_ANOC_PCIE4_1LANE_M_CBCR                         (0x182E0C0)
+
+#define GCC_ANOC_PCIE0_1LANE_S_CBCR                         (0x182E0CC)
+#define GCC_ANOC_PCIE1_2LANE_S_CBCR                         (0x182E0D0)
+#define GCC_ANOC_PCIE2_2LANE_S_CBCR                         (0x182E0D4)
+#define GCC_ANOC_PCIE3_2LANE_S_CBCR                         (0x182E0D8)
+#define GCC_ANOC_PCIE4_1LANE_S_CBCR                         (0x182E0DC)
+
+#define GCC_IPCC_CORE_CBCR                                  (0x1807004)
+#define GCC_IPCC_AHB_CBCR                                   (0x1807008)
+
+/* Additional IPQ9650-specific CBCR clocks */
+#define GCC_CMN_LDO_CBCR                                    (0x183A014)
+#define GCC_CPUSS_TRIG_CBCR                                 (0x182401C)
+#define GCC_PCIE_CMN_HCLK_CBCR                              (0x1823030)
+#define GCC_PCIE_CMN_LDO_CBCR                               (0x182302C)
+#define GCC_PCNOC_CE_EDPD_CBCR                              (0x1831020)
+#define GCC_SMMU_CFG_CBCR                                   (0x1816004)
+#define GCC_SNOC_USB_CBCR                                   (0x182E0C4)
+#define GCC_SYS_CE_EDPD_CBCR                                (0x182E040)
+#define GCC_THROTTLE_XO_CBCR                                (0x180A010)
+#define GCC_USB_CMN_HCLK_CBCR                               (0x182303C)
+#define GCC_USB_CMN_LDO_CBCR                                (0x1823038)
+#define GCC_AGGRNOC_ATB_CBCR                                (0x182E0AC)
+#define GCC_AGGRNOC_TS_CBCR                                 (0x182E0B0)
+#define GCC_ANOC1_AXI_CBCR                                  (0x182E0B8)
+#define GCC_ANOC_PCNOC_AHB_CBCR                             (0x182E094)
+#define GCC_ANOC_QOSGEN_EXTREF_CBCR                         (0x182E098)
+#define GCC_ANOC_XO_DBG_CBCR                                (0x182E0A4)
+#define GCC_ANOC_XO_DCD_CBCR                                (0x182E09C)
+#define GCC_CNOC_PRIMESS_AHBS_CBCR                          (0x18310BC)
+#define GCC_CNOC_TURING_AHBS_CBCR                           (0x18310C0)
+#define GCC_PRIMESS_AHBM_CBCR                               (0x1826038)
+#define GCC_PRIMESS_AHBM_PARTIAL_CBCR                       (0x1826040)
+#define GCC_PRIMESS_AHBS_CBCR                               (0x1826034)
+#define GCC_PRIMESS_ATB_CBCR                                (0x1826030)
+#define GCC_PRIMESS_AXIM_CBCR                               (0x182602C)
+#define GCC_PRIMESS_AXIM_PARTIAL_CBCR                       (0x182603C)
+#define GCC_PRIMESS_CBCR                                    (0x1826028)
+#define GCC_PRIMESS_XO_CBCR                                 (0x1826024)
+#define GCC_Q6SS_TSCTR_1TO2_CBCR                            (0x181801C)
+#define GCC_SNOC_PRIMESS_AXIM_CBCR                          (0x182E0E0)
+#define GCC_TURING_AHBS_CBCR                                (0x1818038)
+#define GCC_TURING_ATBM_AT_CBCR                             (0x1818034)
+#define GCC_TURING_CXO_CBCR                                 (0x1818030)
+#define GCC_TURING_EPCB_RX_CBCR                             (0x1818020)
+#define GCC_TURING_GEMNOC_CBCR                              (0x181907C)
+#define GCC_TURING_PCLK_DBG_CBCR                            (0x1818028)
+#define GCC_TURING_Q6SS_TRIG_CBCR                           (0x181802C)
+#define GCC_TURING_Q6_AXIM_DIV_CBCR                         (0x1818024)
+#endif /* CONFIG_TARGET_IPQ9650 */
 
 /* APCS Clocks */
 #define APCS_ALIAS0_CORE_CBCR                              	(0xB111058)
