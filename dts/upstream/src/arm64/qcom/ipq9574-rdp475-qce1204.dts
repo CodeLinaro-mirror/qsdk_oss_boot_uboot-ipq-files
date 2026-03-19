@@ -273,16 +273,6 @@
 				uniphy_type = <1>;
 				xgmac;
 			};
-
-			phy5: phy@0 {
-				phy_addr = <0>;
-				phy_type = <AQ_PHY_TYPE>;
-				phy-mode = "usxgmii";
-				id = <6>;
-				uniphy_id = <2>;
-				uniphy_type = <0>;
-				xgmac;
-			};
 		};
 
 		ethernet: nss-switch {
@@ -293,7 +283,6 @@
 			phy-handle2 = <&phy2>;
 			phy-handle3 = <&phy3>;
 			phy-handle4 = <&phy4>;
-			phy-handle5 = <&phy5>;
 			status = "okay";
 		};
 
