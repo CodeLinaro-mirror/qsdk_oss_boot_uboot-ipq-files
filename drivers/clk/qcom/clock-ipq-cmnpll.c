@@ -20,7 +20,7 @@
  * and an output clock to NSS (network subsystem) at 300 MHZ. The other output
  * clocks from CMN PLL on IPQ5424 are the same as IPQ9574.
  *
- * On the IPQ5332 SoC, the CMN PLL provides a single 50 MHZ clock output to
+ * On the IPQ5332 SoC, the CMN PLL provides a single 50 MHZ clock output to
  * the Ethernet PHY (or switch) via the UNIPHY (PCS). It also supplies a 200
  * MHZ clock to the PPE. The remaining fixed-rate clocks to the GCC and PCS
  * are the same as those in the IPQ9574 SoC.
@@ -51,6 +51,7 @@
 #include <linux/bitops.h>
 #include <linux/bitfield.h>
 #include <linux/bug.h>
+#include <linux/math64.h>
 #include <dm/device-internal.h>
 
 /* CMN PLL Common Register Offsets */
@@ -63,6 +64,7 @@
 #define CMN_PLL_NSS_PPE_FREQ_CTRL		0x98
 #define CMN_PLL_NSS_CLK_SEL			GENMASK(13, 8)
 #define CMN_PLL_PPE_CLK_SEL			GENMASK(5, 0)
+/* CMNPLL divider for NSS/PPE: 6-bit field, valid range 8-63. */
 #define CMN_PLL_NSS_PPE_DIV_MIN			8
 #define CMN_PLL_NSS_PPE_DIV_MAX			63
 
@@ -75,6 +77,7 @@
 #define CMN_PLL_PCS0_CLK_EN			BIT(0)
 
 #define CMN_PLL_PON_CONFIG			0x42c
+#define CMN_PLL_GEPHY_312P5M_125M_SEL		BIT(10)
 #define CMN_PLL_PON_MODE_SEL			BIT(9)
 #define CMN_PLL_PON_EN				BIT(8)
 #define CMN_PLL_PON_DIV_CTRL			GENMASK(7, 0)
@@ -111,6 +114,7 @@ enum ipq_cmnpll_clk_type {
 	CLK_TYPE_DIVIDER,	/* Configurable divider clock */
 	CLK_TYPE_PON,		/* PON reference clock */
 	CLK_TYPE_PCS,		/* PCS clock */
+	CLK_TYPE_EPHY_RAW,	/* EPHY raw clock (125 MHz / 312.5 MHz) */
 };
 
 /**
@@ -158,12 +162,13 @@ struct ipq_cmnpll_data {
 /**
  * struct ipq_cmnpll_priv - Driver private data
  * @base: Register base address
- * @pll_rate: PLL rate
+ * @pll_rate: PLL rate (u64 to avoid 32-bit overflow on 32-bit platforms,
+ *            since CMN PLL rate ~12 GHz exceeds unsigned long on 32-bit)
  * @data: Platform-specific data
  */
 struct ipq_cmnpll_priv {
 	void __iomem *base;
-	unsigned long pll_rate;
+	u64 pll_rate;
 	const struct ipq_cmnpll_data *data;
 };
 
@@ -183,6 +188,11 @@ static int ipq_cmnpll_find_freq_index(unsigned long parent_rate)
 		return 6;
 	case 48000000:
 	case 96000000:
+		/*
+		 * Parent clock rate 48 MHZ and 96 MHZ take the same value
+		 * of reference clock index. 96 MHZ needs the source clock
+		 * divider to be programmed as 2.
+		 */
 		return 7;
 	case 50000000:
 		return 8;
@@ -193,12 +203,20 @@ static int ipq_cmnpll_find_freq_index(unsigned long parent_rate)
 
 /**
  * ipq_cmnpll_recalc_rate - Calculate CMN PLL output rate
+ *
+ * Returns the actual CMN PLL rate as u64. On 32-bit platforms the result
+ * (~12 GHz) exceeds unsigned long, so we always compute it as u64 to
+ * avoid truncation in callers.
  */
-static unsigned long ipq_cmnpll_recalc_rate(struct ipq_cmnpll_priv *priv,
-					    unsigned long parent_rate)
+static u64 ipq_cmnpll_recalc_rate(struct ipq_cmnpll_priv *priv,
+				   unsigned long parent_rate)
 {
 	u32 val, factor, ref_div;
 
+	/*
+	 * The value of CMN_PLL_DIVIDER_CTRL_FACTOR is automatically adjusted
+	 * by HW according to the parent clock rate.
+	 */
 	val = readl(priv->base + CMN_PLL_DIVIDER_CTRL);
 	factor = FIELD_GET(CMN_PLL_DIVIDER_CTRL_FACTOR, val);
 	if (factor == 0)
@@ -209,7 +227,46 @@ static unsigned long ipq_cmnpll_recalc_rate(struct ipq_cmnpll_priv *priv,
 	if (ref_div == 0)
 		ref_div = 1;
 
-	return (u64)parent_rate * 2 * factor / ref_div;
+	return div_u64((u64)parent_rate * 2 * factor, ref_div);
+}
+
+/**
+ * ipq_cmnpll_ana_soft_reset - Perform analog soft reset and wait for PLL lock
+ *
+ * Resets the CMN PLL analog block and waits for the output clocks to lock.
+ * This must be called after any clock rate change to ensure the new
+ * configuration takes effect.
+ */
+static int ipq_cmnpll_ana_soft_reset(struct ipq_cmnpll_priv *priv)
+{
+	u32 val;
+	int timeout;
+
+	val = readl(priv->base + CMN_PLL_POWER_ON_AND_RESET);
+	val &= ~CMN_ANA_EN_SW_RSTN;
+	writel(val, priv->base + CMN_PLL_POWER_ON_AND_RESET);
+
+	udelay(1200);
+
+	val = readl(priv->base + CMN_PLL_POWER_ON_AND_RESET);
+	val |= CMN_ANA_EN_SW_RSTN;
+	writel(val, priv->base + CMN_PLL_POWER_ON_AND_RESET);
+
+	/* Stability check of CMN PLL output clocks */
+	timeout = 100000;
+	do {
+		val = readl(priv->base + CMN_PLL_LOCKED);
+		if (val & CMN_PLL_CLKS_LOCKED)
+			break;
+		udelay(1);
+	} while (--timeout > 0);
+
+	if (timeout <= 0) {
+		pr_err("CMN PLL failed to lock\n");
+		return -ETIMEDOUT;
+	}
+
+	return 0;
 }
 
 /**
@@ -219,7 +276,6 @@ static int ipq_cmnpll_init(struct ipq_cmnpll_priv *priv, unsigned long parent_ra
 {
 	int index;
 	u32 val;
-	int timeout;
 
 	index = ipq_cmnpll_find_freq_index(parent_rate);
 	if (index < 0) {
@@ -233,7 +289,10 @@ static int ipq_cmnpll_init(struct ipq_cmnpll_priv *priv, unsigned long parent_ra
 	val |= FIELD_PREP(CMN_PLL_REFCLK_INDEX, index);
 	writel(val, priv->base + CMN_PLL_REFCLK_CONFIG);
 
-	/* Handle 96 MHz parent clock */
+	/*
+	 * Update the source clock rate selection and source clock
+	 * divider as 2 when the parent clock rate is 96 MHZ.
+	 */
 	if (parent_rate == 96000000) {
 		val = readl(priv->base + CMN_PLL_REFCLK_CONFIG);
 		val &= ~CMN_PLL_REFCLK_DIV;
@@ -246,33 +305,17 @@ static int ipq_cmnpll_init(struct ipq_cmnpll_priv *priv, unsigned long parent_ra
 		writel(val, priv->base + CMN_PLL_REFCLK_SRC_SELECTION);
 	}
 
-	/* Enable PLL lock detect */
+	/* Enable PLL locked detect */
 	val = readl(priv->base + CMN_PLL_CTRL);
 	val |= CMN_PLL_CTRL_LOCK_DETECT_EN;
 	writel(val, priv->base + CMN_PLL_CTRL);
 
-	/* Reset CMN PLL block */
-	val = readl(priv->base + CMN_PLL_POWER_ON_AND_RESET);
-	val &= ~CMN_ANA_EN_SW_RSTN;
-	writel(val, priv->base + CMN_PLL_POWER_ON_AND_RESET);
-
-	udelay(1200);
-
-	val = readl(priv->base + CMN_PLL_POWER_ON_AND_RESET);
-	val |= CMN_ANA_EN_SW_RSTN;
-	writel(val, priv->base + CMN_PLL_POWER_ON_AND_RESET);
-
-	/* Wait for PLL lock */
-	timeout = 100000;
-	do {
-		val = readl(priv->base + CMN_PLL_LOCKED);
-		if (val & CMN_PLL_CLKS_LOCKED)
-			break;
-		udelay(1);
-	} while (--timeout > 0);
-
-	if (timeout <= 0) {
-		pr_err("CMN PLL failed to lock\n");
+	/*
+	 * Reset the CMN PLL block to ensure the updated configurations
+	 * take effect.
+	 */
+	if (ipq_cmnpll_ana_soft_reset(priv)) {
+		pr_err("Failed to initialize CMN PLL\n");
 		return -ETIMEDOUT;
 	}
 
@@ -308,13 +351,18 @@ static void ipq_cmnpll_gate_disable(struct ipq_cmnpll_priv *priv, int bit)
 
 /**
  * ipq_cmnpll_nss_set_rate - Set NSS clock rate
+ *
+ * The NSS clock is derived from CMN PLL rate / 2, then divided by
+ * a configurable 6-bit divider (8-63). Uses u64 arithmetic to avoid
+ * 32-bit overflow on 32-bit platforms where pll_rate (~12 GHz) exceeds
+ * unsigned long.
  */
 static int ipq_cmnpll_nss_set_rate(struct ipq_cmnpll_priv *priv, unsigned long rate)
 {
 	unsigned long div;
 	u32 val;
 
-	div = DIV_ROUND_CLOSEST(priv->pll_rate, 2 * rate);
+	div = (unsigned long)div_u64(priv->pll_rate + (u64)rate, 2ULL * rate);
 
 	if (div < CMN_PLL_NSS_PPE_DIV_MIN || div > CMN_PLL_NSS_PPE_DIV_MAX) {
 		pr_err("NSS divider %lu out of range\n", div);
@@ -326,18 +374,23 @@ static int ipq_cmnpll_nss_set_rate(struct ipq_cmnpll_priv *priv, unsigned long r
 	val |= FIELD_PREP(CMN_PLL_NSS_CLK_SEL, div);
 	writel(val, priv->base + CMN_PLL_NSS_PPE_FREQ_CTRL);
 
-	return 0;
+	return ipq_cmnpll_ana_soft_reset(priv);
 }
 
 /**
  * ipq_cmnpll_ppe_set_rate - Set PPE clock rate
+ *
+ * The PPE clock is derived from CMN PLL rate / 2, then divided by
+ * a configurable 6-bit divider (8-63). Uses u64 arithmetic to avoid
+ * 32-bit overflow on 32-bit platforms where pll_rate (~12 GHz) exceeds
+ * unsigned long.
  */
 static int ipq_cmnpll_ppe_set_rate(struct ipq_cmnpll_priv *priv, unsigned long rate)
 {
 	unsigned long div;
 	u32 val;
 
-	div = DIV_ROUND_CLOSEST(priv->pll_rate, 2 * rate);
+	div = (unsigned long)div_u64(priv->pll_rate + (u64)rate, 2ULL * rate);
 
 	if (div < CMN_PLL_NSS_PPE_DIV_MIN || div > CMN_PLL_NSS_PPE_DIV_MAX) {
 		pr_err("PPE divider %lu out of range\n", div);
@@ -349,11 +402,16 @@ static int ipq_cmnpll_ppe_set_rate(struct ipq_cmnpll_priv *priv, unsigned long r
 	val |= FIELD_PREP(CMN_PLL_PPE_CLK_SEL, div);
 	writel(val, priv->base + CMN_PLL_NSS_PPE_FREQ_CTRL);
 
-	return 0;
+	return ipq_cmnpll_ana_soft_reset(priv);
 }
 
 /**
  * ipq_cmnpll_pon_set_rate - Set PON reference clock rate
+ *
+ * The PON refclk is derived from CMN PLL rate / 2, then divided by
+ * a configurable 8-bit divider (1-255). Uses u64 arithmetic to avoid
+ * 32-bit overflow on 32-bit platforms where pll_rate (~12 GHz) exceeds
+ * unsigned long.
  */
 static int ipq_cmnpll_pon_set_rate(struct ipq_cmnpll_priv *priv, unsigned long rate)
 {
@@ -369,23 +427,26 @@ static int ipq_cmnpll_pon_set_rate(struct ipq_cmnpll_priv *priv, unsigned long r
 	}
 
 	/* PON mode with divider */
-	div = DIV_ROUND_CLOSEST(priv->pll_rate, 2 * rate);
+	div = (unsigned long)div_u64(priv->pll_rate + (u64)rate, 2ULL * rate);
 
+	/* Constrain divider to 8-bit register width: [1, 255] */
 	if (div == 0 || div > 255) {
 		pr_err("PON divider %lu out of range\n", div);
 		return -EINVAL;
 	}
 
+	/* Switch to PON mode (bit 9 = 1) */
 	val = readl(priv->base + CMN_PLL_PON_CONFIG);
 	val |= CMN_PLL_PON_MODE_SEL;
 	writel(val, priv->base + CMN_PLL_PON_CONFIG);
 
+	/* Update divider field */
 	val = readl(priv->base + CMN_PLL_PON_CONFIG);
 	val &= ~CMN_PLL_PON_DIV_CTRL;
 	val |= FIELD_PREP(CMN_PLL_PON_DIV_CTRL, div);
 	writel(val, priv->base + CMN_PLL_PON_CONFIG);
 
-	return 0;
+	return ipq_cmnpll_ana_soft_reset(priv);
 }
 
 /**
@@ -414,6 +475,45 @@ static void ipq_cmnpll_pon_disable(struct ipq_cmnpll_priv *priv)
 	writel(val, priv->base + CMN_PLL_PON_CONFIG);
 }
 
+/**
+ * ipq_cmnpll_ephy_raw_get_rate - Get EPHY raw clock rate
+ *
+ * The output clock rate is determined by bit 10 of CMN_PLL_PON_CONFIG.
+ * 0: 125 MHz (for link speeds other than 2.5G)
+ * 1: 312.5 MHz (for 2.5G link speed)
+ */
+static unsigned long ipq_cmnpll_ephy_raw_get_rate(struct ipq_cmnpll_priv *priv)
+{
+	u32 val;
+
+	val = readl(priv->base + CMN_PLL_PON_CONFIG);
+	if (val & CMN_PLL_GEPHY_312P5M_125M_SEL)
+		return 312500000UL;
+
+	return 125000000UL;
+}
+
+/**
+ * ipq_cmnpll_ephy_raw_set_rate - Set EPHY raw clock rate
+ *
+ * Configures the EPHY raw clock to either 125 MHz or 312.5 MHz by
+ * setting/clearing bit 10 of CMN_PLL_PON_CONFIG, then performs an
+ * analog soft reset to apply the change.
+ */
+static int ipq_cmnpll_ephy_raw_set_rate(struct ipq_cmnpll_priv *priv, unsigned long rate)
+{
+	u32 val;
+
+	val = readl(priv->base + CMN_PLL_PON_CONFIG);
+	if (rate == 312500000UL)
+		val |= CMN_PLL_GEPHY_312P5M_125M_SEL;
+	else
+		val &= ~CMN_PLL_GEPHY_312P5M_125M_SEL;
+	writel(val, priv->base + CMN_PLL_PON_CONFIG);
+
+	return ipq_cmnpll_ana_soft_reset(priv);
+}
+
 /* ========== IPQ5210-Specific Implementation ========== */
 
 /* IPQ5210 Clock IDs */
@@ -429,6 +529,7 @@ enum ipq5210_cmnpll_clk_id {
 	IPQ5210_NSS_CLK,
 	IPQ5210_PPE_CLK,
 	IPQ5210_PON_REFCLK,
+	IPQ5210_EPHY_RAW_CLK,
 	IPQ5210_CMN_PLL_CLK,
 };
 
@@ -462,6 +563,7 @@ static const struct ipq_cmnpll_clk_desc ipq5210_clk_descs[] = {
 	{ IPQ5210_NSS_CLK, "nss", CLK_TYPE_DIVIDER, 0, -1 },
 	{ IPQ5210_PPE_CLK, "ppe", CLK_TYPE_DIVIDER, 0, -1 },
 	{ IPQ5210_PON_REFCLK, "pon", CLK_TYPE_PON, 0, -1 },
+	{ IPQ5210_EPHY_RAW_CLK, "ephy-raw", CLK_TYPE_EPHY_RAW, 0, -1 },
 	{ IPQ5210_CMN_PLL_CLK, "cmn-pll", CLK_TYPE_FIXED, 0, -1 },
 };
 
@@ -474,7 +576,10 @@ static ulong ipq5210_get_rate(struct clk *clk, const struct ipq_cmnpll_clk_desc 
 		return desc->rate;
 
 	if (clk->id == IPQ5210_CMN_PLL_CLK)
-		return priv->pll_rate;
+		return (ulong)priv->pll_rate;
+
+	if (clk->id == IPQ5210_EPHY_RAW_CLK)
+		return ipq_cmnpll_ephy_raw_get_rate(priv);
 
 	return 0;
 }
@@ -496,6 +601,9 @@ static ulong ipq5210_set_rate(struct clk *clk, const struct ipq_cmnpll_clk_desc 
 		break;
 	case CLK_TYPE_PON:
 		ret = ipq_cmnpll_pon_set_rate(priv, rate);
+		break;
+	case CLK_TYPE_EPHY_RAW:
+		ret = ipq_cmnpll_ephy_raw_set_rate(priv, rate);
 		break;
 	default:
 		return -EOPNOTSUPP;
@@ -561,6 +669,18 @@ struct pcs_freq_map {
 	u32 divsel;
 };
 
+/*
+ * PCS clock operations for IPQ9650.
+ * The PCS clocks are controlled via the UPHY_REFCLK_CTRL register (0x41C).
+ * Each of the three PCS clocks (PCS0/1/2) can be independently enabled and
+ * configured to output one of four frequencies: 46.875, 93.75, 31.25, or 62.5 MHz.
+ *
+ * Hardware divsel encoding:
+ *   0b00 (0) -> 46.875 MHz
+ *   0b01 (1) -> 93.75 MHz
+ *   0b10 (2) -> 31.25 MHz
+ *   0b11 (3) -> 62.5 MHz
+ */
 static const struct pcs_freq_map pcs_freq_table[] = {
 	{ 31250000UL, 2 },  /* 31.25 MHz */
 	{ 46875000UL, 0 },  /* 46.875 MHz */
@@ -681,7 +801,7 @@ static int ipq9650_pcs_set_rate(struct ipq_cmnpll_priv *priv, unsigned long clk_
 	val |= (divsel << __ffs(divsel_mask));
 	writel(val, priv->base + CMN_PLL_PCS_CLK_CTRL);
 
-	return 0;
+	return ipq_cmnpll_ana_soft_reset(priv);
 }
 
 /**
@@ -724,6 +844,10 @@ static void ipq9650_pcs_disable(struct ipq_cmnpll_priv *priv, unsigned long clk_
 
 /**
  * ipq9650_eth_pon_get_rate - Get ETH-PON clock rate
+ *
+ * The output clock rate is determined by bit 4 of CMN_PLL_OUTPUT_RELATED_2.
+ * 0: 25 MHz
+ * 1: 31.25 MHz
  */
 static unsigned long ipq9650_eth_pon_get_rate(struct ipq_cmnpll_priv *priv)
 {
@@ -736,62 +860,60 @@ static unsigned long ipq9650_eth_pon_get_rate(struct ipq_cmnpll_priv *priv)
 }
 
 /**
+ * ipq9650_eth_pon_is_enabled - Check if ETH-PON clock output is enabled
+ */
+static bool ipq9650_eth_pon_is_enabled(struct ipq_cmnpll_priv *priv)
+{
+	u32 val;
+
+	val = readl(priv->base + CMN_PLL_OUTPUT_RELATED_1);
+	return !!(val & (BIT(CLK25M_EN_BIT) | BIT(CLK31P25M_EN_BIT)));
+}
+
+/**
  * ipq9650_eth_pon_set_rate - Set ETH-PON clock rate
+ *
+ * Disables the clock output if currently enabled, switches the mux to
+ * select the requested rate (25 MHz or 31.25 MHz), re-enables the output
+ * if it was enabled, then performs an analog soft reset.
  */
 static int ipq9650_eth_pon_set_rate(struct ipq_cmnpll_priv *priv, unsigned long rate)
 {
 	u32 val;
+	bool enabled;
 
-	/* Check if clock is enabled */
-	val = readl(priv->base + CMN_PLL_OUTPUT_RELATED_2);
-	if (val & CMN_PLL_OUTPUT_MUX_SEL) {
-		/* Currently 31.25 MHz */
-		if (rate == 25000000) {
-			/* Switch to 25 MHz */
-			val = readl(priv->base + CMN_PLL_OUTPUT_RELATED_1);
-			val &= ~BIT(CLK31P25M_EN_BIT);
-			writel(val, priv->base + CMN_PLL_OUTPUT_RELATED_1);
-
-			val = readl(priv->base + CMN_PLL_OUTPUT_RELATED_2);
-			val &= ~CMN_PLL_OUTPUT_MUX_SEL;
-			writel(val, priv->base + CMN_PLL_OUTPUT_RELATED_2);
-
-			val = readl(priv->base + CMN_PLL_OUTPUT_RELATED_1);
-			val |= BIT(CLK25M_EN_BIT);
-			writel(val, priv->base + CMN_PLL_OUTPUT_RELATED_1);
-		}
-	} else {
-		/* Currently 25 MHz */
-		if (rate == 31250000) {
-			/* Switch to 31.25 MHz */
-			val = readl(priv->base + CMN_PLL_OUTPUT_RELATED_1);
-			val &= ~BIT(CLK25M_EN_BIT);
-			writel(val, priv->base + CMN_PLL_OUTPUT_RELATED_1);
-
-			val = readl(priv->base + CMN_PLL_OUTPUT_RELATED_2);
-			val |= CMN_PLL_OUTPUT_MUX_SEL;
-			writel(val, priv->base + CMN_PLL_OUTPUT_RELATED_2);
-
-			val = readl(priv->base + CMN_PLL_OUTPUT_RELATED_1);
-			val |= BIT(CLK31P25M_EN_BIT);
-			writel(val, priv->base + CMN_PLL_OUTPUT_RELATED_1);
-		}
-	}
-
-	/* If not enabled, just set the mux */
-	if (rate == 25000000) {
-		val = readl(priv->base + CMN_PLL_OUTPUT_RELATED_2);
-		val &= ~CMN_PLL_OUTPUT_MUX_SEL;
-		writel(val, priv->base + CMN_PLL_OUTPUT_RELATED_2);
-	} else if (rate == 31250000) {
-		val = readl(priv->base + CMN_PLL_OUTPUT_RELATED_2);
-		val |= CMN_PLL_OUTPUT_MUX_SEL;
-		writel(val, priv->base + CMN_PLL_OUTPUT_RELATED_2);
-	} else {
+	if (rate != 25000000 && rate != 31250000)
 		return -EINVAL;
+
+	/* Check if clock is currently enabled */
+	enabled = ipq9650_eth_pon_is_enabled(priv);
+
+	/* Disable clock output if enabled */
+	if (enabled) {
+		val = readl(priv->base + CMN_PLL_OUTPUT_RELATED_1);
+		val &= ~(BIT(CLK31P25M_EN_BIT) | BIT(CLK25M_EN_BIT));
+		writel(val, priv->base + CMN_PLL_OUTPUT_RELATED_1);
 	}
 
-	return 0;
+	/* Set the clock rate via mux select */
+	val = readl(priv->base + CMN_PLL_OUTPUT_RELATED_2);
+	if (rate == 25000000)
+		val &= ~CMN_PLL_OUTPUT_MUX_SEL;
+	else
+		val |= CMN_PLL_OUTPUT_MUX_SEL;
+	writel(val, priv->base + CMN_PLL_OUTPUT_RELATED_2);
+
+	/* Re-enable clock output if it was enabled */
+	if (enabled) {
+		val = readl(priv->base + CMN_PLL_OUTPUT_RELATED_1);
+		if (rate == 25000000)
+			val |= BIT(CLK25M_EN_BIT);
+		else
+			val |= BIT(CLK31P25M_EN_BIT);
+		writel(val, priv->base + CMN_PLL_OUTPUT_RELATED_1);
+	}
+
+	return ipq_cmnpll_ana_soft_reset(priv);
 }
 
 /**
@@ -861,7 +983,7 @@ static ulong ipq9650_get_rate(struct clk *clk, const struct ipq_cmnpll_clk_desc 
 		return desc->rate;
 
 	if (clk->id == IPQ9650_CMN_PLL_CLK)
-		return priv->pll_rate;
+		return (ulong)priv->pll_rate;
 
 	if (desc->type == CLK_TYPE_PCS)
 		return ipq9650_pcs_get_rate(priv, clk->id);
@@ -1074,7 +1196,7 @@ static int ipq_cmnpll_probe(struct udevice *dev)
 		return ret;
 	}
 
-	pr_debug("IPQ CMN PLL initialized: parent=%lu Hz, pll=%lu Hz\n",
+	pr_debug("IPQ CMN PLL initialized: parent=%lu Hz, pll=%llu Hz\n",
 		 parent_rate, priv->pll_rate);
 
 	return 0;
