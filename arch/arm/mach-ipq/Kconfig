@@ -888,6 +888,9 @@ config TARGET_IPQ5210
 	imply DMA_CHANNELS
 	select BAM_DMA if DMA
 	imply IPQ_USB
+	imply PHY if IPQ_USB
+	imply PHY_QCOM_QUSB2 if IPQ_USB
+	imply PHY_QCOM_QMP_USB3 if IPQ_USB
 	imply EDL_SUPPORT
 	imply GPT_UPDATE_PARAMS
 	imply IPQ_I2C
