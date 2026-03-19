@@ -680,22 +680,22 @@ static struct ipq_eth_port_config ipq5210_port_config[] = {
 			PORT_WRAPPER_PSGMII		/* 1000M */
 		},
 	},
-	/* Unused PHY Type - terminator */
+	/* QCE1204 PHY Type */
 	{
 		QCE1204_PHY_TYPE,
 		{
 			CLK_1_25_MHZ,
 			CLK_12_5_MHZ,
 			CLK_125_MHZ,
+			-1,
 			CLK_312_5_MHZ,
-			CLK_78_125_MHZ,
 		},
 		{
-			XGMAC,
-			XGMAC,
-			XGMAC,
-			XGMAC,
-			XGMAC
+			GMAC,
+			GMAC,
+			GMAC,
+			GMAC,
+			GMAC
 		},
 		{
 			PORT_WRAPPER_UQXGMII,
@@ -704,7 +704,34 @@ static struct ipq_eth_port_config ipq5210_port_config[] = {
 			PORT_WRAPPER_UQXGMII,
 			PORT_WRAPPER_UQXGMII,
 		},
-	}, {
+	},
+	/* Internal PHY Type */
+	{
+		INTERNAL_PHY_TYPE,
+		{
+			CLK_2_5_MHZ,			/* 10M */
+			CLK_25_MHZ,			/* 100M */
+			CLK_125_MHZ,			/* 1000M */
+			-1,				/* 10000M - not supported */
+			CLK_312_5_MHZ			/* 2500M */
+		},
+		{
+			GMAC,				/* 10M */
+			GMAC,				/* 100M */
+			GMAC,				/* 1000M */
+			-1,				/* 10000M - not supported */
+			GMAC				/* 2500M */
+		},
+		{
+			PORT_WRAPPER_NA,		/* 10M - NA mode (no uniphy) */
+			PORT_WRAPPER_NA,		/* 100M - NA mode (no uniphy) */
+			PORT_WRAPPER_NA,		/* 1000M - NA mode (no uniphy) */
+			-1,				/* 10000M - not supported */
+			PORT_WRAPPER_NA			/* 2500M - NA mode (no uniphy) */
+		},
+	},
+	/* Unused PHY Type - terminator */
+	{
 		UNUSED_PHY_TYPE,
 	},
 };
@@ -893,6 +920,25 @@ static struct ppe_port_config ipq5210_port_cfg = {
 };
 
 /*
+ * IPQ5210 port-to-XGMAC-ID mapping.
+ *
+ * IPQ5210 has only 3 XGMACs shared across 6 ports:
+ *   Port 1 -> XGMAC0 (gmacid = 0)
+ *   Port 5 -> XGMAC1 (gmacid = 1)
+ *   Port 6 -> XGMAC2 (gmacid = 2)
+ * All other ports have no XGMAC; returns (u32)-1 for those.
+ */
+static u32 ipq5210_port_to_gmacid(u32 portid)
+{
+	switch (portid) {
+	case 1: return 0;
+	case 5: return 1;
+	case 6: return 2;
+	default: return (u32)-1;
+	}
+}
+
+/*
  * EDMA Configuration
  * Architecture with 24 TX rings, 20 RX fill rings
  */
@@ -923,6 +969,7 @@ struct edma_config ipq_edma_config = {
 	.ipo_action		= 6,
 	.tdm_ctrl_val		= 0x80000010,
 	.hw_cfg			= &ipq5210_hw_cfg,
+	.port_to_gmacid		= ipq5210_port_to_gmacid,
 };
 
 /*
@@ -1277,6 +1324,14 @@ struct ipq_eth_sku *ipq_uniphy = ipq5210_uniphy;
 void ipq_config_cmn_clock(void)
 {
 	unsigned int reg_val;
+
+	/* Skip initialization if CMN PLL clocks are already fully enabled and locked */
+	reg_val = readl(CMN_BLK_ADDR + CMN_PLL_POWER_ON_AND_RESET);
+	if (reg_val == CLK_ENABLE_MASK_FULL) {
+		reg_val = readl(CMN_BLK_ADDR + CMN_PLL_LOCKED);
+		if (reg_val & CMN_PLL_CLKS_LOCKED)
+			return;
+	}
 
 	/*
 	 * Step 1: Configure reference clock to 48 MHz

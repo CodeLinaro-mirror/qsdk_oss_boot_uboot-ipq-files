@@ -278,7 +278,7 @@ static void ppe_uniphy_reset(struct port_info *port, bool issoft, bool set)
 	dev = port->dev;
 
 	len = snprintf(name, sizeof(name), "uniphy%d_%s", port->uniphy_id,
-		       issoft ? "soft_rst" : "xpcs_rst");
+		       issoft ? "sys_rst" : "xpcs_rst");
 	if (len < 0 || len >= sizeof(name))
 		return;
 
@@ -390,15 +390,25 @@ static inline u32 uniphy_mode_xpcs_autoneg_25m(void)
  */
 static void ppe_uniphy_psgmii_mode_set(struct port_info *port)
 {
+	phys_addr_t mode_ctrl_reg = port->uniphy_base + PPE_UNIPHY_MODE_CONTROL;
+	u32 reg_val_to_write;
+
+	/* Pre-read to ensure register access path is valid */
+	(void)readl(mode_ctrl_reg);
+
+	/* Reset sequence */
 	ppe_uniphy_reset(port, false, true);
-
-	writel(uniphy_mode_psgmii_25m(), port->uniphy_base + PPE_UNIPHY_MODE_CONTROL);
-
 	ppe_uniphy_reset(port, true, true);
 	mdelay(RESET_DELAY);
 	ppe_uniphy_reset(port, true, false);
 	mdelay(RESET_DELAY);
 
+	/* Program PSGMII 25MHz mode */
+	reg_val_to_write = uniphy_mode_psgmii_25m();
+	writel(reg_val_to_write, mode_ctrl_reg);
+
+	/* Final XPCS reset and calibration */
+	ppe_uniphy_reset(port, false, true);
 	ppe_uniphy_calibration(port);
 }
 
@@ -543,15 +553,18 @@ static void ppe_uniphy_usxgmii_mode_set(struct port_info *port)
 	phys_addr_t base = port->uniphy_base;
 	u32 reg_value;
 
+	/* Configure UNIPHY MISC and reset PLL */
 	writel(UNIPHY_MISC2_REG_VALUE, base + UNIPHY_MISC2_REG_OFFSET);
 
 	writel(UNIPHY_PLL_RESET_REG_VALUE, base + UNIPHY_PLL_RESET_REG_OFFSET);
 	mdelay(REG_DELAY);
-
-	writel(UNIPHY_PLL_RESET_REG_DEFAULT_VALUE,
-	       base + UNIPHY_PLL_RESET_REG_OFFSET);
+	writel(UNIPHY_PLL_RESET_REG_DEFAULT_VALUE, base + UNIPHY_PLL_RESET_REG_OFFSET);
 	mdelay(REG_DELAY);
 
+	/* Program XPCS auto-neg mode (25M ref) */
+	writel(uniphy_mode_xpcs_autoneg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
+
+	/* Assert resets: keep XPCS in reset, do software reset sequence */
 	ppe_uniphy_reset(port, false, true);
 	mdelay(RESET_DELAY);
 
@@ -560,129 +573,50 @@ static void ppe_uniphy_usxgmii_mode_set(struct port_info *port)
 	ppe_uniphy_reset(port, true, false);
 	mdelay(RESET_DELAY);
 
-	writel(uniphy_mode_xpcs_autoneg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
-
+	/* Calibration and release XPCS reset */
 	ppe_uniphy_calibration(port);
 	ppe_uniphy_reset(port, false, false);
 	mdelay(RESET_DELAY);
 
+	/* Wait 10G-R link up */
 	ppe_uniphy_10g_r_linkup(index);
 
+	/* Enable USXGMII in XPCS */
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS));
 	reg_value |= USXG_EN;
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS), reg_value);
 
+	/* For UNIPHY0, select GMII source from XPCS (matches SSDK APPE behavior) */
+	if (index == 0) {
+		reg_value = readl(base + UNIPHYQP_USXG_OPITON1);
+		reg_value |= GMII_SRC_SEL;
+		writel(reg_value, base + UNIPHYQP_USXG_OPITON1);
+	}
+
+	/* Enable autoneg complete interrupt and 10M/100M 8-bit MII width */
 	reg_value = csr_read(index, CSR1_ADDR(VR_MII_AN_CTRL_ADDRESS));
 	reg_value |= MII_AN_INTR_EN | MII_CTRL;
 	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_ADDRESS), reg_value);
 
+	/* Advertise autoneg ability: 10G speed, full duplex */
 	reg_value = csr_read(index, CSR1_ADDR(SR_MII_CTRL_ADDRESS));
 	reg_value |= AN_ENABLE;
 	reg_value &= ~SS5;
 	reg_value |= SS6 | SS13 | DUPLEX_MODE;
 	csr_write(index, CSR1_ADDR(SR_MII_CTRL_ADDRESS), reg_value);
-}
 
-/*
- * UQXGMII mode configuration
- */
-static void ppe_uniphy_uqxgmii_mode_set(struct port_info *port)
-{
-	u32 index = port->uniphy_id;
-	phys_addr_t base = port->uniphy_base;
-	u32 reg_value = 0;
-
-	writel(UNIPHY_MISC2_REG_VALUE, base + UNIPHY_MISC2_REG_OFFSET);
-
-	writel(UNIPHY_PLL_RESET_REG_VALUE, base + UNIPHY_PLL_RESET_REG_OFFSET);
-	mdelay(REG_DELAY);
-
-	writel(UNIPHY_PLL_RESET_REG_DEFAULT_VALUE,
-	       base + UNIPHY_PLL_RESET_REG_OFFSET);
-	mdelay(REG_DELAY);
-
-	ppe_uniphy_reset(port, false, true);
-	mdelay(RESET_DELAY);
-
-	ppe_uniphy_reset(port, true, true);
-	mdelay(RESET_DELAY);
-	ppe_uniphy_reset(port, true, false);
-	mdelay(RESET_DELAY);
-
-	writel(uniphy_mode_xpcs_autoneg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
-
-	reg_value = readl(base + UNIPHYQP_USXG_OPITON1);
-	reg_value |= GMII_SRC_SEL;
-	writel(reg_value, base + UNIPHYQP_USXG_OPITON1);
-
-	ppe_uniphy_calibration(port);
-	ppe_uniphy_reset(port, false, false);
-	mdelay(RESET_DELAY);
-
-	ppe_uniphy_10g_r_linkup(index);
-
-	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS));
-	reg_value |= USXG_EN;
-	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS), reg_value);
-
-	/* Set QXGMII mode */
-	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_KR_CTRL_ADDRESS));
-	reg_value |= USXG_MODE;
-	csr_write(index, CSR1_ADDR(VR_XS_PCS_KR_CTRL_ADDRESS), reg_value);
-
-	/* Set AM interval mode */
-	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_STS_ADDRESS));
-	reg_value |= AM_COUNT;
-	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_STS_ADDRESS), reg_value);
-
-	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS));
-	reg_value |= VR_RST;
-	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS), reg_value);
-
-	reg_value = csr_read(index, CSR1_ADDR(VR_MII_AN_CTRL_ADDRESS));
-	reg_value |= MII_AN_INTR_EN | MII_CTRL;
-	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_ADDRESS), reg_value);
-	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_CHANNEL1_ADDRESS), reg_value);
-	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_CHANNEL2_ADDRESS), reg_value);
-	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_CHANNEL3_ADDRESS), reg_value);
-
-	/* Disable TICD */
-	reg_value = csr_read(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_ADDRESS));
-	reg_value |= IPG_CHECK;
-	csr_write(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_ADDRESS), reg_value);
-	csr_write(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_CHANNEL1_ADDRESS), reg_value);
-	csr_write(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_CHANNEL2_ADDRESS), reg_value);
-	csr_write(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_CHANNEL3_ADDRESS), reg_value);
-
-	/* Enable uniphy autoneg ability and usxgmii 10g speed and
-	 * full duplex
-	 */
-	reg_value = csr_read(index, CSR1_ADDR(SR_MII_CTRL_ADDRESS));
-	reg_value |= AN_ENABLE;
-	reg_value &= ~SS5;
-	reg_value |= SS6 | SS13 | DUPLEX_MODE;
-	csr_write(index, CSR1_ADDR(SR_MII_CTRL_ADDRESS), reg_value);
-	csr_write(index, CSR1_ADDR(SR_MII_CTRL_CHANNEL1_ADDRESS), reg_value);
-	csr_write(index, CSR1_ADDR(SR_MII_CTRL_CHANNEL2_ADDRESS), reg_value);
-	csr_write(index, CSR1_ADDR(SR_MII_CTRL_CHANNEL3_ADDRESS), reg_value);
-
-	/* Enable uniphy EEE transparent mode and configure EEE
-	 * related timer value
-	 */
+	/* Enable EEE transparent mode and configure timers */
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS));
 	reg_value |= SIGN_BIT | MULT_FACT_100NS;
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS), reg_value);
 
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_TXTIMER_ADDRESS));
-	reg_value |= UNIPHY_XPCS_TSL_TIMER | UNIPHY_XPCS_TLU_TIMER |
-		     UNIPHY_XPCS_TWL_TIMER;
-	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_TXTIMER_ADDRESS),
-		  reg_value);
+	reg_value |= UNIPHY_XPCS_TSL_TIMER | UNIPHY_XPCS_TLU_TIMER | UNIPHY_XPCS_TWL_TIMER;
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_TXTIMER_ADDRESS), reg_value);
 
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_RXTIMER_ADDRESS));
 	reg_value |= UNIPHY_XPCS_100US_TIMER | UNIPHY_XPCS_TWR_TIMER;
-	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_RXTIMER_ADDRESS),
-		  reg_value);
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_RXTIMER_ADDRESS), reg_value);
 
 	/* Transparent LPI mode and LPI pattern enable */
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL1_ADDRESS));
@@ -693,7 +627,125 @@ static void ppe_uniphy_uqxgmii_mode_set(struct port_info *port)
 	reg_value |= LRX_EN | LTX_EN;
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS), reg_value);
 }
+/*
+ * UQXGMII/UDXGMII combined mode configuration - FIXED VERSION
+ */
+static void ppe_uniphy_uxgmii_mode_set(struct port_info *port)
+{
+	u32 index = port->uniphy_id;
+	phys_addr_t base = port->uniphy_base;
+	u32 reg_value = 0;
 
+	/* Step 1: Configure UNIPHY MISC2 register */
+	writel(UNIPHY_MISC2_REG_VALUE, base + UNIPHY_MISC2_REG_OFFSET);
+
+	/* Step 2: PLL Reset sequence */
+	writel(UNIPHY_PLL_RESET_REG_VALUE, base + UNIPHY_PLL_RESET_REG_OFFSET);
+	mdelay(REG_DELAY);
+
+	writel(UNIPHY_PLL_RESET_REG_DEFAULT_VALUE,
+	       base + UNIPHY_PLL_RESET_REG_OFFSET);
+	mdelay(REG_DELAY);
+
+	/* Step 3: Assert XPCS reset (keep XPCS in reset) */
+	ppe_uniphy_reset(port, false, true);
+	mdelay(RESET_DELAY);
+
+	/* Step 4: Program XPCS mode control register (25MHz autoneg mode) */
+	writel(uniphy_mode_xpcs_autoneg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
+
+	/* Step 5: Configure GMII source selection from XPCS */
+	reg_value = readl(base + UNIPHYQP_USXG_OPITON1);
+	reg_value |= GMII_SRC_SEL;
+	writel(reg_value, base + UNIPHYQP_USXG_OPITON1);
+
+	/* Step 6: Software reset sequence */
+	ppe_uniphy_reset(port, true, true);
+	mdelay(RESET_DELAY);
+	ppe_uniphy_reset(port, true, false);
+	mdelay(RESET_DELAY);
+
+	/* Step 7: Perform calibration */
+	ppe_uniphy_calibration(port);
+
+	/* Step 8: Release XPCS reset */
+	ppe_uniphy_reset(port, false, false);
+	mdelay(RESET_DELAY);
+
+	/* Step 9: Wait for 10G-R link up */
+	ppe_uniphy_10g_r_linkup(index);
+
+	/* Step 10: Enable USXGMII in XPCS */
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS));
+	reg_value |= USXG_EN;
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS), reg_value);
+
+	/* Step 11: Set QXGMII mode */
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_KR_CTRL_ADDRESS));
+	reg_value |= USXG_MODE;
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_KR_CTRL_ADDRESS), reg_value);
+
+	/* Step 12: Set AM interval mode */
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_STS_ADDRESS));
+	reg_value |= AM_COUNT;
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_STS_ADDRESS), reg_value);
+
+	/* Step 13: XPCS software reset */
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS));
+	reg_value |= VR_RST;
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS), reg_value);
+
+	/* Step 14: Configure auto-neg control for all 4 channels */
+	reg_value = csr_read(index, CSR1_ADDR(VR_MII_AN_CTRL_ADDRESS));
+	reg_value |= MII_AN_INTR_EN | MII_CTRL;
+	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_CHANNEL1_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_CHANNEL2_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_CHANNEL3_ADDRESS), reg_value);
+
+	/* Step 15: Disable TICD (IPG check) for all 4 channels */
+	reg_value = csr_read(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_ADDRESS));
+	reg_value |= IPG_CHECK;
+	csr_write(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_CHANNEL1_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_CHANNEL2_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(VR_XAUI_MODE_CTRL_CHANNEL3_ADDRESS), reg_value);
+
+	/* Step 16: Enable uniphy autoneg ability and usxgmii 10g speed and full duplex
+	 * for all 4 channels
+	 */
+	reg_value = csr_read(index, CSR1_ADDR(SR_MII_CTRL_ADDRESS));
+	reg_value |= AN_ENABLE;
+	reg_value &= ~SS5;
+	reg_value |= SS6 | SS13 | DUPLEX_MODE;
+	csr_write(index, CSR1_ADDR(SR_MII_CTRL_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(SR_MII_CTRL_CHANNEL1_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(SR_MII_CTRL_CHANNEL2_ADDRESS), reg_value);
+	csr_write(index, CSR1_ADDR(SR_MII_CTRL_CHANNEL3_ADDRESS), reg_value);
+
+	/* Step 17: Enable uniphy EEE transparent mode and configure EEE related timer value */
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS));
+	reg_value |= SIGN_BIT | MULT_FACT_100NS;
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS), reg_value);
+
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_TXTIMER_ADDRESS));
+	reg_value |= UNIPHY_XPCS_TSL_TIMER | UNIPHY_XPCS_TLU_TIMER |
+		     UNIPHY_XPCS_TWL_TIMER;
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_TXTIMER_ADDRESS), reg_value);
+
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_RXTIMER_ADDRESS));
+	reg_value |= UNIPHY_XPCS_100US_TIMER | UNIPHY_XPCS_TWR_TIMER;
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_RXTIMER_ADDRESS), reg_value);
+
+	/* Step 18: Transparent LPI mode and LPI pattern enable */
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL1_ADDRESS));
+	reg_value |= TRN_LPI | TRN_RXLPI;
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL1_ADDRESS), reg_value);
+
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS));
+	reg_value |= LRX_EN | LTX_EN;
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS), reg_value);
+}
 /*
  * Main uniphy mode configuration function
  */
@@ -720,7 +772,9 @@ void ppe_uniphy_mode_set(struct port_info *port)
 		ppe_uniphy_10g_r_mode_set(port);
 		break;
 	case PORT_WRAPPER_UQXGMII:
-		ppe_uniphy_uqxgmii_mode_set(port);
+	case PORT_WRAPPER_UQXGMII_3CHANNELS:
+	case PORT_WRAPPER_UDXGMII:
+		ppe_uniphy_uxgmii_mode_set(port);
 		break;
 	default:
 		break;
@@ -842,36 +896,86 @@ void ppe_uniphy_usxgmii_port_reset(int uniphy_index)
 void ppe_xgmac_configuration(phys_addr_t reg_base, u32 portid,
 			     u32 speed, bool uxsgmii)
 {
-	u32 reg_value, gmacid = portid - 1;
+	u32 reg_value, gmacid = 0;
+	u32 speed_bits;
 	uintptr_t base, rx_config_addr, filter_addr;
+
+	if (ipq_edma_config.port_to_gmacid) {
+		gmacid = ipq_edma_config.port_to_gmacid(portid);
+		if (gmacid == (u32)-1)
+			return;
+	} else {
+		/* Generic formula: gmacid = portid - 1 */
+		if (portid == 0)
+			return;
+		gmacid = portid - 1;
+	}
 
 	base = reg_base + PPE_SWITCH_NSS_SWITCH_XGMAC0 +
 	       (gmacid * NSS_SWITCH_XGMAC_MAC_TX_CONFIGURATION);
 
 	reg_value = readl(base);
-	reg_value |= JD | TE;
 
+	/*
+	 * Speed Selection (SS) bits [31:29] must be programmed only once,
+	 * after a hardware reset and before TX (TE) and RX (RE) are enabled.
+	 *
+	 * mac_speed encoding (input parameter):
+	 *   0 = 10M, 1 = 100M, 2 = 1G, 3 = 10G, 4 = 2.5G, 5 = 5G
+	 *
+	 * SS[31:29] register encoding:
+	 * 3'b000 = 10G XGMII
+	 * 3'b001 = 25G XGMII
+	 * 3'b010 = 2.5G GMII
+	 * 3'b011 = 1G  GMII
+	 * 3'b100 = 100M MII
+	 * 3'b101 = 5G  XGMII
+	 * 3'b110 = 2.5G XGMII
+	 * 3'b111 = 10M MII
+	 */
 	switch (speed) {
-	case 0:
-	case 1:
-	case 2:
-		reg_value |= SS(XGMAC_SPEED_SELECT_1000M);
+	case 0:  /* mac_speed 0 = 10M -> SS = 0x7 */
+		speed_bits = 0x7;
 		break;
-	case 3:
-		reg_value |= SS(XGMAC_SPEED_SELECT_10000M);
+	case 1:  /* mac_speed 1 = 100M -> SS = 0x4 */
+		speed_bits = 0x4;
 		break;
-	case 4:
-		reg_value |= SS(XGMAC_SPEED_SELECT_2500M);
+	case 2:  /* mac_speed 2 = 1G -> SS = 0x3 */
+		speed_bits = 0x3;
 		break;
-	case 5:
-		reg_value |= SS(XGMAC_SPEED_SELECT_5000M);
+	case 3:  /* mac_speed 3 = 10G -> SS = 0x0 */
+		speed_bits = 0x0;
+		break;
+	case 4:  /* mac_speed 4 = 2.5G -> SS = 0x6 (XGMII) or 0x2 (GMII) */
+		speed_bits = uxsgmii ? 0x6 : 0x2;
+		break;
+	case 5:  /* mac_speed 5 = 5G -> SS = 0x5 */
+		speed_bits = 0x5;
 		break;
 	default:
+		/* Invalid mac_speed: preserve current SS setting */
+		speed_bits = (readl(base) >> 29) & 0x7;
 		break;
 	}
 
-	writel(reg_value, base);
-	mdelay(1);
+	/* Program SS with TX disabled, then enable TX */
+	{
+		u32 reg_value_disabled = reg_value;
+
+		/* Ensure TE is cleared and SS is updated first */
+		reg_value_disabled &= ~TE;
+		reg_value_disabled &= ~(0x7 << 29);
+		reg_value_disabled |= (speed_bits << 29);
+
+		/* First write: SS only while TE/RE are disabled */
+		writel(reg_value_disabled, base);
+		mdelay(1);
+
+		/* Second write: enable TX and JD after SS is set */
+		u32 reg_value_enable = reg_value_disabled | JD | TE;
+		writel(reg_value_enable, base);
+		mdelay(1);
+	}
 
 	rx_config_addr = base + MAC_RX_CONFIGURATION_ADDRESS;
 	reg_value = readl(rx_config_addr);
@@ -1018,6 +1122,8 @@ void ppe_port_speed_set(phys_addr_t reg_base, struct port_info *port)
 		usxgmii = true;
 		speed = port->mac_speed;
 		break;
+	case PORT_WRAPPER_NA:
+		fallthrough;
 	default:
 		break;
 	}
@@ -1032,7 +1138,8 @@ void ppe_port_speed_set(phys_addr_t reg_base, struct port_info *port)
 
 		writel(0x73, base);
 
-		writel(port->mac_speed, base + PPE_MAC_SPEED_OFF);
+		/* If mac_speed > 2, cap it at 2; otherwise use actual value */
+		writel((port->mac_speed > 2) ? 2 : port->mac_speed, base + PPE_MAC_SPEED_OFF);
 
 		writel(0x1, base + PPE_MAC_MIB_CTL_OFF);
 	}
@@ -4117,7 +4224,21 @@ static int ipq_eth_port_set_up(struct ipq_eth_dev *priv,
 		mac_speed = 3;
 		break;
 	case 2500:
-		mac_speed = (port->xgmac) ? 4 : 2;
+		/*
+		 * For 2.5G:
+		 * - Force mac_speed = 4 for the following UNIPHY modes:
+		 *   USXGMII, 10GBASE_R, UQXGMII, UQXGMII_3CHANNELS, UDXGMII
+		 * - For other modes, depend on MAC type: XGMAC => 2.5G (4), GMAC => 1G (2)
+		 */
+		if (port->uniphy_mode == PORT_WRAPPER_USXGMII ||
+		    port->uniphy_mode == PORT_WRAPPER_10GBASE_R ||
+		    port->uniphy_mode == PORT_WRAPPER_UQXGMII ||
+		    port->uniphy_mode == PORT_WRAPPER_UQXGMII_3CHANNELS ||
+		    port->uniphy_mode == PORT_WRAPPER_UDXGMII) {
+			mac_speed = 4;
+		} else {
+			mac_speed = port->xgmac ? 4 : 2;
+		}
 		break;
 	case 5000:
 		mac_speed = 5;
@@ -4145,32 +4266,52 @@ static int ipq_eth_port_set_up(struct ipq_eth_dev *priv,
 
 		/* Configure RX rate clock if available */
 		if (port->rx_clk_rate.dev) {
-			/* Get parent clock for RX rate */
-			if (port->uniphy_mode == PORT_WRAPPER_PSGMII ||
-			    port->uniphy_mode == PORT_WRAPPER_SGMII0_RGMII4)
-				clk_set_rate(&port->rx_clk, CLK_125_MHZ);
-			else
-				clk_set_rate(&port->rx_clk, CLK_312_5_MHZ);
+			/* Only set parent and configure if rx_clk is available */
+			if (port->rx_clk.dev) {
+				/* Get parent clock for RX rate */
+				if (port->uniphy_mode == PORT_WRAPPER_PSGMII ||
+				    port->uniphy_mode == PORT_WRAPPER_SGMII0_RGMII4)
+					clk_set_rate(&port->rx_clk, CLK_125_MHZ);
+				else
+					clk_set_rate(&port->rx_clk, CLK_312_5_MHZ);
 
-			ret = clk_set_parent(&port->rx_clk_rate, &port->rx_clk);
-			if (ret)
-				goto fail;
+				ret = clk_set_parent(&port->rx_clk_rate, &port->rx_clk);
+				if (ret)
+					goto fail;
+			} else {
+				struct clk pclk;
+				pclk.dev = port->rx_clk_rate.dev;
+				clk_set_rate(&pclk, 0);
+				ret = clk_set_parent(&port->rx_clk_rate, &pclk);
+				if (ret)
+					goto fail;
+			}
 
 			clk_set_rate(&port->rx_clk_rate, rate);
 		}
 
 		/* Configure TX rate clock if available */
 		if (port->tx_clk_rate.dev) {
-			/* Get parent clock for TX rate */
-			if (port->uniphy_mode == PORT_WRAPPER_PSGMII ||
-			    port->uniphy_mode == PORT_WRAPPER_SGMII0_RGMII4)
-				clk_set_rate(&port->tx_clk, CLK_125_MHZ);
-			else
-				clk_set_rate(&port->tx_clk, CLK_312_5_MHZ);
+			/* Only set parent and configure if tx_clk is available */
+			if (port->tx_clk.dev) {
+				/* Get parent clock for TX rate */
+				if (port->uniphy_mode == PORT_WRAPPER_PSGMII ||
+				    port->uniphy_mode == PORT_WRAPPER_SGMII0_RGMII4)
+					clk_set_rate(&port->tx_clk, CLK_125_MHZ);
+				else
+					clk_set_rate(&port->tx_clk, CLK_312_5_MHZ);
 
-			ret = clk_set_parent(&port->tx_clk_rate, &port->tx_clk);
-			if (ret)
-				goto fail;
+				ret = clk_set_parent(&port->tx_clk_rate, &port->tx_clk);
+				if (ret)
+					goto fail;
+			} else {
+				struct clk pclk;
+				pclk.dev = port->tx_clk_rate.dev;
+				clk_set_rate(&pclk, 0);
+				ret = clk_set_parent(&port->tx_clk_rate, &pclk);
+				if (ret)
+					goto fail;
+			}
 
 			clk_set_rate(&port->tx_clk_rate, rate);
 		}
@@ -4191,6 +4332,22 @@ static int ipq_eth_port_set_up(struct ipq_eth_dev *priv,
 		ipq_port_mac_clock_reset(priv->dev, port);
 
 		ppe_port_speed_set(priv->ppe.base, port);
+
+		/* Enable XGMAC PTP REF clock for XGMAC ports at port configure time */
+		if (port->gmac_type == XGMAC && port->id > 0) {
+			struct clk ptp_clk;
+			char ptp_clk_name[32];
+			u32 gmacid = ipq_edma_config.port_to_gmacid ?
+				     ipq_edma_config.port_to_gmacid(port->id) :
+				     port->id - 1;
+
+			if (gmacid != (u32)-1) {
+				snprintf(ptp_clk_name, sizeof(ptp_clk_name),
+					 "xgmac%d_ptp_ref_clk", gmacid);
+				if (!clk_get_by_name(priv->dev, ptp_clk_name, &ptp_clk))
+					clk_enable(&ptp_clk);
+			}
+		}
 
 	} else if (priv->emulation) {
 		port->gmac_type = XGMAC;
@@ -4288,10 +4445,18 @@ static int ipq_eth_start(struct udevice *dev)
 		}
 
 		if (port->phy_id != QCA8x8x_SWITCH_TYPE &&
-		    port->phy_id != QCA8337_SWITCH_TYPE)
+		    port->phy_id != QCA8337_SWITCH_TYPE &&
+		    port->phy_id != QCE2204_SWITCH_TYPE)
 			printf("PHY%d %s Speed : %d %s\n", port->id,
 			       link ? "Up" : "Down", speed,
 			       duplex ? "Full duplex" : "Half duplex");
+
+		if (!link) {
+			/* Disable port */
+			ppe_port_bridge_txmac_set(priv->ppe.base, port->id, false);
+			port->cur_speed = 10;
+			continue;
+		}
 
 		if (port->cur_speed != speed) {
 			port->cur_speed = speed;
@@ -4725,6 +4890,56 @@ static int ipq_eth_probe(struct udevice *dev)
 
 	mem_init();
 
+	/* Step 1: Enable all clocks (clocks must be stable before reset) */
+	clk_cnt = dev_read_string_list(dev, "clock-names", &clk_names);
+	if (clk_cnt <= 0) {
+		dev_err(dev, "Failed to get clock names\n");
+		goto fail;
+	}
+
+	for (clk_itr = 0; clk_itr < clk_cnt; clk_itr++) {
+		/*
+		 * Uniphy clocks: only enable if the corresponding uniphy
+		 * is present and enabled in the SKU. Skip disabled uniphys to
+		 * avoid enabling clocks for hardware that is not available.
+		 *
+		 * Supports two naming patterns:
+		 * - gcc_uniphy0_sys_clk, gcc_uniphy0_ahb_clk
+		 * - uniphy0_ahb_clk, uniphy0_sys_clk
+		 */
+		if (!strncmp(clk_names[clk_itr], "gcc_uniphy", 10)) {
+			int uniphy_id = clk_names[clk_itr][10] - '0';
+
+			if (ipq_uniphy && ipq_uniphy[uniphy_id].status != SKU_ENABLED)
+				continue;
+		} else if (!strncmp(clk_names[clk_itr], "uniphy", 6) &&
+			   isdigit(clk_names[clk_itr][6])) {
+			int uniphy_id = clk_names[clk_itr][6] - '0';
+
+			if (ipq_uniphy && ipq_uniphy[uniphy_id].status != SKU_ENABLED)
+				continue;
+		}
+
+		/* Skip xgmac PTP REF clocks - enabled at port configure time */
+		if (strstr(clk_names[clk_itr], "_ptp_ref_clk"))
+			continue;
+
+		ret = clk_get_by_name(dev, clk_names[clk_itr], &clk);
+		if (ret && ret != -ENOENT) {
+			dev_err(dev, "Failed to get clock '%s': %d\n",
+				clk_names[clk_itr], ret);
+			goto fail;
+		}
+
+		ret = clk_enable(&clk);
+		if (ret) {
+			dev_err(dev, "Failed to enable clock '%s': %d\n",
+				clk_names[clk_itr], ret);
+			goto fail;
+		}
+	}
+
+	/* Step 2: Assert/deassert resets after clocks are stable */
 	ret = reset_get_bulk(dev, &resets);
 	if (ret && ret != -ENOENT) {
 		dev_err(dev, "Can't get reset: %d\n", ret);
@@ -4741,57 +4956,7 @@ static int ipq_eth_probe(struct udevice *dev)
 	if (ret)
 		return ret;
 
-	clk_cnt = dev_read_string_list(dev, "clock-names", &clk_names);
-	if (clk_cnt <= 0) {
-		dev_err(dev, "Failed to get clock names (ret=%d)\n", ret);
-		goto fail;
-	}
-
-	for (clk_itr = 0 ; clk_itr < clk_cnt ; clk_itr++) {
-		if (!strncmp(clk_names[clk_itr], "gcc_uniphy", 10)) {
-			int uniphy_id = clk_names[clk_itr][10] - 48; //Extract uniphy_id
-
-			if (ipq_uniphy && ipq_uniphy[uniphy_id].status == SKU_ENABLED) {
-				ret = clk_get_by_name(dev, clk_names[clk_itr], &clk);
-				if (ret && ret != -ENOENT) {
-					dev_err(dev, "Failed to get clock by name (ret=%d)\n", ret);
-					goto fail;
-				}
-				ret = clk_enable(&clk);
-				if (ret) {
-					dev_err(dev, "Failed to enable clock (ret=%d)\n", ret);
-					goto fail;
-				}
-			} else {
-				ret = clk_get_by_name(dev, clk_names[clk_itr], &clk);
-				if (ret && ret != -ENOENT) {
-					dev_err(dev, "Failed to get clock by name (ret=%d)\n", ret);
-					goto fail;
-				}
-				ret = clk_enable(&clk);
-				if (ret) {
-					dev_err(dev, "Failed to enable clock (ret=%d)\n", ret);
-					goto fail;
-				}
-			}
-			continue;
-		}
-
-		ret = clk_get_by_name(dev, clk_names[clk_itr], &clk);
-		if (ret && ret != -ENOENT) {
-			dev_err(dev, "Failed to get clock by name (ret=%d)\n", ret);
-			goto fail;
-		}
-		ret = clk_enable(&clk);
-		if (ret) {
-			dev_err(dev, "Failed to enable clock (ret=%d)\n", ret);
-			goto fail;
-		}
-	}
-
-	/*
-	 * configure CMN clock for ethernet
-	 */
+	/* Step 3: Configure CMN clock */
 	ipq_config_cmn_clock();
 
 	if (priv->uniphy_50mhz)
@@ -4818,8 +4983,14 @@ static int ipq_eth_probe(struct udevice *dev)
 
 		port->dev = dev;
 
-		port->uniphy_base = priv->uniphy_base +
-					(port->uniphy_id * priv->uniphy_size);
+		/* Only set uniphy_base if uniphy_id is valid */
+		if (port->uniphy_id != 0xFF && port->uniphy_id < CONFIG_ETH_MAX_UNIPHY)
+			port->uniphy_base = priv->uniphy_base +
+						(port->uniphy_id * priv->uniphy_size);
+		else {
+			port->uniphy_mode = PORT_WRAPPER_NA;
+			port->cur_uniphy_mode = PORT_WRAPPER_NA;
+		}
 
 #ifdef CONFIG_MDIO_QCOM_I2C
 		if (port->i2c_bus) {
@@ -4933,19 +5104,28 @@ static int ipq_eth_probe(struct udevice *dev)
 		 */
 		if (port->phy_id == QCA8x8x_PHY_TYPE ||
 			port->phy_id == QCE1204_PHY_TYPE) {
+			/* Default UNIPHY to UQXGMII for MHT PHY pre-init */
 			port->uniphy_mode = PORT_WRAPPER_UQXGMII;
 			port->cur_uniphy_mode = PORT_WRAPPER_UQXGMII;
-			port->gmac_type = XGMAC;
-			port->cur_gmac_type = XGMAC;
 
+			/* Select MAC type once and mirror to current */
+			port->gmac_type = port->xgmac ? XGMAC : GMAC;
+			port->cur_gmac_type = port->gmac_type;
+
+			/* Pre-init UNIPHY only for first PHY instance */
 			if (phy_no == 0)
 				ppe_uniphy_mode_set(port);
 
+			/* Program port mux once after mode/type selection */
 			ppe_port_mux_set(priv->ppe.base, port);
 			++phy_no;
 		} else if (port->phy_id == QCA8x8x_SWITCH_TYPE) {
 			port->uniphy_mode = PORT_WRAPPER_SGMII_PLUS;
 			port->cur_uniphy_mode = PORT_WRAPPER_SGMII_PLUS;
+			ppe_uniphy_mode_set(port);
+		} else if (port->phy_id == QCE2204_SWITCH_TYPE) {
+			port->uniphy_mode = PORT_WRAPPER_10GBASE_R;
+			port->cur_uniphy_mode = PORT_WRAPPER_10GBASE_R;
 			ppe_uniphy_mode_set(port);
 		}
 #endif
@@ -5243,73 +5423,59 @@ static int ipq_get_clock_with_fallback(struct udevice *dev,
  */
 static void ipq_port_clock_init(struct udevice *dev, struct port_info *port)
 {
-	bool mp;
+	const char *rx_fmt1, *rx_fmt2, *rx_fmt3;
+	const char *tx_fmt1, *tx_fmt2, *tx_fmt3;
+	bool has_uniphy = (port->uniphy_id != 0xFF);
+	bool multi_path = has_uniphy &&
+			  (((port->id == 4) && (port->uniphy_id == 1)) ||
+			   ((port->id == 5) && (port->uniphy_id == 0)));
 
-	/*
-	 * Determine if this port requires special clock naming:
-	 * - port 4 with uniphy != 0
-	 * - port 5 with uniphy == 0
-	 */
-	if ((port->id == 4) && port->uniphy_id != 0)
-		mp = true;
-	else if ((port->id == 5) && port->uniphy_id == 0)
-		mp = true;
-	else
-		mp = false;
-
-	/*
-	 * For special cases, use three-level fallback:
-	 * 1. nss_port{id}_uniphy{uniphy_id}_{rx|tx}_clk
-	 * 2. nss_port{id}_{rx|tx}_clk
-	 * 3. nss_cc_port{id}_{rx|tx}_clk
-	 *
-	 * For normal cases, use two-level fallback (fmt3 = NULL):
-	 * 1. nss_port{id}_{rx|tx}_clk
-	 * 2. nss_cc_port{id}_{rx|tx}_clk
-	 */
-	if (mp) {
-		/* Initialize RX rate clock with three-level fallback */
-		ipq_get_clock_with_fallback(dev, "nss_port%d_uniphy%d_rx_clk",
-					     "nss_port%d_rx_clk",
-					     "nss_cc_port%d_rx_clk",
-					     &port->rx_clk_rate, "RX rate clock",
-					     port->id, port->uniphy_id);
-
-		/* Initialize TX rate clock with three-level fallback */
-		ipq_get_clock_with_fallback(dev, "nss_port%d_uniphy%d_tx_clk",
-					     "nss_port%d_tx_clk",
-					     "nss_cc_port%d_tx_clk",
-					     &port->tx_clk_rate, "TX rate clock",
-					     port->id, port->uniphy_id);
+	/* Determine rate clock naming based on port configuration */
+	if (multi_path) {
+		/* Three-level fallback for special multi-path ports */
+		rx_fmt1 = "nss_port%d_uniphy%d_rx_clk";
+		rx_fmt2 = "nss_port%d_rx_clk";
+		rx_fmt3 = "nss_cc_port%d_rx_clk";
+		tx_fmt1 = "nss_port%d_uniphy%d_tx_clk";
+		tx_fmt2 = "nss_port%d_tx_clk";
+		tx_fmt3 = "nss_cc_port%d_tx_clk";
 	} else {
-		/* Initialize RX rate clock with two-level fallback */
-		ipq_get_clock_with_fallback(dev, "nss_port%d_rx_clk",
-					     "nss_cc_port%d_rx_clk",
-					     NULL,
-					     &port->rx_clk_rate, "RX rate clock",
-					     port->id, port->uniphy_id);
-
-		/* Initialize TX rate clock with two-level fallback */
-		ipq_get_clock_with_fallback(dev, "nss_port%d_tx_clk",
-					     "nss_cc_port%d_tx_clk",
-					     NULL,
-					     &port->tx_clk_rate, "TX rate clock",
-					     port->id, port->uniphy_id);
+		/* Two-level fallback for normal ports */
+		rx_fmt1 = "nss_port%d_rx_clk";
+		rx_fmt2 = "nss_cc_port%d_rx_clk";
+		rx_fmt3 = NULL;
+		tx_fmt1 = "nss_port%d_tx_clk";
+		tx_fmt2 = "nss_cc_port%d_tx_clk";
+		tx_fmt3 = NULL;
 	}
 
-	/* Initialize RX enable clock */
-	ipq_get_clock_with_fallback(dev, "uniphy%d_port%d_rx_clk",
-				     "nss_cc_uniphy_port%d_rx_clk",
-				     NULL,
-				     &port->rx_clk, "RX enable clock",
+	/* Initialize rate clocks (always present) */
+	ipq_get_clock_with_fallback(dev, rx_fmt1, rx_fmt2, rx_fmt3,
+				     &port->rx_clk_rate, "RX rate clock",
 				     port->id, port->uniphy_id);
 
-	/* Initialize TX enable clock */
-	ipq_get_clock_with_fallback(dev, "uniphy%d_port%d_tx_clk",
-				     "nss_cc_uniphy_port%d_tx_clk",
-				     NULL,
-				     &port->tx_clk, "TX enable clock",
+	ipq_get_clock_with_fallback(dev, tx_fmt1, tx_fmt2, tx_fmt3,
+				     &port->tx_clk_rate, "TX rate clock",
 				     port->id, port->uniphy_id);
+
+	/* Initialize enable clocks (only for ports with uniphy) */
+	if (has_uniphy) {
+		ipq_get_clock_with_fallback(dev, "uniphy%d_port%d_rx_clk",
+					     "nss_cc_uniphy_port%d_rx_clk",
+					     NULL,
+					     &port->rx_clk, "RX enable clock",
+					     port->id, port->uniphy_id);
+
+		ipq_get_clock_with_fallback(dev, "uniphy%d_port%d_tx_clk",
+					     "nss_cc_uniphy_port%d_tx_clk",
+					     NULL,
+					     &port->tx_clk, "TX enable clock",
+					     port->id, port->uniphy_id);
+	} else {
+		/* No uniphy: set enable clocks to NULL */
+		port->rx_clk.dev = NULL;
+		port->tx_clk.dev = NULL;
+	}
 }
 
 /*
@@ -5393,6 +5559,9 @@ static int ipq_eth_ofdata_to_platdata(struct udevice *dev)
 
 			memset(port, 0, sizeof(struct port_info));
 
+			port->cur_uniphy_mode = -1;
+			port->cur_speed = -1;
+			port->cur_gmac_type = -1;
 			port->uniphy_id = uniphy_id;
 			port->node = phandle_args.node;
 			port->pnode = ofnode_get_parent(phandle_args.node);
