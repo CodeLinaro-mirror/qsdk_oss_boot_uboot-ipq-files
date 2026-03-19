@@ -193,7 +193,21 @@ static struct mm_region ipq_spl_mem_map[] = {
 		.attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) |
 			 PTE_BLOCK_INNER_SHARE |
 			 PTE_BLOCK_PXN | PTE_BLOCK_UXN
-	}, {
+	},
+#ifdef CONFIG_SPL_DDR2_MEM_BASE
+       {
+               /*
+                * DDR 2 Region
+                */
+               .virt = IPQ_SPL_DDR2_MEM_BASE,
+               .phys = IPQ_SPL_DDR2_MEM_BASE,
+               .size = IPQ_SPL_DDR2_MEM_SIZE,
+               .attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) |
+                        PTE_BLOCK_INNER_SHARE |
+                        PTE_BLOCK_PXN | PTE_BLOCK_UXN
+       },
+#endif
+	{
 		/*
 		 * SPL Text Region
 		 */

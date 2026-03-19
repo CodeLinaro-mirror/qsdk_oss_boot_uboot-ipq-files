@@ -51,6 +51,17 @@ config SPL_TEXT_SIZE
 	help
 	  This option defines the size of the u-boot SPL text in SRAM region.
 
+config SPL_DDR2_MEM_BASE
+       bool "Enable DDR2 memory region for SPL"
+       depends on SPL
+       default n
+       help
+         This option enables a second DDR memory region in the SPL memory map.
+         When enabled, the SPL will configure MMU mappings for an additional
+         DDR region at a higher address space (0x800000000). This is useful
+         for platforms with extended memory configurations that require
+         access to memory beyond the primary DDR region.
+
 config ARCH_32BIT_SUPPORT
 	bool "IPQSOC 32-bit support"
 	select CPU_V7A
@@ -635,6 +646,17 @@ config IPQ_TMEL_IPC_SUPPORT
 	select QCOM_TMEL_QMP
 	select QCOM_TMELCOM
 	default n
+
+config IPQ_LCP_DARE
+       bool "Enable LCP DARE Key Support"
+       depends on IPQ_TMEL_PRNG_IPC_SUPPORT
+       default n
+       help
+         Enable support for retrieving LCP-DARE keys via TMEL IPC.
+         This feature allows the bootloader to obtain encryption keys for
+         LCP DARE operations during the boot process. The keys are stored
+         in the QCLib interface table for use by subsequent boot stages.
+
 
 config IPQ_TMEL_PRNG_IPC_SUPPORT
 	bool "Enable TMEL PRNG IPC Support"
