@@ -102,7 +102,7 @@ ulong nor_bwrite(struct udevice *dev, lbaint_t start, lbaint_t blkcnt,
 			if (lblkcnt < tempcnt)
 				tempcnt = lblkcnt;
 		} else {
-			if (lblkcnt > totalblkcnt) {
+			if (lblkcnt >= totalblkcnt) {
 				offset = startoffset;
 				tempcnt = totalblkcnt;
 			} else {
