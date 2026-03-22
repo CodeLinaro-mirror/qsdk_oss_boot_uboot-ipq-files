@@ -181,6 +181,22 @@ const u8 clk_alpha_pll_regs[][PLL_OFF_MAX_REGS] = {
 		[PLL_OFF_TEST_CTL_U1] = 0x34,
 		[PLL_OFF_TEST_CTL_U2] = 0x38,
 	},
+	[CLK_ALPHA_PLL_TYPE_LUCID_FAST_N6RF] = {
+		[PLL_OFF_L_VAL] = 0x04,
+		[PLL_OFF_CAL_L_VAL] = 0x08,
+		[PLL_OFF_USER_CTL] = 0x0c,
+		[PLL_OFF_USER_CTL_U] = 0x10,
+		[PLL_OFF_USER_CTL_U1] = 0x14,
+		[PLL_OFF_CONFIG_CTL] = 0x18,
+		[PLL_OFF_CONFIG_CTL_U] = 0x1c,
+		[PLL_OFF_CONFIG_CTL_U1] = 0x20,
+		[PLL_OFF_TEST_CTL] = 0x24,
+		[PLL_OFF_TEST_CTL_U] = 0x28,
+		[PLL_OFF_TEST_CTL_U1] = 0x2c,
+		[PLL_OFF_STATUS] = 0x30,
+		[PLL_OFF_OPMODE] = 0x38,
+		[PLL_OFF_ALPHA_VAL] = 0x40,
+	},
 	[CLK_ALPHA_PLL_TYPE_RIVIAN_EVO] = {
 		[PLL_OFF_OPMODE] = 0x04,
 		[PLL_OFF_STATUS] = 0x0c,
@@ -312,6 +328,19 @@ const u8 clk_alpha_pll_regs[][PLL_OFF_MAX_REGS] = {
 #define LUCID_EVO_ENABLE_VOTE_RUN	BIT(25)
 #define LUCID_EVO_PLL_L_VAL_MASK	GENMASK(15, 0)
 #define LUCID_EVO_PLL_CAL_L_VAL_SHIFT	16
+
+/*
+ * LUCID FAST N6RF PLL specific settings and offsets
+ */
+#define LUCID_FASTN6RF_PLL_CAL_L_VAL		0x37
+#define LUCID_FASTN6RF_POST_DIV_EVEN_MASK	GENMASK(11, 8)
+#define LUCID_FASTN6RF_POST_DIV_EVEN_SHIFT	8
+#define LUCID_FASTN6RF_POST_DIV_ODD_MASK	GENMASK(15, 12)
+#define LUCID_FASTN6RF_POST_DIV_ODD_SHIFT	12
+#define LUCID_FASTN6RF_PRE_DIV_MASK		GENMASK(18, 16)
+#define LUCID_FASTN6RF_PRE_DIV_SHIFT		16
+#define LUCID_FASTN6RF_FRAC_FORMAT_SEL		BIT(15)
+#define LUCID_FASTN6RF_FSM_LEGACY_MODE		BIT(24)
 
 /*
  * ZONDA PLL specific
@@ -476,6 +505,15 @@ static void clk_huayra_pll_set_fsm_mode(struct clk_alpha_pll *pll)
 	qcom_pll_set_fsm_mode(PLL_MODE(pll), 8, 0);
 }
 
+static void clk_lucid_fastn6rf_pll_set_fsm_mode(struct clk_alpha_pll *pll)
+{
+	/**
+	 * Place holder for Lucid fastn6rf FSM mode
+	 * TODO: need FSM bias and lock count
+	 */
+	//qcom_pll_set_fsm_mode(PLL_MODE(pll), 6, 0);
+}
+
 /**
  * clk_alpha_pll_regsettings() - Apply PLL register settings
  * @pll: pointer to struct clk_alpha_pll
@@ -549,7 +587,7 @@ static void clk_huayra_pll_regsettings(struct clk_alpha_pll *pll,
 			   config->user_ctl_val, config->user_ctl_val);
 }
 
-static void clk_huayra_v2_pll_regsettings(struct clk_alpha_pll *pll,
+static void clk_zonda_pll_regsettings(struct clk_alpha_pll *pll,
 					  const struct alpha_pll_config *config)
 {
 	if (!pll || !config) {
@@ -588,6 +626,50 @@ static void clk_huayra_v2_pll_regsettings(struct clk_alpha_pll *pll,
 			   config->user_ctl_val, config->user_ctl_val);
 }
 
+static void
+clk_lucid_fastn6rf_pll_regsettings(struct clk_alpha_pll *pll,
+					const struct alpha_pll_config *config
+)
+{
+	if (!pll || !config) {
+		pr_err("pll regsettings: invalid arguments\n");
+		return;
+	}
+
+	/*
+	 * Write the config ctl config
+	 */
+	clk_alpha_pll_write_config(PLL_CONFIG_CTL(pll),
+					config->config_ctl_val);
+
+	clk_alpha_pll_write_config(PLL_CONFIG_CTL_U(pll),
+					config->config_ctl_hi_val);
+
+	clk_alpha_pll_write_config(PLL_CONFIG_CTL_U1(pll),
+					config->config_ctl_hi1_val);
+
+	/*
+	 * Write the test ctl config
+	 */
+	clk_alpha_pll_write_config(PLL_TEST_CTL(pll),
+					config->test_ctl_val);
+
+	clk_alpha_pll_write_config(PLL_TEST_CTL_U(pll),
+					config->test_ctl_hi_val);
+
+	clk_alpha_pll_write_config(PLL_TEST_CTL_U1(pll),
+					config->test_ctl_hi1_val);
+
+	/* Update the user ctl config,
+	 * since the PLL out may be configured previously
+	 */
+	clkreg_update_bits(PLL_USER_CTL(pll),
+			   config->user_ctl_val, config->user_ctl_val);
+
+	clkreg_update_bits(PLL_USER_CTL_U(pll),
+			   config->user_ctl_hi_val, config->user_ctl_hi_val);
+}
+
 /**
  * pll_is_enabled - Check if PLL is enabled
  * @pll: Pointer to struct clk_alpha_pll
@@ -613,6 +695,11 @@ static int clk_alpha_pll_is_enabled(struct clk_alpha_pll *pll)
 {
 	return pll_is_enabled(pll, PLL_OUTCTRL | PLL_BYPASSNL | PLL_RESET_N) ||
 		pll_is_enabled(pll, PLL_LOCK_DET);
+}
+
+static int clk_lucid_fastn6rf_pll_is_enabled(struct clk_alpha_pll *pll)
+{
+	return pll_is_enabled(pll, PLL_LOCK_DET | PLL_RESET_N);
 }
 
 /**
@@ -642,11 +729,39 @@ void clk_alpha_pll_prepare(struct clk_alpha_pll *pll,
 	val |= config->aux_output_mask;
 	val |= config->aux2_output_mask;
 	val |= config->early_output_mask;
+	val |= config->test_output_mask;
 
 	mask = config->main_output_mask;
 	mask |= config->aux_output_mask;
 	mask |= config->aux2_output_mask;
 	mask |= config->early_output_mask;
+	mask |= config->test_output_mask;
+
+	clkreg_update_bits(PLL_USER_CTL(pll), mask, val);
+}
+
+void clk_lucid_fastn6rf_pll_prepare(struct clk_alpha_pll *pll,
+					const struct alpha_pll_config *config)
+{
+	u32 val, mask;
+
+	if (!pll || !config) {
+		pr_err("pll prepare: invalid arguments\n");
+		return;
+	}
+
+	/*
+	 * Enable any outputs for this PLL
+	 */
+	val = config->main_output_mask;
+	val |= config->even_output_mask;
+	val |= config->odd_output_mask;
+	val |= config->test_output_mask;
+
+	mask = config->main_output_mask;
+	mask |= config->even_output_mask;
+	mask |= config->odd_output_mask;
+	mask |= config->test_output_mask;
 
 	clkreg_update_bits(PLL_USER_CTL(pll), mask, val);
 }
@@ -723,10 +838,57 @@ static void clk_huayra_v2_pll_configure(struct clk_alpha_pll *pll,
 	/*
 	 * Set register settings
 	 */
-	clk_huayra_v2_pll_regsettings(pll, config);
+	clk_zonda_pll_regsettings(pll, config);
 
 	if (pll->flags & SUPPORTS_FSM_MODE)
 		clk_huayra_pll_set_fsm_mode(pll);
+}
+
+static void
+clk_lucid_fastn6rf_pll_configure(struct clk_alpha_pll *pll,
+				 const struct alpha_pll_config *config)
+{
+	if (!pll || !config) {
+		pr_err("pll configure: invalid arguments\n");
+		return;
+	}
+
+	/*
+	 * Skip, if already enabled
+	 */
+	if (clk_lucid_fastn6rf_pll_is_enabled(pll))
+		return;
+
+	/*
+	 * Set register settings
+	 */
+	clk_lucid_fastn6rf_pll_regsettings(pll, config);
+
+	if (pll->flags & SUPPORTS_FSM_MODE)
+		clk_lucid_fastn6rf_pll_set_fsm_mode(pll);
+}
+
+static void clk_zonda_pll_configure(struct clk_alpha_pll *pll,
+					const struct alpha_pll_config *config)
+{
+	if (!pll || !config) {
+		pr_err("pll configure: invalid arguments\n");
+		return;
+	}
+
+	/*
+	 * Skip, if already enabled
+	 */
+	if (clk_alpha_pll_is_enabled(pll))
+		return;
+
+	/*
+	 * Set register settings
+	 */
+	clk_zonda_pll_regsettings(pll, config);
+
+	if (pll->flags & SUPPORTS_FSM_MODE)
+		clk_alpha_pll_set_fsm_mode(pll);
 }
 
 /**
@@ -770,6 +932,47 @@ static void clk_alpha_pll_disable(struct clk_alpha_pll *pll)
 
 	mask = PLL_RESET_N | PLL_BYPASSNL;
 	clkreg_update_bits(PLL_MODE(pll), mask, 0);
+}
+
+static void clk_lucid_fastn6rf_pll_disable(struct clk_alpha_pll *pll)
+{
+	bool is_pll_fsm_mode;
+
+	if (!pll) {
+		pr_err("pll disable: invalid arguments\n");
+		return;
+	}
+
+	/*
+	 * If in FSM mode, just unvote it
+	 */
+	is_pll_fsm_mode = pll_is_enabled(pll, PLL_VOTE_FSM_ENA);
+	if (is_pll_fsm_mode) {
+		if (pll->vote_addr)
+			clkreg_update_bits(pll->vote_addr, pll->vote_mask, 0);
+
+		return;
+	}
+
+	/*
+	 * Disable the global PLL output
+	 */
+	clkreg_update_bits(PLL_MODE(pll), PLL_OUTCTRL, 0);
+
+	/*
+	 * Disable the PLL outputs
+	 */
+	clkreg_update_bits(PLL_USER_CTL(pll), PLL_OUT_MASK, 0);
+
+	/*
+	 * Set the PLL mode in STANDBY
+	 */
+	clkreg_update_bits(PLL_OPMODE(pll), PLL_STANDBY, PLL_STANDBY);
+
+	/*
+	 * De-assert the PLL reset
+	 */
+	clkreg_update_bits(PLL_MODE(pll), PLL_RESET_N, 0);
 }
 
 /**
@@ -865,6 +1068,158 @@ static int clk_huayra_pll_enable(struct clk_alpha_pll *pll)
 	clkreg_update_bits(PLL_MODE(pll), PLL_RESET_N, PLL_RESET_N);
 
 	ret = wait_for_pll_enable_lock(pll);
+	if (ret)
+		return ret;
+
+	clkreg_update_bits(PLL_MODE(pll), PLL_OUTCTRL, PLL_OUTCTRL);
+
+	/*
+	 * Ensure that the write above goes through before returning.
+	 */
+	mb();
+
+	return 0;
+}
+
+static int clk_lucid_fastn6rf_pll_enable(struct clk_alpha_pll *pll)
+{
+	int ret;
+
+	if (!pll) {
+		pr_err("pll enable: invalid arguments\n");
+		return -EINVAL;
+	}
+
+	/*
+	 * If in FSM mode, just vote for it
+	 */
+	if (pll_is_enabled(pll, PLL_VOTE_FSM_ENA)) {
+		if (!pll->vote_addr)
+			return 0;
+
+		clkreg_update_bits(pll->vote_addr,
+					pll->vote_mask, pll->vote_mask);
+
+		return wait_for_pll_enable_active(pll);
+	}
+
+	/**
+	 * When 0, VOTE_FSM will put the PLL in STANDBY state,
+	 * when there is no vote.
+	 *
+	 * When 1, VOTE_FSM will out the PLL in OFF state,
+	 * when there is no vote.
+	 */
+	clkreg_update_bits(PLL_MODE(pll),
+				LUCID_FASTN6RF_FSM_LEGACY_MODE,
+				LUCID_FASTN6RF_FSM_LEGACY_MODE);
+
+	clkreg_update_bits(PLL_OPMODE(pll), PLL_STANDBY, PLL_STANDBY);
+
+	clkreg_update_bits(PLL_MODE(pll), PLL_RESET_N, PLL_RESET_N);
+
+	clkreg_update_bits(PLL_OPMODE(pll), PLL_RUN, PLL_RUN);
+
+	ret = wait_for_pll_enable_lock(pll);
+	if (ret)
+		return ret;
+
+	clkreg_update_bits(PLL_MODE(pll), PLL_OUTCTRL, PLL_OUTCTRL);
+
+	/*
+	 * Ensure that the write above goes through before returning.
+	 */
+	mb();
+
+	return 0;
+}
+
+static int clk_zonda_pll_enable(struct clk_alpha_pll *pll)
+{
+	int ret;
+	u32 i, val;
+
+	if (!pll) {
+		pr_err("pll enable: invalid arguments\n");
+		return -EINVAL;
+	}
+
+	/*
+	 * If in FSM mode, just vote for it
+	 */
+	if (pll_is_enabled(pll, PLL_VOTE_FSM_ENA)) {
+		if (!pll->vote_addr)
+			return 0;
+
+		clkreg_update_bits(pll->vote_addr,
+					pll->vote_mask, pll->vote_mask);
+
+		return wait_for_pll_enable_active(pll);
+	}
+
+	clkreg_update_bits(PLL_MODE(pll), PLL_BYPASSNL, PLL_BYPASSNL);
+
+	/*
+	 * H/W requires a 5us delay between disabling the bypass and
+	 * de-asserting the reset.
+	 */
+	mb();
+	udelay(5);
+
+	clkreg_update_bits(PLL_MODE(pll), PLL_RESET_N, PLL_RESET_N);
+
+	/*
+	 * Memory barrier
+	 */
+	mb();
+	udelay(50);
+
+	clkreg_update_bits(PLL_OPMODE(pll), PLL_RUN, PLL_RUN);
+
+	val = readl(PLL_TEST_CTL(pll));
+
+	/*
+	 * If cfa mode then poll for freq lock
+	 */
+	if (val & ZONDA_STAY_IN_CFA)
+		ret = wait_for_zonda_pll_freq_lock(pll);
+	else {
+		/**
+		 * V1 Workaround for HW issue locking the PLL
+		 * in less than 500us.
+		 *
+		 * Wait for prescribed time 500us before checking
+		 * if the PLL is locked.
+		 *
+		 * Timeout after 5 tries.
+		 */
+		for (i = 0; i < 5; i++) {
+			udelay(500);
+
+			ret = wait_for_pll_enable_lock(pll);
+			if (!ret)
+				break;
+
+			/**
+			 * Reset the OPMODE to try again.
+			 */
+			clkreg_update_bits(PLL_OPMODE(pll),
+						PLL_STANDBY,
+						PLL_STANDBY);
+			/*
+			 * Memory barrier
+			 */
+			mb();
+			udelay(50);
+
+			clkreg_update_bits(PLL_OPMODE(pll), PLL_RUN, PLL_RUN);
+			/*
+			 * Memory barrier
+			 */
+			mb();
+		}
+	}
+
 	if (ret)
 		return ret;
 
@@ -1109,6 +1464,243 @@ static int clk_huayra_pll_set_rate(struct clk_alpha_pll *pll,
 	return 0;
 }
 
+static const struct clk_div_table clk_lucid_fastn6rf_post_div_odd_table[] = {
+	{ 0x0, 1 },
+	{ 0x1, 3 },
+	{ 0x3, 5 },
+	{ 0x7, 7 },
+	{ }
+};
+
+static const struct clk_div_table clk_lucid_fastn6rf_post_div_even_table[] = {
+	{ 0x0, 1 },
+	{ 0x1, 2 },
+	{ 0x3, 4 },
+	{ 0x7, 8 },
+	{ }
+};
+
+static const struct clk_div_table clk_lucid_fastn6rf_pre_div_table[] = {
+	{ 0x0, 1 },
+	{ 0x1, 2 },
+	{ 0x3, 4 },
+	{ }
+};
+
+static int
+clk_lucid_fastn6rf_pll_set_rate(struct clk_alpha_pll *pll,
+				const struct alpha_pll_config *config,
+				unsigned long rate,
+				unsigned long prate)
+{
+	u32 i, mask, val, div_table_sz;
+	const struct clk_div_table *clk_div_table;
+
+	if (!pll || !config) {
+		pr_err("pll set rate: invalid arguments\n");
+		return -EINVAL;
+	}
+
+	/*
+	 * Disable the PLL
+	 */
+	if (clk_lucid_fastn6rf_pll_is_enabled(pll))
+		clk_lucid_fastn6rf_pll_disable(pll);
+
+	/*
+	 * Disable FSM Mode
+	 */
+	if (pll_is_enabled(pll, PLL_VOTE_FSM_ENA))
+		clkreg_update_bits(PLL_MODE(pll), PLL_VOTE_FSM_ENA, 0);
+
+	/*
+	 * Program L/Alpha/AlphaU values
+	 */
+	clk_alpha_pll_write_config(PLL_L_VAL(pll), config->l);
+	clk_alpha_pll_write_config(PLL_CAL_L_VAL(pll),
+					LUCID_FASTN6RF_PLL_CAL_L_VAL);
+
+	clk_alpha_pll_write_config(PLL_ALPHA_VAL(pll), config->alpha);
+
+	/*
+	 * Configure Post div odd
+	 */
+	clk_div_table = clk_lucid_fastn6rf_post_div_odd_table;
+	div_table_sz = ARRAY_SIZE(clk_lucid_fastn6rf_post_div_odd_table);
+	val = 0;
+	for (i = 0; i < div_table_sz; i++) {
+		if (clk_div_table[i].div == config->post_div_odd_val) {
+			val = clk_div_table[i].val;
+			break;
+		}
+	}
+	val <<= LUCID_FASTN6RF_POST_DIV_ODD_SHIFT;
+	mask = LUCID_FASTN6RF_POST_DIV_ODD_MASK;
+	clkreg_update_bits(PLL_USER_CTL(pll), mask, val);
+
+	/*
+	 * Configure Post div even
+	 */
+	clk_div_table = clk_lucid_fastn6rf_post_div_even_table;
+	div_table_sz = ARRAY_SIZE(clk_lucid_fastn6rf_post_div_even_table);
+	val = 0;
+	for (i = 0; i < div_table_sz; i++) {
+		if (clk_div_table[i].div == config->post_div_even_val) {
+			val = clk_div_table[i].val;
+			break;
+		}
+	}
+	val <<= LUCID_FASTN6RF_POST_DIV_EVEN_SHIFT;
+	mask = LUCID_FASTN6RF_POST_DIV_EVEN_MASK;
+	clkreg_update_bits(PLL_USER_CTL(pll), mask, val);
+
+	/*
+	 * Configure pre div
+	 */
+	clk_div_table = clk_lucid_fastn6rf_pre_div_table;
+	div_table_sz = ARRAY_SIZE(clk_lucid_fastn6rf_pre_div_table);
+	val = 0;
+	for (i = 0; i < div_table_sz; i++) {
+		if (clk_div_table[i].div == config->pre_div_val) {
+			val = clk_div_table[i].val;
+			break;
+		}
+	}
+	val <<= LUCID_FASTN6RF_PRE_DIV_SHIFT;
+	mask = LUCID_FASTN6RF_PRE_DIV_MASK;
+	clkreg_update_bits(PLL_USER_CTL(pll), mask, val);
+
+	if (config->alpha)
+		clkreg_update_bits(PLL_USER_CTL_U(pll),
+				   LUCID_FASTN6RF_FRAC_FORMAT_SEL,
+				   0);
+	else
+		clkreg_update_bits(PLL_USER_CTL_U(pll),
+				   LUCID_FASTN6RF_FRAC_FORMAT_SEL,
+				   LUCID_FASTN6RF_FRAC_FORMAT_SEL);
+
+	/*
+	 * Configure in FSM Mode if supported
+	 */
+	if (pll->flags & SUPPORTS_FSM_MODE) {
+		/*
+		 * Assert reset to FSM
+		 */
+		clkreg_update_bits(PLL_MODE(pll),
+					PLL_VOTE_FSM_RESET,
+					PLL_VOTE_FSM_RESET);
+
+		clk_lucid_fastn6rf_pll_set_fsm_mode(pll);
+
+		/*
+		 * De-assert reset to FSM
+		 */
+		clkreg_update_bits(PLL_MODE(pll), PLL_VOTE_FSM_RESET, 0);
+	}
+
+	return 0;
+}
+
+static const struct clk_div_table clk_zonda_post_div_table[] = {
+	{ 0x0, 1 },
+	{ 0x1, 2 },
+	{ 0x2, 4 },
+	{ 0x3, 8 },
+	{ }
+};
+
+static const struct clk_div_table clk_zonda_pre_div_table[] = {
+	{ 0x0, 1 },
+	{ 0x1, 2 },
+	{ }
+};
+
+static int clk_zonda_pll_set_rate(struct clk_alpha_pll *pll,
+				  const struct alpha_pll_config *config,
+				  unsigned long rate,
+				  unsigned long prate)
+{
+	u32 i, mask, val;
+
+	if (!pll || !config) {
+		pr_err("pll set rate: invalid arguments\n");
+		return -EINVAL;
+	}
+
+	/*
+	 * Disable the PLL
+	 */
+	if (clk_alpha_pll_is_enabled(pll))
+		clk_alpha_pll_disable(pll);
+
+	/*
+	 * Disable FSM Mode
+	 */
+	if (pll_is_enabled(pll, PLL_VOTE_FSM_ENA))
+		clkreg_update_bits(PLL_MODE(pll), PLL_VOTE_FSM_ENA, 0);
+
+	/*
+	 * Program L/Alpha/AlphaU values
+	 */
+	clk_alpha_pll_write_config(PLL_L_VAL(pll), config->l);
+	clk_alpha_pll_write_config(PLL_ALPHA_VAL(pll), config->alpha);
+
+	/*
+	 * Configure Post div
+	 */
+	val = 0;
+	for (i = 0; i < ARRAY_SIZE(clk_zonda_post_div_table); i++) {
+		if (clk_zonda_post_div_table[i].div == config->post_div_val) {
+			val = clk_zonda_post_div_table[i].val;
+			break;
+		}
+	}
+	mask = val << PLL_POST_DIV_SHIFT;
+	clkreg_update_bits(PLL_USER_CTL(pll), mask, mask);
+
+	/*
+	 * Configure pre div
+	 */
+	val = 0;
+	for (i = 0; i < ARRAY_SIZE(clk_zonda_pre_div_table); i++) {
+		if (clk_zonda_pre_div_table[i].div == config->pre_div_val) {
+			val = clk_zonda_pre_div_table[i].val;
+			break;
+		}
+	}
+	mask = val << PLL_PRE_DIV_SHIFT;
+	clkreg_update_bits(PLL_USER_CTL(pll), mask, mask);
+
+	if (config->alpha) {
+		clkreg_update_bits(PLL_USER_CTL(pll),
+				   PLL_ALPHA_EN, PLL_ALPHA_EN);
+
+		clkreg_update_bits(PLL_USER_CTL(pll),
+				   PLL_ALPHA_MODE, PLL_ALPHA_MODE);
+	}
+
+	/*
+	 * Configure in FSM Mode if supported
+	 */
+	if (pll->flags & SUPPORTS_FSM_MODE) {
+		/*
+		 * Assert reset to FSM
+		 */
+		clkreg_update_bits(PLL_MODE(pll),
+					PLL_VOTE_FSM_RESET,
+					PLL_VOTE_FSM_RESET);
+
+		clk_alpha_pll_set_fsm_mode(pll);
+
+		/*
+		 * De-assert reset to FSM
+		 */
+		clkreg_update_bits(PLL_MODE(pll), PLL_VOTE_FSM_RESET, 0);
+	}
+
+	return 0;
+}
+
 /**
  * clk_alpha_pll_ops - operations for alpha pll
  * @enable: enable the pll
@@ -1144,6 +1736,24 @@ const struct alpha_pll_ops clk_alpha_pll_huayra_v2_ops = {
 	.configure = clk_huayra_v2_pll_configure,
 };
 
+const struct alpha_pll_ops clk_alpha_pll_lucid_fastn6rf_ops = {
+	.enable = clk_lucid_fastn6rf_pll_enable,
+	.disable = clk_lucid_fastn6rf_pll_disable,
+	.is_enabled = clk_lucid_fastn6rf_pll_is_enabled,
+	.set_rate = clk_lucid_fastn6rf_pll_set_rate,
+	.prepare = clk_lucid_fastn6rf_pll_prepare,
+	.configure = clk_lucid_fastn6rf_pll_configure,
+};
+
+const struct alpha_pll_ops clk_alpha_pll_zonda_ops = {
+	.enable = clk_zonda_pll_enable,
+	.disable = clk_alpha_pll_disable,
+	.is_enabled = clk_alpha_pll_is_enabled,
+	.set_rate = clk_zonda_pll_set_rate,
+	.prepare = clk_alpha_pll_prepare,
+	.configure = clk_zonda_pll_configure,
+};
+
 /**
  * List of Target specific PLL offsets
  */
@@ -1169,18 +1779,6 @@ static const u8 ipq5424_pll_offsets[][PLL_OFF_MAX_REGS] = {
 		[PLL_OFF_CONFIG_CTL_U] = 0x1c,
 		[PLL_OFF_STATUS] = 0x20,
 	},
-	[CLK_ALPHA_PLL_TYPE_HUAYRA_V2] =  {
-		[PLL_OFF_L_VAL] = 0x04,
-		[PLL_OFF_ALPHA_VAL] = 0x08,
-		[PLL_OFF_USER_CTL] = 0x0c,
-		[PLL_OFF_CONFIG_CTL] = 0x10,
-		[PLL_OFF_CONFIG_CTL_U] = 0x14,
-		[PLL_OFF_CONFIG_CTL_U1] = 0x18,
-		[PLL_OFF_TEST_CTL] = 0x1c,
-		[PLL_OFF_TEST_CTL_U] = 0x20,
-		[PLL_OFF_TEST_CTL_U1] = 0x24,
-		[PLL_OFF_STATUS] = 0x38,
-	},
 };
 
 /**
@@ -1199,11 +1797,11 @@ static struct clk_alpha_pll ipq5424_gpll4 = {
 };
 
 static struct clk_alpha_pll ipq5424_apss_pll = {
-	.regs = ipq5424_pll_offsets[CLK_ALPHA_PLL_TYPE_HUAYRA_V2],
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_ZONDA],
 };
 
 static struct clk_alpha_pll ipq5424_l3_pll = {
-	.regs = ipq5424_pll_offsets[CLK_ALPHA_PLL_TYPE_HUAYRA_V2],
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_ZONDA],
 };
 
 static struct clk_alpha_pll ipq5210_gpll0 = {
@@ -1216,6 +1814,18 @@ static struct clk_alpha_pll ipq5210_gpll2 = {
 
 static struct clk_alpha_pll ipq5210_gpll4 = {
 	.regs = ipq5424_pll_offsets[CLK_ALPHA_PLL_TYPE_DEFAULT],
+};
+
+static struct clk_alpha_pll ipq9650_gpll0 = {
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_LUCID_FAST_N6RF],
+};
+
+static struct clk_alpha_pll ipq9650_gpll2 = {
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_ZONDA],
+};
+
+static struct clk_alpha_pll ipq9650_gpll4 = {
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_LUCID_FAST_N6RF],
 };
 
 /**
@@ -1340,6 +1950,57 @@ static const struct alpha_pll_config ipq5210_gpll4_config = {
 	.main_output_mask = BIT(0),
 };
 
+static const struct alpha_pll_config ipq9650_gpll0_config = {
+	.alpha = 0x5555,
+	.l = 0x21,
+	.config_ctl_val = 0x20485699,
+	.config_ctl_hi_val = 0x00002261,
+	.config_ctl_hi1_val = 0xB2923BBC,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.test_ctl_hi1_val = 0x0,
+	.user_ctl_val = 0x1,
+	.user_ctl_hi_val = 0x805,
+	.user_ctl_hi1_val = 0x0,
+	.odd_output_mask = BIT(2),
+	.even_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+};
+
+static const struct alpha_pll_config ipq9650_gpll2_config = {
+	.alpha = 0x0,
+	.l = 0x30,
+	.config_ctl_val = 0x00208920,
+	.config_ctl_hi_val = 0x00000072,
+	.config_ctl_hi1_val = 0x0,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.test_ctl_hi1_val = 0x0,
+	.user_ctl_val = 0x8,
+	.early_output_mask = BIT(3),
+	.aux2_output_mask = BIT(2),
+	.aux_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+	.post_div_val = 0x2,
+};
+
+static const struct alpha_pll_config ipq9650_gpll4_config = {
+	.alpha = 0x0,
+	.l = 0x32,
+	.config_ctl_val = 0x20485699,
+	.config_ctl_hi_val = 0x00002261,
+	.config_ctl_hi1_val = 0xB2923BBC,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.test_ctl_hi1_val = 0x0,
+	.user_ctl_val = 0x1,
+	.user_ctl_hi_val = 0x805,
+	.user_ctl_hi1_val = 0x0,
+	.odd_output_mask = BIT(2),
+	.even_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+};
+
 /**
  * List of Target specific PLL descriptors
  */
@@ -1399,6 +2060,29 @@ static const struct clk_alpha_pll_desc ipq5210_plls[] = {
 	}
 };
 
+static const struct clk_alpha_pll_desc ipq9650_plls[] = {
+	{
+		.name = "gpll0",
+		.pll = &ipq9650_gpll0,
+		.pll_config = &ipq9650_gpll0_config,
+		.pll_ops = &clk_alpha_pll_lucid_fastn6rf_ops,
+	}, {
+		.name = "gpll2",
+		.pll = &ipq9650_gpll2,
+		.pll_config = &ipq9650_gpll2_config,
+		.pll_ops = &clk_alpha_pll_zonda_ops,
+	}, {
+		.name = "gpll4",
+		.pll = &ipq9650_gpll4,
+		.pll_config = &ipq9650_gpll4_config,
+		.pll_ops = &clk_alpha_pll_lucid_fastn6rf_ops,
+	}, {
+		/**
+		 * List Terminator
+		 */
+	}
+};
+
 /**
  * List of Target specific PLL table information
  */
@@ -1410,6 +2094,11 @@ const struct clk_alpha_pll_tbl ipq5424_pll_tbl = {
 const struct clk_alpha_pll_tbl ipq5210_pll_tbl = {
 	.pll_desc_base = ipq5210_plls,
 	.num_plls = ARRAY_SIZE(ipq5210_plls),
+};
+
+const struct clk_alpha_pll_tbl ipq9650_pll_tbl = {
+	.pll_desc_base = ipq9650_plls,
+	.num_plls = ARRAY_SIZE(ipq9650_plls),
 };
 
 /**
@@ -1613,6 +2302,9 @@ static const struct udevice_id ipq_clk_pll_of_match[] = {
 	}, {
 		.compatible = "qcom,ipq5210-clk-pll",
 		.data = (ulong)&ipq5210_pll_tbl
+	}, {
+		.compatible = "qcom,ipq9650-clk-pll",
+		.data = (ulong)&ipq9650_pll_tbl
 	}, {
 		/**
 		 * List Terminator
