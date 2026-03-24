@@ -214,6 +214,7 @@ config IPQ_NET
 
 config ETH_MAX_UNIPHY
 	int "Maximum number of uniphy available"
+	default 3 if TARGET_IPQ9650
 	default 2
 	help
 	  This gives the maximum number of uniphy available.
@@ -946,6 +947,13 @@ config TARGET_IPQ9650
 	imply IPQ_SECURE
 	imply SECURE_AUTH_V3 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
 	imply RUNTIME_SF_ENV_UPDATE if ENV_IS_IN_SPI_FLASH
+	imply IPQ_NET if !SPL
+	imply QCOM_NSS_SWITCH_V2 if !SPL
+	imply NSS_PPE_V4 if !SPL
+	imply PHY_QCA_81XX if !SPL
+	imply PHY_QCE_1204 if !SPL
+	imply PHY_QCE_2204 if !SPL
+	imply CLK_QCOM_NSSCC_QCE2204 if !SPL
 	help
 	  Support for IPQ9650 SoC.
 	  - Board Open Platform Specifications.
