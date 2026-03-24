@@ -142,6 +142,7 @@ struct pbl_shared_data {
 #define QCCONFIG			"qc_config"
 #define QCSDI				"qcsdi"
 #define QCDAREKEY			"qc_dare_key"
+#define QCUART				"qc_uart"
 
 /*
  * Image version table definitions
@@ -1829,6 +1830,22 @@ static int ipq_spl_xcfg_fixup(void *ctx)
 	pctx->if_tbl.if_table_entries[entry_idx].attributes = 0;
 	pctx->if_tbl.num_entries = entry_idx + 1;
 
+	/*
+	 * Add QCUART entry to the interface table.
+	 * address = 1 → UART enabled in QCLIB; address = 0 → disabled.
+	 */
+	entry_idx++;
+	memcpy(pctx->if_tbl.if_table_entries[entry_idx].entry_name,
+		QCUART,
+		strlen(QCUART));
+#if !defined(CONFIG_DISABLE_CONSOLE)
+	pctx->if_tbl.if_table_entries[entry_idx].address = 0x1;
+#else
+	pctx->if_tbl.if_table_entries[entry_idx].address = 0x0;
+#endif
+	pctx->if_tbl.if_table_entries[entry_idx].attributes = 0;
+	pctx->if_tbl.num_entries = entry_idx + 1;
+
 	/**
 	 * Initialize the QCLIB Region
 	 *
@@ -2648,7 +2665,9 @@ void board_init_f(ulong dummy)
 		goto fail;
 	}
 
+#if !defined(CONFIG_DISABLE_CONSOLE)
 	preloader_console_init();
+#endif
 
 	ipq_spl_print_pbl_logs();
 
