@@ -327,6 +327,12 @@ static int tmel_qmp_send_data(struct qmp_device *mdev, void *data)
 	atomic_set(&mdev->tx_sent, 1);
 
 	mdev->mcore.bits.tx = !(mdev->mcore.bits.tx);
+
+	/*
+	 * Ensure all cached writes are visible to TMEL before invoking IRQ
+	 */
+	flush_dcache_all();
+
 	tmel_qmp_send_irq(mdev);
 
 	return 0;
