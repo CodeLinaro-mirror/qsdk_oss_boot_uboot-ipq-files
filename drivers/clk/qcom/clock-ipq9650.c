@@ -978,6 +978,7 @@ static const struct qcom_reset_map ipq9650_gcc_resets[] = {
 	[GCC_UNIPHY0_BCR]		= {0x17044, 0},
 	[GCC_UNIPHY1_BCR]		= {0x17054, 0},
 	[GCC_UNIPHY2_BCR]		= {0x17064, 0},
+	[NSS_CC_PPE_EDMA_ARES]		= {0x00440, 2},
 	[GCC_UNIPHY0_AHB_ARES]		= {0x1704C, 2},
 	[GCC_UNIPHY1_AHB_ARES]		= {0x1705C, 2},
 	[GCC_UNIPHY2_AHB_ARES]		= {0x1706C, 2},

@@ -69,6 +69,43 @@
 			perst-gpios = <&tlmm 52 GPIO_ACTIVE_LOW>;
 			status = "okay";
 		};
+
+		mdio: mdio@90000 {
+			pinctrl-names = "default";
+			status = "disabled";
+
+			phy0: phy@0 {
+				id = <1>;
+			};
+
+			phy1: phy@1 {
+				id = <2>;
+			};
+
+			phy2: phy@2 {
+				id = <3>;
+			};
+
+			phy3: phy@3 {
+				id = <4>;
+			};
+
+			phy4: phy@4 {
+				id = <5>;
+			};
+
+			phy5: phy@5 {
+				id = <6>;
+			};
+		};
+
+		ess_instance: ess-instance {
+			qcom,emulation;
+			pinctrl-names = "default";
+			phy-handle0 = <&phy0>;
+			status = "okay";
+			tdm_mode = <0>;
+		};
 	};
 };
 
