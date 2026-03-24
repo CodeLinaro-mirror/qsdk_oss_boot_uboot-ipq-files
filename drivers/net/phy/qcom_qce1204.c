@@ -27,6 +27,7 @@
 #include "qcom_qce2204_ppe.h"
 
 #define QCE1204_PHY_ID                          0x004dd190
+#define IPQ52XX_PHY_ID                          0x004dd120
 
 /* Address Offsets */
 enum qce1204_addr_offset {
@@ -170,6 +171,8 @@ enum qce1204_addr_offset {
 #define QCE1204_DEBUG_ANA_10M_DAC_CTRL1_VAL     0xa4a4
 #define QCE1204_DEBUG_ANA_10M_DAC_CTRL2         0x3980
 #define QCE1204_DEBUG_ANA_10M_DAC_CTRL2_VAL     0xa4a4
+#define QCE1204_DEBUG_ANA_10M_DAC_CTRL3		0xc980
+#define QCE1204_DEBUG_ANA_10M_DAC_CTRL3_VAL	0xc0
 #define QCE1204_DEBUG_PLL_CTRL			0x1f
 #define QCE1204_DEBUG_PLL0_FORCE_ON		BIT(2)
 #define QCE1204_DEBUG_ANA_2P5G_TX_GAIN_CTRL	0xbb80
@@ -233,6 +236,15 @@ enum {
 #define QCE1204_CLK_RATE_104M			104170000
 #define QCE1204_CLK_RATE_125M			125000000
 #define QCE1204_CLK_RATE_312P5M			312500000
+
+#define NSS_CC_EPHY_RX_MUX_SEL			0x39B00610
+#define NSS_CC_EPHY_TX_MUX_SEL			0x39B00614
+/* IPQ52xx TCSR GPHY LDO registers */
+#define TCSR_GPHY_LDO_BIAS_EN			0x1961000
+#define GPHY_LDO_BIAS_EN			BIT(0)
+/* IPQ52xx CMN PLL source select register */
+#define CMN_PLL_SRC_SEL_REG			0x9B42c
+#define CMN_PLL_312P5M_SEL			BIT(10)
 
 /* Clock type index for each channel */
 enum qce1204_clk_type {
@@ -338,9 +350,29 @@ struct qce1204_priv {
 #endif
 };
 
+struct ipq52xx_phy_priv {
+	struct clk	 ephy_rx_clk;
+	struct clk	 ephy_tx_clk;
+	struct clk	 sys_clk;
+	struct reset_ctl ephy_rx_reset;
+	struct reset_ctl ephy_tx_reset;
+	struct reset_ctl sys_clk_reset;
+	u32 *ldo_bias_reg;
+	u32 *pll_src_sel_reg;
+	u32 *ephy_rx_mux_reg;
+	u32  ephy_rx_mux_val;
+	u32 *ephy_tx_mux_reg;
+	u32  ephy_tx_mux_val;
+	u32 *gmii_rx_reg;
+	u32 *gmii_tx_reg;
+	u32 *rx_clk_cmd_reg;
+	u32 *tx_clk_cmd_reg;
+};
 static struct qce1204_shared_clk_data *g_shared_clk_data;
 
 static int qce1204_phy_fifo_reset(struct phy_device *phydev, bool enable);
+static int qce1204_phy_debug_write(struct phy_device *phydev, unsigned int reg, u16 val);
+
 static int qce1204_soc_addr_get(struct phy_device *phydev)
 {
 	struct qce1204_priv *priv = phydev->priv;
@@ -1730,6 +1762,10 @@ static int qce1204_switch_port_clk_set(struct phy_device *phydev,
 	if (ret < 0)
 		return ret;
 
+	ret = qce1204_phy_debug_write(phydev, QCE1204_DEBUG_ANA_10M_DAC_CTRL3,
+		QCE1204_DEBUG_ANA_10M_DAC_CTRL3_VAL);
+
+	return ret;
 	return 0;
 }
 
@@ -2086,6 +2122,10 @@ static int qce1204_phy_10m_dac_init(struct phy_device *phydev)
 	if (ret < 0)
 		return ret;
 
+	ret = qce1204_phy_debug_write(phydev, QCE1204_DEBUG_ANA_10M_DAC_CTRL3,
+		QCE1204_DEBUG_ANA_10M_DAC_CTRL3_VAL);
+
+	return ret;
 	return 0;
 }
 
@@ -2960,6 +3000,315 @@ static int qce1204_startup(struct phy_device *phydev)
 	return 0;
 }
 
+static int ipq52xx_phy_clk_set(struct phy_device *phydev, bool enable)
+{
+	struct ipq52xx_phy_priv *priv = phydev->priv;
+	int ret;
+
+	if (!priv)
+		return -EINVAL;
+
+	if (priv->ephy_rx_clk.dev) {
+		ret = enable ? clk_enable(&priv->ephy_rx_clk)
+			     : clk_disable(&priv->ephy_rx_clk);
+		if (ret)
+			return ret;
+	}
+
+	if (priv->ephy_rx_mux_reg)
+		writel(priv->ephy_rx_mux_val, priv->ephy_rx_mux_reg);
+
+	if (priv->ephy_tx_clk.dev) {
+		ret = enable ? clk_enable(&priv->ephy_tx_clk)
+			     : clk_disable(&priv->ephy_tx_clk);
+		if (ret)
+			return ret;
+	}
+
+	if (priv->ephy_tx_mux_reg)
+		writel(priv->ephy_tx_mux_val, priv->ephy_tx_mux_reg);
+
+	return 0;
+}
+
+static int ipq52xx_phy_clk_reset(struct phy_device *phydev)
+{
+	struct ipq52xx_phy_priv *priv = phydev->priv;
+	int ret;
+
+	if (!priv)
+		return -EINVAL;
+
+	if (priv->ephy_rx_reset.dev) {
+		ret = reset_assert(&priv->ephy_rx_reset);
+		if (ret)
+			return ret;
+	}
+	if (priv->ephy_tx_reset.dev) {
+		ret = reset_assert(&priv->ephy_tx_reset);
+		if (ret)
+			return ret;
+	}
+
+	mdelay(1);
+
+	if (priv->ephy_rx_reset.dev) {
+		ret = reset_deassert(&priv->ephy_rx_reset);
+		if (ret)
+			return ret;
+	}
+	if (priv->ephy_tx_reset.dev) {
+		ret = reset_deassert(&priv->ephy_tx_reset);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static int ipq52xx_phy_sys_reset(struct phy_device *phydev)
+{
+	struct ipq52xx_phy_priv *priv = phydev->priv;
+	int ret;
+
+	if (!priv)
+		return -EINVAL;
+
+	if (priv->sys_clk_reset.dev) {
+		ret = reset_assert(&priv->sys_clk_reset);
+		if (ret)
+			return ret;
+	}
+
+	mdelay(10);
+
+	if (priv->sys_clk_reset.dev) {
+		ret = reset_deassert(&priv->sys_clk_reset);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static int ipq52xx_phy_ldo_loading_enble(struct phy_device *phydev)
+{
+	struct ipq52xx_phy_priv *priv = phydev->priv;
+	u32 val;
+
+	if (!priv || !priv->ldo_bias_reg)
+		return -EINVAL;
+
+	val = readl(priv->ldo_bias_reg);
+	val &= ~GPHY_LDO_BIAS_EN;
+	writel(val, priv->ldo_bias_reg);
+
+	return 0;
+}
+
+static int ipq52xx_phy_internal_speed_fix_up(struct phy_device *phydev)
+{
+	bool clk_en = false;
+	int ret;
+	u32 val = 0;
+	struct ipq52xx_phy_priv *priv = phydev->priv;
+
+	if (phydev->link) {
+		val = readl(priv->pll_src_sel_reg);
+		if (phydev->speed == SPEED_2500)
+			val |= CMN_PLL_312P5M_SEL;
+		else
+			val &= ~CMN_PLL_312P5M_SEL;
+		writel(val, priv->pll_src_sel_reg);
+		clk_en = true;
+	}
+	ret = ipq52xx_phy_clk_set(phydev, clk_en);
+	if (ret < 0)
+		return ret;
+
+	ret = ipq52xx_phy_clk_reset(phydev);
+	if (ret < 0)
+		return ret;
+	mdelay(1);
+
+	ret = qce1204_phy_fifo_reset(phydev, true);
+	if (ret < 0)
+		return ret;
+	mdelay(1);
+	ret = qce1204_phy_fifo_reset(phydev, false);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
+static int ipq52xx_startup(struct phy_device *phydev)
+{
+	u16 phy_data;
+	u16 speed_bits;
+	int link, speed;
+	int old_link = phydev->link;
+	int old_speed = phydev->speed;
+	int ret;
+
+	phy_data = phy_read(phydev, MDIO_MMD_VEND2, QCE1204_PHY_SPEC_STATUS);
+
+	link = (phy_data & QCE1204_PHY_SS_LINK_STATUS) ? 1 : 0;
+	speed_bits = phy_data & QCE1204_PHY_SS_SPEED_MASK;
+
+	switch (speed_bits) {
+	case QCE1204_PHY_SS_SPEED_2500:
+		speed = SPEED_2500;
+		break;
+	case QCE1204_PHY_SS_SPEED_1000:
+		speed = SPEED_1000;
+		break;
+	case QCE1204_PHY_SS_SPEED_100:
+		speed = SPEED_100;
+		break;
+	case QCE1204_PHY_SS_SPEED_10:
+		speed = SPEED_10;
+		break;
+	default:
+		speed = SPEED_UNKNOWN;
+	}
+
+	if (phy_data & QCE1204_PHY_SS_DUPLEX_FULL)
+		phydev->duplex = DUPLEX_FULL;
+	else
+		phydev->duplex = DUPLEX_HALF;
+
+	phydev->link = link;
+	phydev->speed = speed;
+
+	if (old_link != link || old_speed != speed) {
+		ret = ipq52xx_phy_internal_speed_fix_up(phydev);
+		if (ret < 0)
+			return ret;
+	}
+
+	return 0;
+}
+
+int ipq52xx_phy_probe(struct phy_device *phydev)
+{
+	struct ipq52xx_phy_priv *priv;
+
+	priv = malloc(sizeof(*priv));
+	if (!priv)
+		return -ENOMEM;
+
+	memset(priv, 0, sizeof(*priv));
+	phydev->priv = priv;
+
+	priv->ldo_bias_reg    = (u32 *)(uintptr_t)TCSR_GPHY_LDO_BIAS_EN;
+	priv->pll_src_sel_reg = (u32 *)(uintptr_t)CMN_PLL_SRC_SEL_REG;
+	priv->ephy_rx_mux_reg = (u32 *)(uintptr_t)NSS_CC_EPHY_RX_MUX_SEL;
+	priv->ephy_tx_mux_reg = (u32 *)(uintptr_t)NSS_CC_EPHY_TX_MUX_SEL;
+
+	return 0;
+}
+
+static int ipq52xx_phy_dt_init(struct phy_device *phydev)
+{
+	struct ipq52xx_phy_priv *priv = phydev->priv;
+	ofnode node = phydev->node;
+	u32 addr;
+	int ret;
+
+	if (!priv)
+		return -EINVAL;
+
+	if (!ofnode_valid(node)) {
+		debug("IPQ52xx PHY: no DT node, using hard-coded register defaults\n");
+		return 0;
+	}
+
+	ret = clk_get_by_name_nodev(node, "ephy_rx_clk", &priv->ephy_rx_clk);
+	if (ret < 0)
+		debug("IPQ52xx PHY: ephy_rx_clk not found (%d), using default\n", ret);
+
+	ret = clk_get_by_name_nodev(node, "ephy_tx_clk", &priv->ephy_tx_clk);
+	if (ret < 0)
+		debug("IPQ52xx PHY: ephy_tx_clk not found (%d), using default\n", ret);
+
+	ret = clk_get_by_name_nodev(node, "sys_clk", &priv->sys_clk);
+	if (ret < 0)
+		debug("IPQ52xx PHY: sys_clk not found (%d), using default\n", ret);
+
+	ret = reset_get_by_index_nodev(node, 0, &priv->ephy_rx_reset);
+	if (ret < 0)
+		debug("IPQ52xx PHY: ephy_rx_reset not found (%d)\n", ret);
+
+	ret = reset_get_by_index_nodev(node, 1, &priv->ephy_tx_reset);
+	if (ret < 0)
+		debug("IPQ52xx PHY: ephy_tx_reset not found (%d)\n", ret);
+
+	ret = reset_get_by_index_nodev(node, 2, &priv->sys_clk_reset);
+	if (ret < 0)
+		debug("IPQ52xx PHY: sys_clk_reset not found (%d)\n", ret);
+
+	if (ofnode_read_u32(node, "qcom,ldo-bias-reg", &addr) == 0)
+		priv->ldo_bias_reg = (u32 *)(uintptr_t)addr;
+
+	if (ofnode_read_u32(node, "qcom,pll-src-sel-reg", &addr) == 0)
+		priv->pll_src_sel_reg = (u32 *)(uintptr_t)addr;
+
+	{
+		u32 mux_cfg[2] = { NSS_CC_EPHY_RX_MUX_SEL, 0 };
+
+		if (ofnode_read_u32_array(node, "qcom,ephy-rx-mux-reg", mux_cfg, 2) == 0 ||
+		    ofnode_read_u32(node, "qcom,ephy-rx-mux-reg", &mux_cfg[0]) == 0) {
+			priv->ephy_rx_mux_reg = (u32 *)(uintptr_t)mux_cfg[0];
+			priv->ephy_rx_mux_val = mux_cfg[1];
+		}
+	}
+
+	{
+		u32 mux_cfg[2] = { NSS_CC_EPHY_TX_MUX_SEL, 0 };
+
+		if (ofnode_read_u32_array(node, "qcom,ephy-tx-mux-reg", mux_cfg, 2) == 0 ||
+		    ofnode_read_u32(node, "qcom,ephy-tx-mux-reg", &mux_cfg[0]) == 0) {
+			priv->ephy_tx_mux_reg = (u32 *)(uintptr_t)mux_cfg[0];
+			priv->ephy_tx_mux_val = mux_cfg[1];
+		}
+	}
+
+	return 0;
+}
+
+int ipq52xx_phy_config_init(struct phy_device *phydev)
+{
+	int ret = 0;
+
+	ret = ipq52xx_phy_dt_init(phydev);
+	if (ret < 0)
+		return ret;
+
+	/* enable efuse loading into analog circuit */
+	ret = ipq52xx_phy_ldo_loading_enble(phydev);
+	if (ret < 0)
+		return ret;
+	mdelay(10);
+	ret = ipq52xx_phy_sys_reset(phydev);
+	if (ret < 0)
+		return ret;
+	ret = qce1204_phy_eee_init(phydev);
+	if (ret < 0)
+		return ret;
+	ret = qce1204_phy_10m_dac_init(phydev);
+	if (ret < 0)
+		return ret;
+	ret = qce2204_phy_stats_enable(phydev);
+	if (ret < 0)
+		return ret;
+	ret = phy_modify(phydev, MDIO_MMD_VEND2, MII_BMCR, BMCR_RESET, BMCR_RESET);
+	if (ret < 0)
+		return ret;
+
+	return 0;
+}
+
 U_BOOT_PHY_DRIVER(qce1204_driver) = {
 	.name = "QCE1204 PHY Driver",
 	.uid = QCE1204_PHY_ID,
@@ -2968,5 +3317,16 @@ U_BOOT_PHY_DRIVER(qce1204_driver) = {
 	.probe = &qce1204_probe,
 	.config = &qce1204_config,
 	.startup = &qce1204_startup,
+	.shutdown = &genphy_shutdown,
+};
+
+U_BOOT_PHY_DRIVER(ipq52xx_driver) = {
+	.name = "IPQ52XX PHY Driver",
+	.uid = IPQ52XX_PHY_ID,
+	.mask = 0xffffffff,
+	.features = PHY_GBIT_FEATURES,
+	.probe = &ipq52xx_phy_probe,
+	.config = &ipq52xx_phy_config_init,
+	.startup = &ipq52xx_startup,
 	.shutdown = &genphy_shutdown,
 };

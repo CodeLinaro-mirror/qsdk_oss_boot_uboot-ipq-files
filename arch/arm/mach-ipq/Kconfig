@@ -913,6 +913,7 @@ config TARGET_IPQ5210
 	imply PHY_QCA_8033 if !SPL
 	imply PHY_QCE_1204 if !SPL
 	imply CLK_QCOM_NSSCC_QCE2204 if !SPL
+	imply MDIO_AHB
 	help
 	  Support for IPQ5210 SoC.
 	  - Board Open Platform Specifications.
