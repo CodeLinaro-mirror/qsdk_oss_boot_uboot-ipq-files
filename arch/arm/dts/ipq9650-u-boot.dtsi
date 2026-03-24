@@ -149,7 +149,7 @@
 
 			status = "disabled";
 
-			uart1: serial@1a90000 {
+			uart1: serial@1a98000 {
 				compatible = "qcom,geni-debug-uart";
 				reg = <0 0x1a98000 0 0x4000>;
 				clocks = <&gcc GCC_QUPV3_UART2_CLK>;
@@ -913,7 +913,7 @@
 
 &qupv3 {
 	status = "okay";
-	uart1: serial@1a90000 {
+	uart1: serial@1a98000 {
 		pinctrl-0 = <&uart1_pins>;
 		pinctrl-names = "default";
 		qup-se-fw-load = <&uart1_fw>;
@@ -922,7 +922,7 @@
 
 	uart1_fw: uart_firmware@0 {
 		compatible = "qcom,ipq9650-geni-uart-fw-v1", "qcom,geni-uart-fw-v1";
-		reg = <0 0x01a90000 0 0x4000>;
+		reg = <0 0x01a98000 0 0x4000>;
 		status = "okay";
 	};
 
