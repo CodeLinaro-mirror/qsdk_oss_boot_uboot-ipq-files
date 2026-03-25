@@ -66,7 +66,7 @@
 				rx-pins {
 					bootph-all;
 					pins = "gpio43";
-					function = "qup_se4_l3";
+					function = "qup_se6_l3";
 					drive-strength = <8>;
 					bias-pull-down;
 				};
@@ -74,7 +74,7 @@
 				tx-pins {
 					bootph-all;
 					pins = "gpio44";
-					function = "qup_se4_l2";
+					function = "qup_se6_l2";
 					drive-strength = <8>;
 					bias-pull-down;
 				};
