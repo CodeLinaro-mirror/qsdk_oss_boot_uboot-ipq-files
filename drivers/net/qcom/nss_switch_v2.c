@@ -935,10 +935,10 @@ void ppe_xgmac_configuration(phys_addr_t reg_base, u32 portid,
 	 */
 	switch (speed) {
 	case 0:  /* mac_speed 0 = 10M -> SS = 0x7 */
-		speed_bits = 0x7;
+		speed_bits = 0x3;
 		break;
 	case 1:  /* mac_speed 1 = 100M -> SS = 0x4 */
-		speed_bits = 0x4;
+		speed_bits = 0x3;
 		break;
 	case 2:  /* mac_speed 2 = 1G -> SS = 0x3 */
 		speed_bits = 0x3;
