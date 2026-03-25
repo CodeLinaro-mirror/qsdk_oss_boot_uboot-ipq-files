@@ -233,8 +233,6 @@
 			reg = <0 0x01821000 0 0x1000>;
 			#clock-cells = <0>;
 			clock-output-names = "gpll2";
-			fsm-vote-addr = <0x0180B000>;
-			fsm-vote-mask = <0x2>;
 			status = "okay";
 		};
 
