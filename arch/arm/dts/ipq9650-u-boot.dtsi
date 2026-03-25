@@ -94,16 +94,19 @@
 			uart1_pins: uart1-state {
 				rx-pins {
 					pins = "gpio43";
-					function = "qup_se4_l3";
+					function = "qup_se6_l3";
 					drive-strength = <8>;
 					bias-pull-down;
+					bootph-all;
 				};
 
 				tx-pins {
 					pins = "gpio44";
-					function = "qup_se4_l2";
+					function = "qup_se6_l2";
 					drive-strength = <8>;
 					bias-pull-down;
+					output-high;
+					bootph-all;
 				};
 			};
 		};
