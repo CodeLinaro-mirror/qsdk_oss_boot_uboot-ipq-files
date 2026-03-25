@@ -1817,17 +1817,20 @@ static int ipq_spl_xcfg_fixup(void *ctx)
 	memset((void *)IPQ_SPL_QCLIB_TEXT_BASE,
 		0x0,
 		IPQ_SPL_QCLIB_TEXT_SIZE - (SZ_8K + SZ_2K));
+
+	if (!ipq_spl_tmel_bypass_enabled()) {
 #if defined(CONFIG_IPQ_LCP_DARE)
-	/*
-	 * Get LCP DARE key from TME PRNG
-	 */
-	entry_idx++;
-	ret = ipq_spl_get_lcp_dare_key(pctx, entry_idx);
-	if (ret) {
-		pr_err("Failed to get LCP DARE key (ret=%d)\n", ret);
-		return ret;
-	}
+		/*
+		 * Get LCP DARE key from TME PRNG
+		 */
+		entry_idx++;
+		ret = ipq_spl_get_lcp_dare_key(pctx, entry_idx);
+		if (ret) {
+			pr_err("Failed to get LCP DARE key (ret=%d)\n", ret);
+			return ret;
+		}
 #endif /* CONFIG_IPQ_LCP_DARE */
+	}
 
 	return 0;
 }
