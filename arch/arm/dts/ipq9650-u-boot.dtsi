@@ -224,6 +224,7 @@
 			write_pipe_grp = <0>;
 			cmd_pipe = <2>;
 			cmd_pipe_grp = <1>;
+			serial_training;
 			pinctrl-0 = <&qspi_pinmux>;
 			pinctrl-names = "default";
 			status = "okay";
