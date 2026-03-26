@@ -21,6 +21,7 @@
 
 /* RCGR Control Bits */
 #define RCGR_CMD_ROOT_OFF                           (1 << 31)
+#define RCGR_CMD_ROOT_EN                            (1 << 1)
 #define RCGR_CMD_UPDATE                             (1 << 0)
 #define RCGR_CFG_SRC_SEL_SHIFT                      8
 #define RCGR_CFG_SRC_DIV_SHIFT                      0
