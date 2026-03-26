@@ -1750,4 +1750,7 @@ void csr_write(int uniphy_index, u32 addr, u32 value);
  * V1: Strips encoding and uses csr_read_v1()
  */
 u32 csr_read(int uniphy_index, u32 addr);
+
+int uniphy_pma_init_setting(struct port_info *port, u32 uniphy_mode,
+			    u32 dfe_mode, bool is_long);
 #endif /* __NSS_SWITCH_H__ */

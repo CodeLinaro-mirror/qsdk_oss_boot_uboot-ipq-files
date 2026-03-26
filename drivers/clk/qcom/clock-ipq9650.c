@@ -269,6 +269,8 @@
 #define NSS_CC_PPE_SRC_SEL_GCC_GPLL0_OUT_AUX		(2 << 8)
 #define NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK	(3 << 8)
 #define NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK	(4 << 8)
+#define NSS_CC_PORT_5_RX_SRC_SEL_UNIPHY_NSS_RX_CLK	(5 << 8)
+#define NSS_CC_PORT_5_TX_SRC_SEL_UNIPHY_NSS_TX_CLK	(6 << 8)
 
 #define PCNOC_BFDCD_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
 #define SYSTEM_NOC_BFDCD_SRC_SEL_GPLL4_OUT_MAIN		(2 << 8)
@@ -319,8 +321,8 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 		case CLK_2_5_MHZ:
 			break;
 		case CLK_12_5_MHZ:
-			*div = 9;
-			*cdiv = 4;
+			*div = 4;
+			*cdiv = 9;
 			break;
 		case CLK_25_MHZ:
 			break;
@@ -679,7 +681,7 @@ static ulong ipq9650_set_rate(struct clk *clk, ulong rate)
 			return ret;
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT5_RX_CMD_RCGR,
 				    NSS_CC_PORT5_RX_DIV_CDIVR, div, cdiv,
-				    NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK);
+				    NSS_CC_PORT_5_RX_SRC_SEL_UNIPHY_NSS_RX_CLK);
 		break;
 	case NSS_CC_PORT5_TX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
@@ -687,7 +689,7 @@ static ulong ipq9650_set_rate(struct clk *clk, ulong rate)
 			return ret;
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT5_TX_CMD_RCGR,
 				    NSS_CC_PORT5_TX_DIV_CDIVR, div, cdiv,
-				    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
+				    NSS_CC_PORT_5_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
 		break;
 	case NSS_CC_PORT6_RX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
@@ -705,6 +707,30 @@ static ulong ipq9650_set_rate(struct clk *clk, ulong rate)
 				    NSS_CC_PORT6_TX_DIV_CDIVR, div, cdiv,
 				    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
 		break;
+	case NSS_CC_UNIPHY_PORT1_RX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT1_TX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT2_RX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT2_TX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT3_RX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT3_TX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT4_RX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT4_TX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT5_RX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT5_TX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT6_RX_CLK:
+		fallthrough;
+	case NSS_CC_UNIPHY_PORT6_TX_CLK:
+		fallthrough;
 	case UNIPHY0_NSS_RX_CLK:
 		fallthrough;
 	case UNIPHY0_NSS_TX_CLK:
@@ -985,6 +1011,9 @@ static const struct qcom_reset_map ipq9650_gcc_resets[] = {
 	[GCC_UNIPHY0_SYS_ARES]		= {0x17048, 2},
 	[GCC_UNIPHY1_SYS_ARES]		= {0x17058, 2},
 	[GCC_UNIPHY2_SYS_ARES]		= {0x17068, 2},
+	[GCC_UNIPHY0_PMA_ARES]		= {0x17098, 1},
+	[GCC_UNIPHY1_PMA_ARES]		= {0x1709C, 1},
+	[GCC_UNIPHY2_PMA_ARES]		= {0x170A0, 1},
 	[GCC_UNIPHY0_XPCS_ARES]		= {0x17050, 2},
 	[GCC_UNIPHY1_XPCS_ARES]		= {0x17060, 2},
 	[GCC_UNIPHY2_XPCS_ARES]		= {0x17070, 2},
