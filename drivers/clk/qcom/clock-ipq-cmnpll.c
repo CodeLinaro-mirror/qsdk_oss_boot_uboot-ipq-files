@@ -819,6 +819,7 @@ static int ipq9650_pcs_enable(struct ipq_cmnpll_priv *priv, unsigned long clk_id
 	enable_bit = ipq9650_pcs_get_enable_bit(idx);
 	val = readl(priv->base + CMN_PLL_PCS_CLK_CTRL);
 	val |= enable_bit;
+	val = 0x157;
 	writel(val, priv->base + CMN_PLL_PCS_CLK_CTRL);
 
 	return 0;

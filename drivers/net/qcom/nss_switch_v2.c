@@ -544,6 +544,7 @@ static void ppe_uniphy_10g_r_mode_set(struct port_info *port)
 	ppe_uniphy_reset(port, false, false);
 }
 
+#if 0
 /*
  * USXGMII mode configuration
  */
@@ -560,21 +561,24 @@ static void ppe_uniphy_usxgmii_mode_set(struct port_info *port)
 	mdelay(REG_DELAY);
 	writel(UNIPHY_PLL_RESET_REG_DEFAULT_VALUE, base + UNIPHY_PLL_RESET_REG_OFFSET);
 	mdelay(REG_DELAY);
+	
+	ppe_uniphy_reset(port, true, true);
+	mdelay(RESET_DELAY);
 
-	/* Program XPCS auto-neg mode (25M ref) */
-	writel(uniphy_mode_xpcs_autoneg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
+	uniphy_pma_init_setting(port, PORT_WRAPPER_USXGMII, 2, A_FALSE);
+	ppe_uniphy_reset(port, true, false);
+	mdelay(RESET_DELAY);
 
 	/* Assert resets: keep XPCS in reset, do software reset sequence */
 	ppe_uniphy_reset(port, false, true);
 	mdelay(RESET_DELAY);
 
-	ppe_uniphy_reset(port, true, true);
-	mdelay(RESET_DELAY);
-	ppe_uniphy_reset(port, true, false);
-	mdelay(RESET_DELAY);
+	/* Program XPCS auto-neg mode (25M ref) */
+	writel(uniphy_mode_xpcs_autoneg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
 
 	/* Calibration and release XPCS reset */
 	ppe_uniphy_calibration(port);
+
 	ppe_uniphy_reset(port, false, false);
 	mdelay(RESET_DELAY);
 
@@ -627,6 +631,159 @@ static void ppe_uniphy_usxgmii_mode_set(struct port_info *port)
 	reg_value |= LRX_EN | LTX_EN;
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS), reg_value);
 }
+#endif
+
+#if 1
+/*
+ * USXGMII mode configuration
+ */
+static void ppe_uniphy_usxgmii_mode_set(struct port_info *port)
+{
+	u32 index = port->uniphy_id;
+	phys_addr_t base = port->uniphy_base;
+	u32 reg_value;
+	int retries;
+
+	/* Direct register mappings as per Juhu_ASIC_PPE_Bringup CMM scripts */
+	uintptr_t gcc_uniphy_sys_cbcr[] = {0x01817048, 0x01817058, 0x01817068};
+	uintptr_t gcc_uniphy_misc[] = {0x01817050, 0x01817060, 0x01817070};
+	uintptr_t nss_cc_uniphy_rx_cbcr[] = {0x29B005E0, 0x29B00600, 0x29B00608};
+	uintptr_t nss_cc_uniphy_tx_cbcr[] = {0x29B005E4, 0x29B00604, 0x29B0060C};
+	uintptr_t nss_cc_port_rx_cbcr[] = {0x29B00548, 0x29B00588, 0x29B00598};
+	uintptr_t nss_cc_port_tx_cbcr[] = {0x29B00550, 0x29B00590, 0x29B005A0};
+
+	if (index > 2) {
+		printf("ERROR: Invalid UNIPHY index %d for USXGMII config\n", index);
+		return;
+	}
+
+	/* Configure UNIPHY MISC (Preserved from existing config) */
+	writel(UNIPHY_MISC2_REG_VALUE, base + UNIPHY_MISC2_REG_OFFSET);
+
+	/* 3. Soft reset UNIPHY (PLL reset) */
+	writel(0x02bf, base + UNIPHY_PLL_RESET_REG_OFFSET);
+	mdelay(500);
+	writel(0x02ff, base + UNIPHY_PLL_RESET_REG_OFFSET);
+	mdelay(500);
+
+	/* a. UNIPHY PMA initial setting (pma_dfe_mode=0, pma_is_tuning_on=0, pma_is_long=0) */
+	uniphy_pma_init_setting(port, PORT_WRAPPER_USXGMII, 0, false);
+
+	/* b. GMII interface clock disable */
+	writel(0x0, (void *)nss_cc_uniphy_rx_cbcr[index]);
+	writel(0x0, (void *)nss_cc_uniphy_tx_cbcr[index]);
+	writel(0x4FF0, (void *)nss_cc_port_rx_cbcr[index]);
+	writel(0x4FF0, (void *)nss_cc_port_tx_cbcr[index]);
+
+	/* c. Assert XPCS reset (GCC_UNIPHYx_MISC[UNIPHYx_XPCS_ARES] = 0x4) */
+	writel(0x4, (void *)gcc_uniphy_misc[index]);
+	mdelay(100);
+
+	/* e. USXGMII Mode configuration sequence */
+	/* Write 7'b0010000 to CSR0 MODE_CONTROL[14:8] */
+	writel(0x1021, base + PPE_UNIPHY_MODE_CONTROL);
+
+	/* Assert GCC software reset to UNIPHY_INSTx (SYS_RST = 0x5) */
+	writel(0x5, (void *)gcc_uniphy_sys_cbcr[index]);
+	mdelay(100);
+	writel(0x4, (void *)nss_cc_uniphy_rx_cbcr[index]);
+	mdelay(100);
+	writel(0x4, (void *)nss_cc_uniphy_tx_cbcr[index]);
+	mdelay(100);
+
+	/* Release GCC software reset to UNIPHY_INSTx (SYS_RST = 0x1) */
+	writel(0x1, (void *)gcc_uniphy_sys_cbcr[index]);
+	mdelay(100);
+	writel(0x0, (void *)nss_cc_uniphy_rx_cbcr[index]);
+	mdelay(100);
+	writel(0x0, (void *)nss_cc_uniphy_tx_cbcr[index]);
+	mdelay(100);
+
+	/* f. Write 1'b1 to UNIPHY_OPTION_3[4] (uniphy start) */
+	/* Offset depends on uniphy index: 0x5AC for uniphy0, 0x588 for others */
+	if (index == 0) {
+		reg_value = readl(base + 0x5AC);
+		reg_value |= 0x10;
+		writel(reg_value, base + 0x5AC);
+	} else {
+		reg_value = readl(base + 0x588);
+		reg_value |= 0x10;
+		writel(reg_value, base + 0x588);
+	}
+
+	/* g. Wait for traffic state (CSR3 R0_POWER_STATE[15:0] == 0xF) */
+	retries = 20;
+	while ((readl(base + 0xCDF4) & 0xFFFF) != 0xF) {
+		mdelay(100);
+		if (--retries == 0) {
+			printf("ERROR UNIPHY%d Wait for traffic state 0xF not done in 2s!\n", index);
+			break;
+		}
+	}
+
+	/* h. GMII interface clock enable */
+	writel(0x1, (void *)nss_cc_uniphy_rx_cbcr[index]);
+	writel(0x1, (void *)nss_cc_uniphy_tx_cbcr[index]);
+	mdelay(500);
+	writel(0x4FF1, (void *)nss_cc_port_rx_cbcr[index]);
+	writel(0x4FF1, (void *)nss_cc_port_tx_cbcr[index]);
+
+	/* i. Release XPCS reset (GCC_UNIPHYx_MISC[UNIPHYx_XPCS_ARES] = 0x0) */
+	writel(0x0, (void *)gcc_uniphy_misc[index]);
+	mdelay(500);
+
+	/* j. Wait 10G-R link up */
+	ppe_uniphy_10g_r_linkup(index);
+
+	/* k. Check RXEQ status */
+	retries = 20;
+	while (((readl(base + 0xCDFC) >> 1) & 0x1) != 1) {
+		mdelay(100);
+		if (--retries == 0) {
+			printf("ERROR UNIPHY%d Wait for RXEQ status not done in 2s!\n", index);
+			break;
+		}
+	}
+
+	/* l. Enable USXGMII - CSR1 0x38000[9] */
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS)); /* 0x38000 */
+	reg_value |= USXG_EN;
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS), reg_value);
+	mdelay(1);
+
+	/* n. Enable auto-neg complete interrupt - CSR1 0x1f8001[0] */
+	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_ADDRESS), MII_AN_INTR_EN);
+
+	/* o. Enable auto-neg ability - CSR1 0x1f0000[12] */
+	/* Write 0x3140 as per CMM */
+	csr_write(index, CSR1_ADDR(SR_MII_CTRL_ADDRESS), 0x3140);
+	
+	mdelay(1000);
+
+	/* Preserve EEE configuration from existing code since it's still valid */
+	/* Enable EEE transparent mode and configure timers */
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS));
+	reg_value |= SIGN_BIT | MULT_FACT_100NS;
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS), reg_value);
+
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_TXTIMER_ADDRESS));
+	reg_value |= UNIPHY_XPCS_TSL_TIMER | UNIPHY_XPCS_TLU_TIMER | UNIPHY_XPCS_TWL_TIMER;
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_TXTIMER_ADDRESS), reg_value);
+
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_RXTIMER_ADDRESS));
+	reg_value |= UNIPHY_XPCS_100US_TIMER | UNIPHY_XPCS_TWR_TIMER;
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_RXTIMER_ADDRESS), reg_value);
+
+	/* Transparent LPI mode and LPI pattern enable */
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL1_ADDRESS));
+	reg_value |= TRN_LPI | TRN_RXLPI;
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL1_ADDRESS), reg_value);
+
+	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS));
+	reg_value |= LRX_EN | LTX_EN;
+	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS), reg_value);
+}
+#endif
 /*
  * UQXGMII/UDXGMII combined mode configuration - FIXED VERSION
  */
@@ -647,6 +804,13 @@ static void ppe_uniphy_uxgmii_mode_set(struct port_info *port)
 	       base + UNIPHY_PLL_RESET_REG_OFFSET);
 	mdelay(REG_DELAY);
 
+	/* Step 6: Software reset sequence */
+	ppe_uniphy_reset(port, true, true);
+	mdelay(RESET_DELAY);
+	uniphy_pma_init_setting(port, PORT_WRAPPER_USXGMII, 2, A_FALSE);
+	ppe_uniphy_reset(port, true, false);
+	mdelay(RESET_DELAY);
+
 	/* Step 3: Assert XPCS reset (keep XPCS in reset) */
 	ppe_uniphy_reset(port, false, true);
 	mdelay(RESET_DELAY);
@@ -659,11 +823,6 @@ static void ppe_uniphy_uxgmii_mode_set(struct port_info *port)
 	reg_value |= GMII_SRC_SEL;
 	writel(reg_value, base + UNIPHYQP_USXG_OPITON1);
 
-	/* Step 6: Software reset sequence */
-	ppe_uniphy_reset(port, true, true);
-	mdelay(RESET_DELAY);
-	ppe_uniphy_reset(port, true, false);
-	mdelay(RESET_DELAY);
 
 	/* Step 7: Perform calibration */
 	ppe_uniphy_calibration(port);
@@ -4955,6 +5114,25 @@ static int ipq_eth_probe(struct udevice *dev)
 	ret = reset_deassert_bulk(&resets);
 	if (ret)
 		return ret;
+
+	writel(1, 0x1817098);
+	mdelay(100);
+	writel(1, 0x181709C);
+	mdelay(100);
+	writel(1, 0x18170A0);
+	mdelay(100);
+	writel(0x4, 0x182300C);
+	mdelay(100);
+	writel(0x4, 0x1823010);
+	mdelay(100);
+
+	writel(0, 0x1817098);
+	writel(0, 0x181709C);
+	writel(0, 0x18170A0);
+	writel(0x1, 0x182300C);
+	mdelay(100);
+	writel(0x1, 0x1823010);
+	mdelay(100);
 
 	/* Step 3: Configure CMN clock */
 	ipq_config_cmn_clock();

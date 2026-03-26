@@ -955,6 +955,7 @@ config TARGET_IPQ9650
 	imply PHY_QCE_1204 if !SPL
 	imply PHY_QCE_2204 if !SPL
 	imply CLK_QCOM_NSSCC_QCE2204 if !SPL
+	imply CLK_QCOM_CMN_PLL if !SPL
 	help
 	  Support for IPQ9650 SoC.
 	  - Board Open Platform Specifications.
