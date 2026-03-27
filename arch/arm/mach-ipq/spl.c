@@ -2496,10 +2496,12 @@ void spl_board_prepare_for_boot(void)
 		goto fail;
 	}
 
+#endif /* CONFIG_IPQ_TMEL_IPC_SUPPORT */
+
+	printf("U-Boot SPL, End\n");
 	return;
 fail:
 	ipq_spl_error_handler(NULL);
-#endif
 }
 
 /**
