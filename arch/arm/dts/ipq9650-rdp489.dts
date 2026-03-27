@@ -316,6 +316,20 @@
 };
 
 &tlmm {
+	qspi_pinmux: nand {
+		qspi_data {
+			drive-strength = <4>;
+		};
+
+		qspi_cs_n {
+			drive-strength = <4>;
+                };
+
+		qspi_clk {
+			drive-strength = <4>;
+		};
+        };
+
 	pcie1_default_state: pcie1-default-state {
 		perst-n-pins {
 			pins = "gpio28";
