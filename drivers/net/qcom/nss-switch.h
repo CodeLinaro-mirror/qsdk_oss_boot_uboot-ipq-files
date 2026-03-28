@@ -916,6 +916,15 @@ static inline void edma_unified_write_masked(phys_addr_t addr, u32 val, struct e
 #define PPE_UNIPHY_OFFSET_CALIB_4		0x1E0
 #define UNIPHY_CALIBRATION_DONE			0x1
 
+/* JHPPE UNIPHY calibration registers (QSERDES-based SerDes) */
+#define PCS0_UNIPHY_OPTION_3_ADDRESS		0x5AC
+#define PCS_UNIPHY_OPTION_3_ADDRESS		0x588
+#define PCS_UNIPHY_OPTION_3_UNIPHY_START_BIT	BIT(4)
+#define QSERDES_RX_EXT_RO_POWER_STATE_ADDRESS	0xCDF4
+#define JHPPE_UNIPHY_POWER_STATE_DONE		0xF
+#define JHPPE_UNIPHY_POLLING_TIMEOUT		2000
+#define JHPPE_UNIPHY_POLLING_DELAY		1
+
 #define PPE_UNIPHY_REG_INC			0
 #define PPE_UNIPHY_MODE_CONTROL			0x46C
 #define UNIPHY_XPCS_MODE			BIT(12)
@@ -1528,6 +1537,7 @@ struct port_info {
 	bool isconfigured;
 	bool phy_25mhz;
 	bool fw_loaded;
+	int (*calibrate)(struct port_info *port); /* SoC-specific calibration */
 	int i2c_bus;
 	struct clk rx_clk_rate;
 	struct clk tx_clk_rate;
@@ -1753,4 +1763,19 @@ u32 csr_read(int uniphy_index, u32 addr);
 
 int uniphy_pma_init_setting(struct port_info *port, u32 uniphy_mode,
 			    u32 dfe_mode, bool is_long);
+int ppe_uniphy_serdes_calibration(struct port_info *port);
+int ppe_uniphy_calibration(struct port_info *port);
+/* SoC-specific port initialization - implemented in each *_port_config.c */
+void port_init(struct port_info *port);
+
+/**
+ * ppe_uniphy_uxgmii_mode_ctrl_val - Return UQXGMII/UDXGMII MODE_CONTROL value
+ *
+ * Weak default in nss_switch_v2.c returns 0x1021 (XPCS_MODE | CH0_25M | AUTONEG).
+ * SoCs that also need USXG_EN (bit 13) provide a strong override in their
+ * *_port_config.c (e.g. IPQ9650 returns 0x3021).
+ *
+ * Return: 32-bit value to write to PPE_UNIPHY_MODE_CONTROL
+ */
+u32 ppe_uniphy_uxgmii_mode_ctrl_val(void);
 #endif /* __NSS_SWITCH_H__ */
