@@ -1762,11 +1762,12 @@ static int qce1204_switch_port_clk_set(struct phy_device *phydev,
 	if (ret < 0)
 		return ret;
 
-	ret = qce1204_phy_debug_write(phydev, QCE1204_DEBUG_ANA_10M_DAC_CTRL3,
-		QCE1204_DEBUG_ANA_10M_DAC_CTRL3_VAL);
+	if (phydev->drv->uid == IPQ52XX_PHY_ID) {
+		ret = qce1204_phy_debug_write(phydev, QCE1204_DEBUG_ANA_10M_DAC_CTRL3,
+			QCE1204_DEBUG_ANA_10M_DAC_CTRL3_VAL);
+	}
 
 	return ret;
-	return 0;
 }
 
 static int qce1204_switch_port_clk_reset(struct phy_device *phydev,
@@ -2122,11 +2123,11 @@ static int qce1204_phy_10m_dac_init(struct phy_device *phydev)
 	if (ret < 0)
 		return ret;
 
-	ret = qce1204_phy_debug_write(phydev, QCE1204_DEBUG_ANA_10M_DAC_CTRL3,
-		QCE1204_DEBUG_ANA_10M_DAC_CTRL3_VAL);
-
+	if (phydev->drv->uid == IPQ52XX_PHY_ID) {
+		ret = qce1204_phy_debug_write(phydev, QCE1204_DEBUG_ANA_10M_DAC_CTRL3,
+			QCE1204_DEBUG_ANA_10M_DAC_CTRL3_VAL);
+	}
 	return ret;
-	return 0;
 }
 
 static int qce1204_phy_eee_init(struct phy_device *phydev)
