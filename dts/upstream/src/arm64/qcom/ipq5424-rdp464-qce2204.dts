@@ -67,12 +67,12 @@
 			};
 
 			phy1: ethernet-switch@1 {
-				phy-reset-gpio = <&tlmm 18 0>;
+				phy-reset-gpio = <&tlmm 37 0>;
 				dev-mode = <0x1>;
 				phy_addr = <0>;
 				phy_type = <QCE2204_SWITCH_TYPE>;
-				id = <3>;
-				uniphy_id = <2>;
+				id = <2>;
+				uniphy_id = <1>;
 				uniphy_type = <0>;
 				max_speed = <2500>;
 				force-speed;
@@ -372,20 +372,23 @@
 	phy_rst_pinmux: phy_rst {
 		qti_laguna0_rst {
 			pins = "gpio36";
-			drive-strength = <8>;
-			bias-pull-up;
+			drive-strength = <2>;
+			bias-pull-down;
+			output-high;
 		};
 
 		qti_laguna1_rst {
 			pins = "gpio37";
-			drive-strength = <8>;
-			bias-pull-up;
+			drive-strength = <2>;
+			bias-pull-down;
+			output-high;
 		};
 
 		qti_qce1204_rst {
 			pins = "gpio18";
-			drive-strength = <8>;
-			bias-pull-up;
+			drive-strength = <2>;
+			bias-pull-down;
+			output-low;
 		};
 	};
 
