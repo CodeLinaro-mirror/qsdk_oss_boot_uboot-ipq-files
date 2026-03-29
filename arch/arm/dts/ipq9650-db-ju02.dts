@@ -292,7 +292,6 @@
 			};
 
 			phy5: phy@12 {
-				phy-reset-gpio = <&tlmm 15 0>;
 				phy_addr = <12>;
 				phy_type = <QCA81xx_PHY_TYPE>;
 				id = <6>;
@@ -388,13 +387,6 @@
 
 		qca81xx_0_rst {
 			pins = "gpio14";
-			drive-strength = <2>;
-			bias-pull-up;
-			output-low;
-		};
-
-		qca81xx_1_rst {
-			pins = "gpio15";
 			drive-strength = <2>;
 			bias-pull-up;
 			output-low;
