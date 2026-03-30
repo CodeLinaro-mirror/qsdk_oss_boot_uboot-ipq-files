@@ -312,9 +312,7 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 		*xgmii_dev = 9;
 		break;
 	case CLK_25_MHZ:
-		*div = 4;
-		*cdiv = 4;
-		*xgmii_dev = 3;
+		*div = 0x18;
 		break;
 	case CLK_125_MHZ:
 		*div = 4;
