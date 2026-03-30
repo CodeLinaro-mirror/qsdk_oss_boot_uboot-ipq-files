@@ -38,6 +38,18 @@
 			reg = <0x0 0x87c00000 0x0 0x40000>;
 			no-map;
 		};
+
+		optee@87d80000 {
+			reg = <0x0 0x87d80000 0x0 0x280000>;
+			no-map;
+		};
+	};
+
+	firmware {
+		optee {
+			compatible = "linaro,optee-tz";
+			method = "smc";
+		};
 	};
 
 	smem {

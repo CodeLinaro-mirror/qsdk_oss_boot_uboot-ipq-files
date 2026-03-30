@@ -914,6 +914,9 @@ config TARGET_IPQ5210
 	imply PHY_QCE_1204 if !SPL
 	imply CLK_QCOM_NSSCC_QCE2204 if !SPL
 	imply MDIO_AHB
+	select TEE
+	select OPTEE
+
 	help
 	  Support for IPQ5210 SoC.
 	  - Board Open Platform Specifications.

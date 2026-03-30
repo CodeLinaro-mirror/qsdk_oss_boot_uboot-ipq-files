@@ -284,6 +284,8 @@ __weak uint32_t ipq_get_soc_hw_version(void)
 
 __weak void ipq_board_update_RFA_settings(void) {};
 
+__weak void ipq_bind_optee_driver(void) {};
+
 #ifdef CONFIG_CRC32_BE
 uint32_t crc32_be(uint8_t const *addr, phys_size_t size)
 {
@@ -1549,6 +1551,11 @@ int ipq_board_late_init(void)
 #ifdef CONFIG_MMC_FLASH_PARTITION_WRITE_PROTECT
 	board_default_flash_protect(SMEM_BOOT_MMC_FLASH);
 #endif
+
+	/*
+	 * Bind the optee driver
+	 */
+	ipq_bind_optee_driver();
 
 	return 0;
 }

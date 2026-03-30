@@ -12,6 +12,9 @@
 #include <mtd_node.h>
 #include <jffs2/load_kernel.h>
 
+#include <dm/lists.h>
+#include <dm/root.h>
+
 #define IM_SLEEP_CLK				0x1834020
 /* MACH IDs for various RDPs */
 #define MACH_TYPE_IPQ5210_EMULATION		0xf060000
@@ -440,4 +443,15 @@ int ipq_uboot_fdt_fixup(void *blob, enum fixup_type type)
 	}
 
 	return 0;
+}
+
+void ipq_bind_optee_driver(void)
+{
+	struct udevice *dev;
+	ofnode node = ofnode_path("/firmware/optee");
+	int ret;
+
+	ret = device_bind_driver_to_node(dm_root(), "optee", "optee", node, &dev);
+	if (ret)
+		printf("optee: bind failed (%d)\n", ret);
 }
