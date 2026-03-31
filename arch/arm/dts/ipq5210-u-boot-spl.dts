@@ -62,10 +62,21 @@
 
 			uart1_pins: uart1-state {
 				bootph-all;
-				pins = "gpio38", "gpio39";
-				function = "uart1";
-				drive-strength = <6>;
-				bias-pull-down;
+				rx-pins {
+					pins = "gpio38";
+					function = "qup_se1_l3";
+					drive-strength = <6>;
+					bias-pull-down;
+					bootph-all;
+				};
+
+				tx-pins {
+					pins = "gpio39";
+					function = "qup_se1_l2";
+					drive-strength = <6>;
+					bias-pull-down;
+					bootph-all;
+				};
 			};
 
 			sdc_default_state: sdc-default-state {
@@ -100,7 +111,7 @@
 				spi0_sclk {
 					bootph-all;
 					pins = "gpio6";
-					function = "spi0_clk";
+					function = "qup_se0_l2";
 					drive-strength = <8>;
 					bias-pull-down;
 				};
@@ -108,7 +119,7 @@
 				spi0_cs0 {
 					bootph-all;
 					pins = "gpio7";
-					function = "spi0_cs";
+					function = "qup_se0_l3";
 					drive-strength = <8>;
 					bias-pull-up;
 				};
@@ -116,7 +127,7 @@
 				spi0_miso {
 					bootph-all;
 					pins = "gpio8";
-					function = "spi0_miso";
+					function = "qup_se0_l0";
 					drive-strength = <8>;
 					bias-pull-down;
 				};
@@ -124,7 +135,7 @@
 				spi0_mosi {
 					bootph-all;
 					pins = "gpio9";
-					function = "spi0_mosi";
+					function = "qup_se0_l1";
 					drive-strength = <8>;
 					bias-pull-down;
 				};
