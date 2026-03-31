@@ -10,7 +10,7 @@
 
 DECLARE_GLOBAL_DATA_PTR;
 
-#define REG_DELAY			1
+#define REG_DELAY			10
 #define RESET_DELAY			10
 
 static int tftp_acl_our_port;
@@ -231,9 +231,17 @@ u32 csr_read(int uniphy_index, u32 addr)
 }
 
 /*
+ * Default (weak) port_init - SoCs that need no per-port init can omit their own.
+ * SoCs that do need it (e.g. IPQ9650) provide a strong override in *_port_config.c.
+ */
+void __weak port_init(struct port_info *port)
+{
+}
+
+/*
  * Uniphy calibration function
  */
-static int ppe_uniphy_calibration(struct port_info *port)
+int ppe_uniphy_calibration(struct port_info *port)
 {
 	int retries = 100, calibration_done = 0;
 	u32 reg_value = 0;
@@ -247,6 +255,41 @@ static int ppe_uniphy_calibration(struct port_info *port)
 		}
 		reg_value = readl(reg);
 		calibration_done = (reg_value >> 0x7) & 0x1;
+	}
+
+	return 0;
+}
+
+/*
+ * Uniphy calibration function (QSERDES-based SerDes)
+ */
+int ppe_uniphy_serdes_calibration(struct port_info *port)
+{
+	int retries = JHPPE_UNIPHY_POLLING_TIMEOUT;
+	u32 reg_value = 0;
+	u32 index = port->uniphy_id;
+	phys_addr_t base = port->uniphy_base;
+
+	/* Step 1: Set UNIPHY_START bit to 1 */
+	/* Address depends on uniphy index: 0x5AC for uniphy0, 0x588 for others */
+	if (index == 0) {
+		reg_value = readl(base + PCS0_UNIPHY_OPTION_3_ADDRESS);
+		reg_value |= PCS_UNIPHY_OPTION_3_UNIPHY_START_BIT;
+		writel(reg_value, base + PCS0_UNIPHY_OPTION_3_ADDRESS);
+	} else {
+		reg_value = readl(base + PCS_UNIPHY_OPTION_3_ADDRESS);
+		reg_value |= PCS_UNIPHY_OPTION_3_UNIPHY_START_BIT;
+		writel(reg_value, base + PCS_UNIPHY_OPTION_3_ADDRESS);
+	}
+
+	/* Step 2: Wait for traffic state to be 0xF */
+	while ((readl(base + QSERDES_RX_EXT_RO_POWER_STATE_ADDRESS) & 0xF) !=
+	       JHPPE_UNIPHY_POWER_STATE_DONE) {
+		mdelay(JHPPE_UNIPHY_POLLING_DELAY);
+		if (retries-- == 0) {
+			printf("uniphy %d calibration time out!\n", index);
+			return -ETIMEDOUT;
+		}
 	}
 
 	return 0;
@@ -381,6 +424,17 @@ static inline u32 uniphy_mode_xpcs_autoneg_25m(void)
 	mode.bf.newaddedfromhere_ch0_mode_ctrl_25m = 0x2;
 	mode.bf.newaddedfromhere_ch0_autoneg_mode = 1;
 	return mode.val; /* Expected: 0x1021 */
+}
+
+static inline u32 uniphy_mode_uxgmii_25m(void)
+{
+	union uniphy_mode_ctrl_u mode = {0};
+
+	mode.bf.newaddedfromhere_xpcs_mode = 1;
+	mode.bf.newaddedfromhere_usxg_en = 1;
+	mode.bf.newaddedfromhere_ch0_mode_ctrl_25m = 0x2;
+	mode.bf.newaddedfromhere_ch0_autoneg_mode = 1;
+	return mode.val; /* Expected: 0x3021 */
 }
 
 /*
@@ -542,6 +596,21 @@ static void ppe_uniphy_10g_r_mode_set(struct port_info *port)
 	ppe_uniphy_reset(port, false, false);
 }
 
+/**
+ * uniphy_rxeq_status_check() - Poll RXEQ engine done status (weak default)
+ * @uniphy_index: UNIPHY instance number (0, 1, or 2)
+ *
+ * Default no-op stub for SoCs that do not use QSERDES/JHPPE SerDes.
+ * IPQ9650 overrides this with a strong implementation in ipq9650_port_config.c
+ * that polls QSERDES_RX_EXT_RO_PMAD_RXEQ_STATUS bit[1] (RXEQ_ENGINE_DONE).
+ *
+ * Return: 0 (success, no check needed)
+ */
+int __weak uniphy_rxeq_status_check(int uniphy_index)
+{
+	return 0;
+}
+
 /*
  * USXGMII mode configuration
  */
@@ -555,36 +624,45 @@ static void ppe_uniphy_usxgmii_mode_set(struct port_info *port)
 	writel(UNIPHY_MISC2_REG_VALUE, base + UNIPHY_MISC2_REG_OFFSET);
 
 	writel(UNIPHY_PLL_RESET_REG_VALUE, base + UNIPHY_PLL_RESET_REG_OFFSET);
-	mdelay(REG_DELAY);
+	mdelay(RESET_DELAY);
 	writel(UNIPHY_PLL_RESET_REG_DEFAULT_VALUE, base + UNIPHY_PLL_RESET_REG_OFFSET);
 	mdelay(REG_DELAY);
 
-	/* Program XPCS auto-neg mode (25M ref) */
-	writel(uniphy_mode_xpcs_autoneg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
+	uniphy_pma_init_setting(port, PORT_WRAPPER_USXGMII, 2, A_FALSE);
 
 	/* Assert resets: keep XPCS in reset, do software reset sequence */
 	ppe_uniphy_reset(port, false, true);
 	mdelay(RESET_DELAY);
 
+	/* Program XPCS auto-neg mode (25M ref) */
+	writel(uniphy_mode_xpcs_autoneg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
+
+	/* Software reset */
 	ppe_uniphy_reset(port, true, true);
 	mdelay(RESET_DELAY);
 	ppe_uniphy_reset(port, true, false);
 	mdelay(RESET_DELAY);
 
 	/* Calibration and release XPCS reset */
-	ppe_uniphy_calibration(port);
-	ppe_uniphy_reset(port, false, false);
-	mdelay(RESET_DELAY);
+	if (port->calibrate)
+		port->calibrate(port);
+	else
+		ppe_uniphy_calibration(port);
+
+        ppe_uniphy_reset(port, false, false);
+        mdelay(RESET_DELAY);
 
 	/* Wait 10G-R link up */
 	ppe_uniphy_10g_r_linkup(index);
+
+	uniphy_rxeq_status_check(index);
 
 	/* Enable USXGMII in XPCS */
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS));
 	reg_value |= USXG_EN;
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS), reg_value);
 
-	/* For UNIPHY0, select GMII source from XPCS (matches SSDK APPE behavior) */
+	/* For UNIPHY0, select GMII source from XPCS */
 	if (index == 0) {
 		reg_value = readl(base + UNIPHYQP_USXG_OPITON1);
 		reg_value |= GMII_SRC_SEL;
@@ -626,7 +704,24 @@ static void ppe_uniphy_usxgmii_mode_set(struct port_info *port)
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_EEE_MCTRL0_ADDRESS), reg_value);
 }
 /*
- * UQXGMII/UDXGMII combined mode configuration - FIXED VERSION
+ * Default (weak) UQXGMII mode control value.
+ * Returns XPCS autoneg 25M mode (0x1021) for all SoCs.
+ * SoCs that need USXG_EN set (e.g. IPQ9650) provide a strong override
+ * in their *_port_config.c returning 0x3021.
+ */
+u32 __weak ppe_uniphy_uxgmii_mode_ctrl_val(void)
+{
+	return uniphy_mode_xpcs_autoneg_25m();
+}
+
+int __weak uniphy_pma_init_setting(struct port_info *port, u32 uniphy_mode,
+					u32 dfe_mode, bool is_long)
+{
+	return 0;
+}
+
+/*
+ * UQXGMII/UDXGMII combined mode configuration
  */
 static void ppe_uniphy_uxgmii_mode_set(struct port_info *port)
 {
@@ -639,18 +734,20 @@ static void ppe_uniphy_uxgmii_mode_set(struct port_info *port)
 
 	/* Step 2: PLL Reset sequence */
 	writel(UNIPHY_PLL_RESET_REG_VALUE, base + UNIPHY_PLL_RESET_REG_OFFSET);
-	mdelay(REG_DELAY);
+	mdelay(RESET_DELAY);
 
 	writel(UNIPHY_PLL_RESET_REG_DEFAULT_VALUE,
 	       base + UNIPHY_PLL_RESET_REG_OFFSET);
-	mdelay(REG_DELAY);
+	mdelay(RESET_DELAY);
+
+	uniphy_pma_init_setting(port, PORT_WRAPPER_UQXGMII, 2, A_FALSE);
 
 	/* Step 3: Assert XPCS reset (keep XPCS in reset) */
 	ppe_uniphy_reset(port, false, true);
 	mdelay(RESET_DELAY);
 
-	/* Step 4: Program XPCS mode control register (25MHz autoneg mode) */
-	writel(uniphy_mode_xpcs_autoneg_25m(), base + PPE_UNIPHY_MODE_CONTROL);
+	/* Step 4: Program XPCS mode control register (SoC-specific mode value) */
+	writel(ppe_uniphy_uxgmii_mode_ctrl_val(), base + PPE_UNIPHY_MODE_CONTROL);
 
 	/* Step 5: Configure GMII source selection from XPCS */
 	reg_value = readl(base + UNIPHYQP_USXG_OPITON1);
@@ -660,11 +757,15 @@ static void ppe_uniphy_uxgmii_mode_set(struct port_info *port)
 	/* Step 6: Software reset sequence */
 	ppe_uniphy_reset(port, true, true);
 	mdelay(RESET_DELAY);
+
 	ppe_uniphy_reset(port, true, false);
 	mdelay(RESET_DELAY);
 
 	/* Step 7: Perform calibration */
-	ppe_uniphy_calibration(port);
+	if (port->calibrate)
+		port->calibrate(port);
+	else
+		ppe_uniphy_calibration(port);
 
 	/* Step 8: Release XPCS reset */
 	ppe_uniphy_reset(port, false, false);
@@ -673,17 +774,19 @@ static void ppe_uniphy_uxgmii_mode_set(struct port_info *port)
 	/* Step 9: Wait for 10G-R link up */
 	ppe_uniphy_10g_r_linkup(index);
 
+	uniphy_rxeq_status_check(index);
+
 	/* Step 10: Enable USXGMII in XPCS */
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS));
 	reg_value |= USXG_EN;
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS), reg_value);
 
-	/* Step 11: Set QXGMII mode */
+	/* Step 11: Set UQXGMII mode */
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_KR_CTRL_ADDRESS));
 	reg_value |= USXG_MODE;
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_KR_CTRL_ADDRESS), reg_value);
 
-	/* Step 12: Set AM interval mode */
+	/* Step 12: Set AM alignment marker interval */
 	reg_value = csr_read(index, CSR1_ADDR(VR_XS_PCS_DIG_STS_ADDRESS));
 	reg_value |= AM_COUNT;
 	csr_write(index, CSR1_ADDR(VR_XS_PCS_DIG_STS_ADDRESS), reg_value);
@@ -932,13 +1035,14 @@ void ppe_xgmac_configuration(phys_addr_t reg_base, u32 portid,
 	 * 3'b110 = 2.5G XGMII
 	 * 3'b111 = 10M MII
 	 */
+	 /*
+	  * As XGMAC does not support 10M/100M, 1G is used as the default.
+	 */
 	switch (speed) {
 	case 0:  /* mac_speed 0 = 10M -> SS = 0x7 */
-		speed_bits = 0x3;
-		break;
+		fallthrough;
 	case 1:  /* mac_speed 1 = 100M -> SS = 0x4 */
-		speed_bits = 0x3;
-		break;
+		fallthrough;
 	case 2:  /* mac_speed 2 = 1G -> SS = 0x3 */
 		speed_bits = 0x3;
 		break;
@@ -4949,7 +5053,7 @@ static int ipq_eth_probe(struct udevice *dev)
 	if (ret)
 		return ret;
 
-	mdelay(10);
+	mdelay(50);
 
 	ret = reset_deassert_bulk(&resets);
 	if (ret)
@@ -4981,6 +5085,9 @@ static int ipq_eth_probe(struct udevice *dev)
 		}
 
 		port->dev = dev;
+
+		/* SoC-specific one-time port initialization (sets function pointers) */
+		port_init(port);
 
 		/* Only set uniphy_base if uniphy_id is valid */
 		if (port->uniphy_id != 0xFF && port->uniphy_id < CONFIG_ETH_MAX_UNIPHY)
