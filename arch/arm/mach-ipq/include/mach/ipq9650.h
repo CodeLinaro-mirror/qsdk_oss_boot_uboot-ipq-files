@@ -120,6 +120,26 @@
 #define CFG_QTI_KERN_WDT_ADDR			*((unsigned int *)0x8600658)
 #define CFG_QTI_KERN_TLV_ADDR			*((unsigned int *)0x8600758)
 
+#define WDT2_BASE_ADDR			0xF411000
+
+/* Watchdog Register Offsets */
+#define WDT_SECURE			0x000
+#define WDT_RST				0x004
+#define WDT_EN				0x008
+#define WDT_STS				0x00C
+#define WDT_BARK_TIME			0x010
+#define WDT_BITE_TIME			0x014
+
+/* Bit definitions */
+#define WDT_ENABLE_BIT			BIT(0)
+#define WDT_RESET_BIT			BIT(0)
+
+/* Sleep clock frequency */
+#define WDT_SLEEP_CLK_HZ		32768
+
+/* Default timeout */
+#define WDT_DEFAULT_TIMEOUT_MS		31999
+
 #if defined(CONFIG_IPQ_MINIDUMP_VERSION_V2)
 #define TLV_BUF_OFFSET				0
 #define CFG_TLV_DUMP_SIZE			(23 * 1024)
