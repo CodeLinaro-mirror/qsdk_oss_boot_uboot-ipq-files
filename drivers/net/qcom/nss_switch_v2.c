@@ -6,9 +6,7 @@
  */
 
 #include "nss-switch.h"
-#if IS_ENABLED(CONFIG_PHY_AQUANTIA)
 #include <command.h>
-#endif
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -815,6 +813,7 @@ static void ppe_uniphy_uxgmii_mode_set(struct port_info *port)
 	reg_value |= AN_ENABLE;
 	reg_value &= ~SS5;
 	reg_value |= SS6 | SS13 | DUPLEX_MODE;
+	reg_value = 0x1104;
 	csr_write(index, CSR1_ADDR(SR_MII_CTRL_ADDRESS), reg_value);
 	csr_write(index, CSR1_ADDR(SR_MII_CTRL_CHANNEL1_ADDRESS), reg_value);
 	csr_write(index, CSR1_ADDR(SR_MII_CTRL_CHANNEL2_ADDRESS), reg_value);
@@ -5854,3 +5853,102 @@ U_BOOT_CMD(aq_load_fw, 3, 0, do_aqloadfw,
 	   "phy_addr --> phy address of AQ port\n"
 	   "[r|d] - Optional: 'r' for reload, 'd' for debug logs\n");
 #endif /* CONFIG_PHY_AQUANTIA */
+
+/* ========================================================================
+ * uniphy_csr - UNIPHY CSR read/write command
+ *
+ * Usage:
+ *   uniphy_csr read  <uniphy_index> <register> <csr_type>
+ *   uniphy_csr write <uniphy_index> <register> <csr_type> <value>
+ *
+ *   uniphy_index : 0, 1, or 2
+ *   register     : register address (hex)
+ *   csr_type     : 0 = CSR0 direct, 1 = CSR1 indirect, 2 = CSR2 indirect
+ *                  (CSR V1 only supports csr_type 1)
+ *   value        : value to write (hex, write only)
+ *
+ * The command uses the current uniphy_base_addr and current_csr_version
+ * globals set at boot time.
+ * ========================================================================
+ */
+static int do_uniphy_csr(struct cmd_tbl *cmdtp, int flag, int argc,
+			 char *const argv[])
+{
+	int uniphy_index;
+	u32 reg, csr_type, encoded_addr, value;
+	bool is_write;
+
+	if (argc < 5)
+		return CMD_RET_USAGE;
+
+	if (!strcmp(argv[1], "read")) {
+		is_write = false;
+		if (argc != 5)
+			return CMD_RET_USAGE;
+	} else if (!strcmp(argv[1], "write")) {
+		is_write = true;
+		if (argc != 6)
+			return CMD_RET_USAGE;
+	} else {
+		return CMD_RET_USAGE;
+	}
+
+	uniphy_index = (int)simple_strtoul(argv[2], NULL, 0);
+	reg          = (u32)simple_strtoul(argv[3], NULL, 0);
+	csr_type     = (u32)simple_strtoul(argv[4], NULL, 0);
+
+	/* Validate uniphy index */
+	if (uniphy_index < 0 || uniphy_index > 2) {
+		printf("Error: uniphy_index must be 0, 1, or 2\n");
+		return CMD_RET_FAILURE;
+	}
+
+	if (current_csr_version == CSR_VERSION_V1) {
+		/* V1: only one CSR block, csr_type must be 0 */
+		if (csr_type != 1) {
+			printf("Error: CSR V1 only supports csr_type 0\n");
+			return CMD_RET_FAILURE;
+		}
+		/* Strip any encoding bits; V1 uses raw address */
+		encoded_addr = reg & UNIPHY_REG_ADDR_MASK;
+	} else {
+		/* V2: encode csr_type into the address */
+		if (csr_type > 2) {
+			printf("Error: csr_type must be 0, 1, or 2 for CSR V2\n");
+			return CMD_RET_FAILURE;
+		}
+		encoded_addr = (reg & UNIPHY_REG_ADDR_MASK) |
+			       ((csr_type << UNIPHY_CSR_BLOCK_SHIFT) &
+				UNIPHY_CSR_BLOCK_MASK);
+	}
+
+	if (is_write) {
+		value = (u32)simple_strtoul(argv[5], NULL, 0);
+		printf("UNIPHY CSR Write: uniphy=%d csr_type=%u reg=0x%08x val=0x%08x [%s]\n",
+		       uniphy_index, csr_type, reg, value,
+		       current_csr_version == CSR_VERSION_V2 ? "V2" : "V1");
+		csr_write(uniphy_index, encoded_addr, value);
+		printf("Write done\n");
+	} else {
+		printf("UNIPHY CSR Read: uniphy=%d csr_type=%u reg=0x%08x [%s]\n",
+		       uniphy_index, csr_type, reg,
+		       current_csr_version == CSR_VERSION_V2 ? "V2" : "V1");
+		value = csr_read(uniphy_index, encoded_addr);
+		printf("Value: 0x%08x\n", value);
+	}
+
+	return CMD_RET_SUCCESS;
+}
+
+U_BOOT_CMD(csr, 6, 0, do_uniphy_csr,
+	   "UNIPHY CSR register read/write",
+	   "read  <uniphy_index> <register> <csr_type>\n"
+	   "    Read a UNIPHY CSR register\n"
+	   "csr write <uniphy_index> <register> <csr_type> <value>\n"
+	   "    Write a UNIPHY CSR register\n"
+	   "\n"
+	   "  uniphy_index : 0, 1, or 2\n"
+	   "  register     : register address in hex\n"
+	   "  csr_type     : 0=CSR0(direct)  1=CSR1(indirect)  2=CSR2(indirect)\n"
+	   "                 (CSR V1 only supports csr_type 0)\n"
+	   "  value        : value to write in hex (write only)\n");
