@@ -123,6 +123,7 @@
 	phy_rst_pinmux: phy_rst {
 		qca_8075_rst {
 			pins = "gpio24";
+			function = "gpio";
 			drive-strength = <6>;
 			bias-pull-down;
 		};
