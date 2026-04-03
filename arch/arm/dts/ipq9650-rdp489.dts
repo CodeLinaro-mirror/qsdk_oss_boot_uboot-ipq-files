@@ -34,6 +34,18 @@
 			status = "okay";
 		};
 
+		pcie1_phy: phy@f4000 {
+			status = "okay";
+		};
+
+		pcie2_phy: phy@fc000 {
+			status = "okay";
+		};
+
+		pcie3_phy: phy@b4000 {
+			status = "okay";
+		};
+
 		pcie1: pcie@50000000 {
 			pinctrl-0 = <&pcie1_default_state>;
 			pinctrl-names = "default";
