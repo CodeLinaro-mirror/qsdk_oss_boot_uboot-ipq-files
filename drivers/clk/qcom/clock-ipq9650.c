@@ -320,6 +320,9 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 		}
 	} else if (pclk_rate == CLK_312_5_MHZ) {
 		switch (rate) {
+		case CLK_1_25_MHZ:
+			*div = 4;
+			*cdiv = 99;
 		case CLK_2_5_MHZ:
 			break;
 		case CLK_12_5_MHZ:
