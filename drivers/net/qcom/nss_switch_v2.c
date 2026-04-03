@@ -38,10 +38,24 @@ static phys_addr_t uniphy_base_addr = 0x7A00000;  /* Default base address */
 /* Current CSR version - set at boot */
 static enum csr_version current_csr_version = CSR_VERSION_V1;
 
+/* Current reset version - set at boot via uniphy_get_reset_version() */
+static enum reset_version current_reset_version = RESET_VERSION_V1;
+
 /* ========================================================================
  * CSR Version Management
  * ========================================================================
  */
+/**
+ * uniphy_get_reset_version - weak default: USXGMII port reset via USRA_RST
+ *
+ * SoCs that use the QP_USXG_RESET active-LOW path override this in their
+ * *_port_config.c to return RESET_VERSION_V2.
+ */
+__weak enum reset_version uniphy_get_reset_version(void)
+{
+	return RESET_VERSION_V1;
+}
+
 void uniphy_set_base_addr(phys_addr_t base_addr)
 {
 	uniphy_base_addr = base_addr;
@@ -265,7 +279,7 @@ int ppe_uniphy_calibration(struct port_info *port)
  */
 int ppe_uniphy_serdes_calibration(struct port_info *port)
 {
-	int retries = JHPPE_UNIPHY_POLLING_TIMEOUT;
+	int retries = UNIPHY_POLLING_TIMEOUT;
 	u32 reg_value = 0;
 	u32 index = port->uniphy_id;
 	phys_addr_t base = port->uniphy_base;
@@ -284,8 +298,8 @@ int ppe_uniphy_serdes_calibration(struct port_info *port)
 
 	/* Step 2: Wait for traffic state to be 0xF */
 	while ((readl(base + QSERDES_RX_EXT_RO_POWER_STATE_ADDRESS) & 0xF) !=
-	       JHPPE_UNIPHY_POWER_STATE_DONE) {
-		mdelay(JHPPE_UNIPHY_POLLING_DELAY);
+	       UNIPHY_POWER_STATE_DONE) {
+		mdelay(UNIPHY_POLLING_DELAY);
 		if (retries-- == 0) {
 			printf("uniphy %d calibration time out!\n", index);
 			return -ETIMEDOUT;
@@ -600,7 +614,7 @@ static void ppe_uniphy_10g_r_mode_set(struct port_info *port)
  * uniphy_rxeq_status_check() - Poll RXEQ engine done status (weak default)
  * @uniphy_index: UNIPHY instance number (0, 1, or 2)
  *
- * Default no-op stub for SoCs that do not use QSERDES/JHPPE SerDes.
+ * Default no-op stub for SoCs that do not use QSERDES-based SerDes.
  * IPQ9650 overrides this with a strong implementation in ipq9650_port_config.c
  * that polls QSERDES_RX_EXT_RO_PMAD_RXEQ_STATUS bit[1] (RXEQ_ENGINE_DONE).
  *
@@ -979,14 +993,76 @@ void ppe_uniphy_usxgmii_duplex_set(int uniphy_index, int duplex)
 
 /*
  * USXGMII port reset
+ *
+ * Ported from SSDK adpt_hppe_uniphy_usxgmii_port_reset().
+ * Port-specific reset sequence selected by current_reset_version:
+ *
+ * RESET_VERSION_V2 - QP_USXG_RESET @ 0x630 (CSR0 direct):
+ *   Active-LOW RST_N bits - assert (clear) then de-assert (set).
+ *   port 1 -> bit 0 (QP_USXG_RST_N_MAIN)
+ *   port 2 -> bit 1 (QP_USXG_RST_N_P1)
+ *   port 3 -> bit 2 (QP_USXG_RST_N_P2)
+ *   port 4 -> bit 3 (QP_USXG_RST_N_P3)
+ *
+ * RESET_VERSION_V1 - VR_XS_PCS_DIG_CTRL1 @ 0x38000 (CSR1 indirect):
+ *   USRA_RST (bit 10) is active-HIGH and self-clearing.
+ *   For UQXGMII/UDXGMII, also reset per-channel VR_MII_DIG_CTRL1:
+ *   port 2 -> VR_MII_DIG_CTRL1_CHANNEL1 (0x1a8000), USRA_RST_MII (bit 5)
+ *   port 3 -> VR_MII_DIG_CTRL1_CHANNEL2 (0x1b8000), USRA_RST_MII (bit 5)
+ *   port 4 -> VR_MII_DIG_CTRL1_CHANNEL3 (0x1c8000), USRA_RST_MII (bit 5)
  */
-void ppe_uniphy_usxgmii_port_reset(int uniphy_index)
+void ppe_uniphy_usxgmii_port_reset(int uniphy_index, int port_id,
+				   int uniphy_mode)
 {
-	u32 reg_value = 0;
+	phys_addr_t base = uniphy_base_addr | (uniphy_index << UNIPHY_PHY_SHIFT);
+	u32 reg_value;
+	u32 rst_bit;
+	u32 ch_addr;
 
-	reg_value = csr_read(uniphy_index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS));
-	reg_value |= USRA_RST;
-	csr_write(uniphy_index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS), reg_value);
+	if (current_reset_version == RESET_VERSION_V2) {
+		/* Map port to active-LOW reset bit in QP_USXG_RESET */
+		switch (port_id) {
+		case 1: rst_bit = QP_USXG_RST_N_MAIN; break;
+		case 2: rst_bit = QP_USXG_RST_N_P1;   break;
+		case 3: rst_bit = QP_USXG_RST_N_P2;   break;
+		case 4: rst_bit = QP_USXG_RST_N_P3;   break;
+		default: return;
+		}
+
+		/* Assert (clear active-LOW bit), delay, then de-assert */
+		reg_value = readl(base + QP_USXG_RESET_ADDRESS);
+		writel(reg_value & ~rst_bit, base + QP_USXG_RESET_ADDRESS);
+		mdelay(1);
+		writel(reg_value | rst_bit, base + QP_USXG_RESET_ADDRESS);
+	} else {
+		/* V1: set active-HIGH self-clearing USRA_RST in VR_XS_PCS_DIG_CTRL1 */
+		reg_value = csr_read(uniphy_index,
+				     CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS));
+		csr_write(uniphy_index, CSR1_ADDR(VR_XS_PCS_DIG_CTRL1_ADDRESS),
+			  reg_value | USRA_RST);
+		mdelay(10);
+
+		/* For UQXGMII/UDXGMII: also reset per-channel VR_MII_DIG_CTRL1 */
+		if (uniphy_mode == PORT_WRAPPER_UQXGMII ||
+		    uniphy_mode == PORT_WRAPPER_UQXGMII_3CHANNELS ||
+		    uniphy_mode == PORT_WRAPPER_UDXGMII) {
+			switch (port_id) {
+			case 2: ch_addr = VR_MII_DIG_CTRL1_CHANNEL1_ADDRESS; break;
+			case 3: ch_addr = VR_MII_DIG_CTRL1_CHANNEL2_ADDRESS; break;
+			case 4: ch_addr = VR_MII_DIG_CTRL1_CHANNEL3_ADDRESS; break;
+			default: ch_addr = 0; break;
+			}
+
+			if (ch_addr) {
+				reg_value = csr_read(uniphy_index,
+						     CSR1_ADDR(ch_addr));
+				csr_write(uniphy_index, CSR1_ADDR(ch_addr),
+					  reg_value | USRA_RST_MII);
+			}
+		}
+
+		mdelay(10);
+	}
 }
 
 void ppe_xgmac_configuration(phys_addr_t reg_base, u32 portid,
@@ -1206,7 +1282,8 @@ void ppe_port_speed_set(phys_addr_t reg_base, struct port_info *port)
 		ppe_uniphy_usxgmii_speed_set(port->id, port->uniphy_id,
 					     port->mac_speed);
 		ppe_uniphy_usxgmii_duplex_set(port->uniphy_id, port->duplex);
-		ppe_uniphy_usxgmii_port_reset(port->uniphy_id);
+		ppe_uniphy_usxgmii_port_reset(port->uniphy_id, port->id,
+					      port->uniphy_mode);
 		usxgmii = true;
 	case PORT_WRAPPER_SGMII_PLUS:
 		if (port->gmac_type == XGMAC)
@@ -5083,6 +5160,7 @@ static int ipq_eth_probe(struct udevice *dev)
 	uniphy_set_base_addr(priv->uniphy_base);
 
 	current_csr_version = uniphy_get_csr_version();
+	current_reset_version = uniphy_get_reset_version();
 
 	ipq_edma_hw_init(dev, priv);
 

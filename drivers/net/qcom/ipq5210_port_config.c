@@ -1423,3 +1423,8 @@ enum csr_version uniphy_get_csr_version(void)
 {
 	return CSR_VERSION_V1;
 }
+
+enum reset_version uniphy_get_reset_version(void)
+{
+	return RESET_VERSION_V2;
+}
