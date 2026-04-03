@@ -2088,7 +2088,7 @@ static int uniphy_pma_dfe_sw_tune(int uniphy_index)
  * uniphy_rxeq_status_check() - Poll RXEQ engine done status (IPQ9650 strong override)
  * @uniphy_index: UNIPHY instance number (0, 1, or 2)
  *
- * IPQ9650 uses QSERDES/JHPPE SerDes which requires polling
+ * IPQ9650 uses QSERDES-based SerDes which requires polling
  * QSERDES_RX_EXT_RO_PMAD_RXEQ_STATUS bit[1] (RXEQ_ENGINE_DONE) after
  * link-up to confirm the RX equalizer engine has completed adaptation.
  *
@@ -2158,7 +2158,7 @@ u32 ppe_uniphy_uxgmii_mode_ctrl_val(void)
  *
  * Main PMA initialization function that selects the appropriate DFE mode.
  * All register accesses use csr_write(index, CSR0_ADDR(offset), val) for
- * JHPPE QSERDES registers (0xc000-0xdfff) via CSR0 direct access.
+ * QSERDES registers (0xc000-0xdfff) via CSR0 direct access.
  *
  * Note: Uniphy reset should be handled by the caller before and after this function.
  *
