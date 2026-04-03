@@ -2578,7 +2578,6 @@ static int qce1204_pcs_speed_clock_set(struct phy_device *phydev, u32 channel, u
 
 static int qce1204_phy_qusgmii_speed_fix_up(struct phy_device *phydev)
 {
-	struct qce1204_priv *priv = phydev->priv;
 	u32 channel;
 	int ret;
 	bool clk_en = false;
@@ -2625,15 +2624,13 @@ static int qce1204_phy_qusgmii_speed_fix_up(struct phy_device *phydev)
 	if (ret < 0)
 		goto err_disable_clks;
 
-	if (priv && priv->package_mode == PHY_INTERFACE_MODE_QUSGMII) {
-		ret = qce1204_pcs_qusgmii_reset(phydev, channel);
-		if (ret < 0)
-			goto err_disable_clks;
+	ret = qce1204_pcs_qusgmii_reset(phydev, channel);
+	if (ret < 0)
+		goto err_disable_clks;
 
-		ret = qce1204_pcs_qusgmii_function_reset(phydev, channel);
-		if (ret < 0)
-			goto err_disable_clks;
-	}
+	ret = qce1204_pcs_qusgmii_function_reset(phydev, channel);
+	if (ret < 0)
+		goto err_disable_clks;
 
 	ret = qce1204_phy_fifo_reset(phydev, true);
 	if (ret < 0)
@@ -2648,13 +2645,11 @@ static int qce1204_phy_qusgmii_speed_fix_up(struct phy_device *phydev)
 	}
 
 	/* change IPG from 10 to 11 for 1G speed (QUSGMII mode only) */
-	if (priv && priv->package_mode == PHY_INTERFACE_MODE_QUSGMII) {
-		ret = phy_modify(phydev, MDIO_MMD_AN, QCE1204_PHY_MMD7_IPG_OP,
-				 QCE1204_PHY_IPG_10_TO_11_EN, phydev->speed == SPEED_1000 ?
-				 QCE1204_PHY_IPG_10_TO_11_EN : 0);
-		if (ret < 0)
-			goto err_disable_clks;
-	}
+	ret = phy_modify(phydev, MDIO_MMD_AN, QCE1204_PHY_MMD7_IPG_OP,
+			 QCE1204_PHY_IPG_10_TO_11_EN, phydev->speed == SPEED_1000 ?
+			 QCE1204_PHY_IPG_10_TO_11_EN : 0);
+	if (ret < 0)
+		goto err_disable_clks;
 
 	return 0;
 
