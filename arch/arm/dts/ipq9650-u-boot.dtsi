@@ -237,10 +237,13 @@
 			reg = <0x0 0x7d000 0x0 0x1c0>,
 				<0x0 0x7d200 0x0 0x170>,
 				<0x0 0x7d400 0x0 0x200>,
-				<0x0 0x7d800 0x0 0x1f0>;
+				<0x0 0x7d800 0x0 0x1f0>,
+				<0x0 0x7de00 0x0 0x60>;
 			reg-names = "com_base", "tx_base",
-				"rx_base", "pcs_base";
-			clocks = <&gcc GCC_USB0_PIPE_CLK>;
+				"rx_base", "pcs_base", "pcs_usb_base";
+			clocks = <&gcc GCC_USB0_AUX_CLK>,
+				 <&gcc GCC_USB0_PHY_CFG_AHB_CLK>,
+				 <&gcc GCC_USB0_PIPE_CLK>;
 			#phy-cells = <0>;
 			resets =  <&gcc GCC_USB0_PHY_BCR>,
 			       <&gcc GCC_USB3PHY_0_PHY_BCR>;
@@ -290,8 +293,8 @@
 				<&gcc GCC_USB0_PHY_CFG_AHB_CLK>;
 			resets = <&gcc GCC_USB_BCR>;
 			ranges;
-			qcom,quirk-ref-clk-per = <0x4004010>;
-			qcom,quirk-ref-clk-adj = <0x4945720>;
+			qcom,quirk-ref-clk-per = <0xA40C010>;
+			qcom,quirk-ref-clk-adj = <0xA87F0A0>;
 			status = "disabled";
 
 			dwc3@8a00000 {
