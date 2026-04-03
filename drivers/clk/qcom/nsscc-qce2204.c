@@ -305,6 +305,9 @@ static int qce2204_disable(struct clk *clk)
 static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 				     int *div, int *cdiv, int *xgmii_dev)
 {
+	*xgmii_dev = 0;
+	*cdiv = 0;
+	*div = 0;
 	switch (rate) {
 	case CLK_2_5_MHZ:
 		*div = 24;
@@ -353,11 +356,10 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 		qce2204_clk_rcg_set_rate_v2(priv, GCC_MAC1_TX_CMD_RCGR,
 					    GCC_MAC1_TX_DIV_CDIVR, div, cdiv,
 					    7 << 8);
-		if (xgmii_dev)
-			qce2204_ahb_write(priv,
-					  QCE2204_CLK_REG_BASE +
-					  GCC_MAC1_SRDS1_CH0_XGMII_TX_DIV_CDIVR,
-					  xgmii_dev);
+		qce2204_ahb_write(priv,
+				  QCE2204_CLK_REG_BASE +
+				  GCC_MAC1_SRDS1_CH0_XGMII_TX_DIV_CDIVR,
+				  xgmii_dev);
 		break;
 	case QCE2204_NSSCC_MAC2_TX_CLK:
 	case QCE2204_NSSCC_MAC2_SRDS1_CH1_TX_CLK:
@@ -366,11 +368,10 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 		qce2204_clk_rcg_set_rate_v2(priv, GCC_MAC2_TX_CMD_RCGR,
 					    GCC_MAC2_TX_DIV_CDIVR, div, cdiv,
 					    7 << 8);
-		if (xgmii_dev)
-			qce2204_ahb_write(priv,
-					  QCE2204_CLK_REG_BASE +
-					  GCC_MAC2_SRDS1_CH1_XGMII_TX_DIV_CDIVR,
-					  xgmii_dev);
+		qce2204_ahb_write(priv,
+				  QCE2204_CLK_REG_BASE +
+				  GCC_MAC2_SRDS1_CH1_XGMII_TX_DIV_CDIVR,
+				  xgmii_dev);
 		break;
 	case QCE2204_NSSCC_MAC3_TX_CLK:
 	case QCE2204_NSSCC_MAC3_SRDS1_CH2_TX_CLK:
@@ -379,11 +380,10 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 		qce2204_clk_rcg_set_rate_v2(priv, GCC_MAC3_TX_CMD_RCGR,
 					    GCC_MAC3_TX_DIV_CDIVR, div, cdiv,
 					    7 << 8);
-		if (xgmii_dev)
-			qce2204_ahb_write(priv,
-					  QCE2204_CLK_REG_BASE +
-					  GCC_MAC3_SRDS1_CH2_XGMII_TX_DIV_CDIVR,
-					  xgmii_dev);
+		qce2204_ahb_write(priv,
+				  QCE2204_CLK_REG_BASE +
+				  GCC_MAC3_SRDS1_CH2_XGMII_TX_DIV_CDIVR,
+				  xgmii_dev);
 		break;
 	case QCE2204_NSSCC_MAC4_TX_CLK:
 	case QCE2204_NSSCC_MAC4_SRDS1_CH3_TX_CLK:
@@ -392,11 +392,10 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 		qce2204_clk_rcg_set_rate_v2(priv, GCC_MAC4_TX_CMD_RCGR,
 					    GCC_MAC4_TX_DIV_CDIVR, div, cdiv,
 					    7 << 8);
-		if (xgmii_dev)
-			qce2204_ahb_write(priv,
-					  QCE2204_CLK_REG_BASE +
-					  GCC_MAC4_SRDS1_CH3_XGMII_TX_DIV_CDIVR,
-					  xgmii_dev);
+		qce2204_ahb_write(priv,
+				  QCE2204_CLK_REG_BASE +
+				  GCC_MAC4_SRDS1_CH3_XGMII_TX_DIV_CDIVR,
+				  xgmii_dev);
 		break;
 
 	case QCE2204_NSSCC_MAC1_RX_CLK:
@@ -406,11 +405,10 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 		qce2204_clk_rcg_set_rate_v2(priv, GCC_MAC1_RX_CMD_RCGR,
 					    GCC_MAC1_RX_DIV_CDIVR, div, cdiv,
 					    6 << 8);
-		if (xgmii_dev)
-			qce2204_ahb_write(priv,
-					  QCE2204_CLK_REG_BASE +
-					  GCC_MAC1_SRDS1_CH0_XGMII_RX_DIV_CDIVR,
-					  xgmii_dev);
+		qce2204_ahb_write(priv,
+				  QCE2204_CLK_REG_BASE +
+				  GCC_MAC1_SRDS1_CH0_XGMII_RX_DIV_CDIVR,
+				  xgmii_dev);
 		break;
 	case QCE2204_NSSCC_MAC2_RX_CLK:
 	case QCE2204_NSSCC_MAC2_SRDS1_CH1_RX_CLK:
@@ -419,11 +417,10 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 		qce2204_clk_rcg_set_rate_v2(priv, GCC_MAC2_RX_CMD_RCGR,
 					    GCC_MAC2_RX_DIV_CDIVR, div, cdiv,
 					    6 << 8);
-		if (xgmii_dev)
-			qce2204_ahb_write(priv,
-					  QCE2204_CLK_REG_BASE +
-					  GCC_MAC2_SRDS1_CH1_XGMII_RX_DIV_CDIVR,
-					  xgmii_dev);
+		qce2204_ahb_write(priv,
+				  QCE2204_CLK_REG_BASE +
+				  GCC_MAC2_SRDS1_CH1_XGMII_RX_DIV_CDIVR,
+				  xgmii_dev);
 		break;
 	case QCE2204_NSSCC_MAC3_RX_CLK:
 	case QCE2204_NSSCC_MAC3_SRDS1_CH2_RX_CLK:
@@ -432,11 +429,10 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 		qce2204_clk_rcg_set_rate_v2(priv, GCC_MAC3_RX_CMD_RCGR,
 					    GCC_MAC3_RX_DIV_CDIVR, div, cdiv,
 					    6 << 8);
-		if (xgmii_dev)
-			qce2204_ahb_write(priv,
-					  QCE2204_CLK_REG_BASE +
-					  GCC_MAC3_SRDS1_CH2_XGMII_RX_DIV_CDIVR,
-					  xgmii_dev);
+		qce2204_ahb_write(priv,
+				  QCE2204_CLK_REG_BASE +
+				  GCC_MAC3_SRDS1_CH2_XGMII_RX_DIV_CDIVR,
+				  xgmii_dev);
 		break;
 	case QCE2204_NSSCC_MAC4_RX_CLK:
 	case QCE2204_NSSCC_MAC4_SRDS1_CH3_RX_CLK:
@@ -445,11 +441,10 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 		qce2204_clk_rcg_set_rate_v2(priv, GCC_MAC4_RX_CMD_RCGR,
 					    GCC_MAC4_RX_DIV_CDIVR, div, cdiv,
 					    6 << 8);
-		if (xgmii_dev)
-			qce2204_ahb_write(priv,
-					  QCE2204_CLK_REG_BASE +
-					  GCC_MAC4_SRDS1_CH3_XGMII_RX_DIV_CDIVR,
-					  xgmii_dev);
+		qce2204_ahb_write(priv,
+				  QCE2204_CLK_REG_BASE +
+				  GCC_MAC4_SRDS1_CH3_XGMII_RX_DIV_CDIVR,
+				  xgmii_dev);
 		break;
 
 	case QCE2204_NSSCC_AHB_CLK:
