@@ -19,13 +19,13 @@
 #define QSERDES_V4_COM_SSC_PER2				0x020
 #define QSERDES_V4_COM_SSC_STEP_SIZE1_MODE0		0x024
 #define QSERDES_V4_COM_SSC_STEP_SIZE2_MODE0		0x028
-#define QSERDES_V4_COM_SYSCLK_BUF_ENABLE		0x03c
-#define QSERDES_V4_COM_PLL_IVCO				0x048
+#define QSERDES_V4_COM_SYSCLK_BUF_ENABLE		0x050
+#define QSERDES_V4_COM_PLL_IVCO				0x058
 #define QSERDES_V4_COM_CMN_IPTRIM			0x060
 #define QSERDES_V4_COM_CP_CTRL_MODE0			0x074
-#define QSERDES_V4_COM_PLL_RCTRL_MODE0			0x078
-#define QSERDES_V4_COM_PLL_CCTRL_MODE0			0x07c
-#define QSERDES_V4_COM_SYSCLK_EN_SEL			0x080
+#define QSERDES_V4_COM_PLL_RCTRL_MODE0			0x07c
+#define QSERDES_V4_COM_PLL_CCTRL_MODE0			0x084
+#define QSERDES_V4_COM_SYSCLK_EN_SEL			0x094
 #define QSERDES_V4_COM_LOCK_CMP_EN			0x0a4
 #define QSERDES_V4_COM_LOCK_CMP1_MODE0			0x0ac
 #define QSERDES_V4_COM_LOCK_CMP2_MODE0			0x0b0
@@ -39,11 +39,11 @@
 #define QSERDES_V4_COM_HSCLK_SEL			0x158
 #define QSERDES_V4_COM_BIN_VCOCAL_CMP_CODE1_MODE0	0x1ac
 #define QSERDES_V4_COM_BIN_VCOCAL_CMP_CODE2_MODE0	0x1b0
-#define QSERDES_V4_COM_BIN_VCOCAL_HSCLK_SEL		0x1b4
+#define QSERDES_V4_COM_BIN_VCOCAL_HSCLK_SEL		0x1bc
 
 /* QSERDES V4 TX registers */
-#define QSERDES_V4_TX_RES_CODE_LANE_OFFSET_TX		0x044
-#define QSERDES_V4_TX_RES_CODE_LANE_OFFSET_RX		0x048
+#define QSERDES_V4_TX_RES_CODE_LANE_OFFSET_TX		0x03c
+#define QSERDES_V4_TX_RES_CODE_LANE_OFFSET_RX		0x040
 #define QSERDES_V4_TX_LANE_MODE_1			0x084
 #define QSERDES_V4_TX_LANE_MODE_2			0x088
 #define QSERDES_V4_TX_RCV_DETECT_LVL_2			0x09c
@@ -73,17 +73,18 @@
 #define QSERDES_V4_RX_RX_OFFSET_ADAPTOR_CNTRL2		0x114
 #define QSERDES_V4_RX_SIGDET_CNTRL			0x11c
 #define QSERDES_V4_RX_SIGDET_DEGLITCH_CNTRL		0x124
-#define QSERDES_V4_RX_RX_MODE_01_LOW			0x15c
-#define QSERDES_V4_RX_RX_MODE_01_HIGH			0x160
-#define QSERDES_V4_RX_RX_MODE_01_HIGH2			0x164
-#define QSERDES_V4_RX_RX_MODE_01_HIGH3			0x168
-#define QSERDES_V4_RX_RX_MODE_01_HIGH4			0x16c
+#define QSERDES_V4_RX_RX_MODE_01_LOW			0x184
+#define QSERDES_V4_RX_RX_MODE_01_HIGH			0x188
+#define QSERDES_V4_RX_RX_MODE_01_HIGH2			0x18c
+#define QSERDES_V4_RX_RX_MODE_01_HIGH3			0x190
+#define QSERDES_V4_RX_RX_MODE_01_HIGH4			0x194
 #define QSERDES_V4_RX_DFE_EN_TIMER			0x1b4
-#define QSERDES_V4_RX_DFE_CTLE_POST_CAL_OFFSET		0x1c0
-#define QSERDES_V4_RX_DCC_CTRL1				0x1a8
+#define QSERDES_V4_RX_DFE_CTLE_POST_CAL_OFFSET		0x1b8
+#define QSERDES_V4_RX_DCC_CTRL1				0x1bc
+#define QSERDES_V4_RX_SIGDET_ENABLES			0x518
 
 /* QPHY V4 PCS registers */
-#define QPHY_V4_PCS_RATE_SLEW_CNTRL1			0x00c
+#define QPHY_V4_PCS_RATE_SLEW_CNTRL1			0x198
 #define QPHY_V4_PCS_FLL_CNTRL1				0x098
 #define QPHY_V4_PCS_FLL_CNTRL2				0x09c
 #define QPHY_V4_PCS_FLL_CNT_VAL_L			0x0a0
@@ -101,7 +102,7 @@
 #define QPHY_V4_PCS_SW_RESET				0x000
 #define QPHY_V4_PCS_START_CONTROL			0x044
 #define QPHY_V4_PCS_PCS_STATUS1				0x014
-#define QPHY_V4_PCS_POWER_DOWN_CONTROL			0x004
+#define QPHY_V4_PCS_POWER_DOWN_CONTROL			0x040
 
 /* QPHY V4 PCS USB3 registers */
 #define QPHY_V4_PCS_USB3_LFPS_DET_HIGH_COUNT_VAL	0x018
@@ -203,6 +204,12 @@ struct qmp_usb3_phy_cfg {
 	unsigned int rx_cfg_num;
 	const struct qmp_usb3_phy_cfg_tbl *pcs_cfg_tbl;
 	unsigned int pcs_cfg_num;
+	const struct qmp_usb3_phy_cfg_tbl *pcs_usb_cfg_tbl;
+	unsigned int pcs_usb_cfg_num;
+	u32 reg_pcs_power_down_control;
+	u32 reg_pcs_start_control;
+	u32 reg_pcs_phy_sw_reset;
+	u32 reg_rx_sigdet_en;
 };
 
 struct qmp_usb3_phy_priv {
@@ -210,6 +217,7 @@ struct qmp_usb3_phy_priv {
 	void __iomem *tx_base;
 	void __iomem *rx_base;
 	void __iomem *pcs_base;
+	void __iomem *pcs_usb_base;
 	struct clk_bulk clks;
 	struct reset_ctl_bulk phy_rsts;
 	const struct qmp_usb3_phy_cfg *phy_cfg;
@@ -386,6 +394,9 @@ static const struct qmp_usb3_phy_cfg_tbl ipq9650_phy_pcs_cfg_tbl[] = {
 	QMP_USB3_PHY_INIT_CFG(QPHY_V4_PCS_FLL_CNT_VAL_L, 0x09),
 	QMP_USB3_PHY_INIT_CFG(QPHY_V4_PCS_FLL_CNT_VAL_H_TOL, 0xA2),
 	QMP_USB3_PHY_INIT_CFG(QPHY_V4_PCS_FLL_MAN_CODE, 0x40),
+};
+
+static const struct qmp_usb3_phy_cfg_tbl ipq9650_usb3_pcs_usb_tbl[] = {
 	QMP_USB3_PHY_INIT_CFG(QPHY_V4_PCS_USB3_LFPS_DET_HIGH_COUNT_VAL, 0xF8),
 };
 
@@ -398,6 +409,10 @@ static const struct qmp_usb3_phy_cfg ipq9574_phy_cfgs = {
 	.rx_cfg_num = ARRAY_SIZE(ipq9574_phy_rx_cfg_tbl),
 	.pcs_cfg_tbl = ipq9574_phy_pcs_cfg_tbl,
 	.pcs_cfg_num = ARRAY_SIZE(ipq9574_phy_pcs_cfg_tbl),
+	.reg_pcs_power_down_control = QPHY_V3_PCS_POWER_DOWN_CONTROL,
+	.reg_pcs_start_control = QPHY_V3_PCS_START_CONTROL,
+	.reg_pcs_phy_sw_reset = QPHY_V3_PCS_PHY_SW_RESET,
+	.reg_rx_sigdet_en = QSERDES_RX_SIGDET_ENABLES,
 };
 
 static const struct qmp_usb3_phy_cfg ipq9650_phy_cfgs = {
@@ -409,6 +424,12 @@ static const struct qmp_usb3_phy_cfg ipq9650_phy_cfgs = {
 	.rx_cfg_num = ARRAY_SIZE(ipq9650_phy_rx_cfg_tbl),
 	.pcs_cfg_tbl = ipq9650_phy_pcs_cfg_tbl,
 	.pcs_cfg_num = ARRAY_SIZE(ipq9650_phy_pcs_cfg_tbl),
+	.pcs_usb_cfg_tbl = ipq9650_usb3_pcs_usb_tbl,
+	.pcs_usb_cfg_num = ARRAY_SIZE(ipq9650_usb3_pcs_usb_tbl),
+	.reg_pcs_power_down_control = QPHY_V4_PCS_POWER_DOWN_CONTROL,
+	.reg_pcs_start_control = QPHY_V4_PCS_START_CONTROL,
+	.reg_pcs_phy_sw_reset = QPHY_V4_PCS_SW_RESET,
+	.reg_rx_sigdet_en = QSERDES_V4_RX_SIGDET_ENABLES,
 };
 
 static int qmp_usb3_phy_do_reset(struct qmp_usb3_phy_priv *priv)
@@ -438,7 +459,7 @@ static int qmp_usb3_phy_power_on(struct phy *phy)
 	if (ret)
 		return ret;
 
-	setbits_le32(priv->pcs_base + QPHY_V3_PCS_POWER_DOWN_CONTROL, 0x1);
+	setbits_le32(priv->pcs_base + phy_cfg->reg_pcs_power_down_control, 0x1);
 
 	/* QMP PHY Serdes COM config Sequence */
 	for (i = 0; i < phy_cfg->serdes_cfg_num; i++)
@@ -460,10 +481,15 @@ static int qmp_usb3_phy_power_on(struct phy *phy)
 	for (i = 0; i < phy_cfg->pcs_cfg_num; i++)
 		writel(phy_cfg->pcs_cfg_tbl[i].val,
 				priv->pcs_base + phy_cfg->pcs_cfg_tbl[i].reg);
+	if (priv->pcs_usb_base)
+		for (i = 0; i < phy_cfg->pcs_usb_cfg_num; i++)
+			writel(phy_cfg->pcs_usb_cfg_tbl[i].val,
+			       priv->pcs_usb_base +
+			       phy_cfg->pcs_usb_cfg_tbl[i].reg);
 
-	writel(0x00, priv->rx_base + QSERDES_RX_SIGDET_ENABLES);
-	writel(0x03, priv->pcs_base + QPHY_V3_PCS_START_CONTROL);
-	writel(0x00, priv->pcs_base + QPHY_V3_PCS_PHY_SW_RESET);
+	writel(0x00, priv->rx_base + phy_cfg->reg_rx_sigdet_en);
+	writel(0x03, priv->pcs_base + phy_cfg->reg_pcs_start_control);
+	writel(0x00, priv->pcs_base + phy_cfg->reg_pcs_phy_sw_reset);
 	udelay(200);
 
 	ret = clk_enable_bulk(&priv->clks);
@@ -476,9 +502,10 @@ static int qmp_usb3_phy_power_on(struct phy *phy)
 static int qmp_usb3_phy_power_off(struct phy *phy)
 {
 	struct qmp_usb3_phy_priv *priv = dev_get_priv(phy->dev);
+	const struct qmp_usb3_phy_cfg *phy_cfg = priv->phy_cfg;
 	int ret;
 
-	clrbits_le32(priv->pcs_base + QPHY_V3_PCS_POWER_DOWN_CONTROL, 0x1);
+	clrbits_le32(priv->pcs_base + phy_cfg->reg_pcs_power_down_control, 0x1);
 	udelay(10);
 
 	ret = reset_assert_bulk(&priv->phy_rsts);
@@ -512,6 +539,8 @@ static int qmp_usb3_phy_probe(struct udevice *dev)
 	priv->pcs_base = (void *)dev_remap_addr_name(dev, "pcs_base");
 	if ((ulong)priv->pcs_base == FDT_ADDR_T_NONE)
 		return -EINVAL;
+
+	priv->pcs_usb_base = (void *)dev_remap_addr_name(dev, "pcs_usb_base");
 
 	priv->phy_cfg = (void *)dev_get_driver_data(dev);
 
