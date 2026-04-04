@@ -15,6 +15,17 @@
 #include <mach/ipq.h>
 #include <cpu_func.h>
 
+/*
+ * Invalidate range from all levels of d-cache/unified-cache.
+ */
+void invalidate_cache(ulong start, ulong end)
+{
+	start = ALIGN_DOWN((ulong)start, CONFIG_SYS_CACHELINE_SIZE);
+	end = ALIGN((ulong)end, CONFIG_SYS_CACHELINE_SIZE);
+
+	invalidate_dcache_range(start, end);
+}
+
 /* TME list_fuse implementation */
 
 int ipq_list_fuse_tme_impl(void *params)
@@ -150,7 +161,7 @@ static int ipq_secure_auth_tme_v2(void *params)
 			    (unsigned long)auth_params->size);
 
 	ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
-	invalidate_dcache_range((unsigned long)auth_params->addr,
+	invalidate_cache((unsigned long)auth_params->addr,
 				(unsigned long)auth_params->addr + auth_params->size);
 
 	return ret;
@@ -196,7 +207,7 @@ static int ipq_secure_auth_tme_v3(void *params)
 			    (unsigned long)auth_params->size);
 
 	ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
-	invalidate_dcache_range((unsigned long)auth_params->addr,
+	invalidate_cache((unsigned long)auth_params->addr,
 				(unsigned long)auth_params->addr + auth_params->size);
 	if (!ret)
 		printf("KeyHandle : 0x%X\n", smsg.keyHandle);
