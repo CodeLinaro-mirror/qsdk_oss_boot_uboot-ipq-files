@@ -888,8 +888,15 @@
 			status = "disabled";
 
 			assigned-clocks = <&gcc GCC_SYSTEM_NOC_BFDCD_CLK>,
-					  <&nsscc NSS_CC_PPE_CLK>, <&nsscc NSS_CC_EIP_BFDCD_CLK>;
-			assigned-clock-rates = <133333333>, <462000000>, <429000000>;
+					  <&nsscc NSS_CC_PPE_CLK>,
+					  <&nsscc NSS_CC_CE_AXI_CLK>,
+					  <&nsscc NSS_CC_CFG_CLK>,
+					  <&nsscc NSS_CC_EIP_BFDCD_CLK>;
+			assigned-clock-rates = <266333333>,
+					       <462000000>,
+					       <462000000>,
+					       <100000000>,
+					       <800000000>;
 
 			clocks = <&gcc GCC_CMN_12GPLL_AHB_CLK>,
 				<&gcc GCC_CMN_12GPLL_APU_CLK>,

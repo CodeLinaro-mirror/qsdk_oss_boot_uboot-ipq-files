@@ -5136,6 +5136,80 @@ static int ipq_eth_probe(struct udevice *dev)
 	if (ret)
 		return ret;
 
+	/*
+	 * If uniphy PMA resets are described in the DTS node, handle them
+	 * individually in the required sequence. uniphy0_pma_rst is mandatory
+	 * to trigger this path; uniphy1_pma_rst and uniphy2_pma_rst are
+	 * optional (SoCs may have 1, 2, or 3 uniphys). refgen_core_ares and
+	 * refgen_hclk_ares are also optional.
+	 * Reset names: uniphy0_pma_rst[, uniphy1_pma_rst[, uniphy2_pma_rst]],
+	 *              [refgen_core_ares], [refgen_hclk_ares]
+	 */
+	{
+		static const char * const uniphy_pma_names[] = {
+			"uniphy0_pma_rst",
+			"uniphy1_pma_rst",
+			"uniphy2_pma_rst",
+		};
+		struct reset_ctl uniphy_pma[3];
+		bool uniphy_pma_valid[3] = {false, false, false};
+		struct reset_ctl refgen_core, refgen_hclk;
+		bool refgen_core_valid = false, refgen_hclk_valid = false;
+		int idx;
+
+		/* Only enter this path if uniphy0_pma_rst is present */
+		if (!reset_get_by_name(dev, uniphy_pma_names[0], &uniphy_pma[0])) {
+			uniphy_pma_valid[0] = true;
+
+			/* uniphy1 and uniphy2 PMA resets are optional */
+			for (idx = 1; idx < 3; idx++) {
+				if (!reset_get_by_name(dev, uniphy_pma_names[idx],
+						       &uniphy_pma[idx]))
+					uniphy_pma_valid[idx] = true;
+			}
+
+			/* refgen resets are optional */
+			if (!reset_get_by_name(dev, "refgen_core_ares", &refgen_core))
+				refgen_core_valid = true;
+			if (!reset_get_by_name(dev, "refgen_hclk_ares", &refgen_hclk))
+				refgen_hclk_valid = true;
+
+			/* Assert present uniphy PMA resets */
+			for (idx = 0; idx < 3; idx++) {
+				if (uniphy_pma_valid[idx]) {
+					reset_assert(&uniphy_pma[idx]);
+					mdelay(10);
+				}
+			}
+
+			/* Assert present refgen resets */
+			if (refgen_core_valid) {
+				reset_assert(&refgen_core);
+				mdelay(10);
+			}
+			if (refgen_hclk_valid) {
+				reset_assert(&refgen_hclk);
+				mdelay(10);
+			}
+
+			/* Deassert present uniphy PMA resets */
+			for (idx = 0; idx < 3; idx++) {
+				if (uniphy_pma_valid[idx])
+					reset_deassert(&uniphy_pma[idx]);
+			}
+
+			/* Deassert present refgen resets */
+			if (refgen_core_valid) {
+				reset_deassert(&refgen_core);
+				mdelay(10);
+			}
+			if (refgen_hclk_valid) {
+				reset_deassert(&refgen_hclk);
+				mdelay(10);
+			}
+		}
+	}
+
 	/* Step 3: Configure CMN clock */
 	ipq_config_cmn_clock();
 

@@ -219,6 +219,7 @@
 #define GCC_NSSNOC_MEMNOC_BFDCD_CMD_RCGR	(0x17004)
 #define NSS_CC_PPE_CMD_RCGR			(0x003EC)
 #define NSS_CC_PPE_CFG_RCGR			(0x003F0)
+#define NSS_CC_CE_CMD_RCGR			(0x00644)
 #define NSS_CC_CFG_CMD_RCGR			(0x0070C)
 #define NSS_CC_CFG_CFG_RCGR			(0x00710)
 #define NSS_CC_EIP_BFDCD_CMD_RCGR		(0x006A8)
@@ -599,27 +600,21 @@ static ulong ipq9650_set_rate(struct clk *clk, ulong rate)
 				    1, 0,
 				    NSS_CC_PPE_SRC_SEL_CMN_PLL_NSS_CLK_462M);
 		break;
+	case NSS_CC_CE_AXI_CLK:
+		clk_rcg_set_rate_v2(priv->base, NSS_CC_CE_CMD_RCGR, 0,
+				    1, 0,
+				    NSS_CC_PPE_SRC_SEL_CMN_PLL_NSS_CLK_462M);
+		break;
 	case NSS_CC_CFG_CLK:
-		clk_rcg_set_rate_v2(priv->base, NSS_CC_CFG_CMD_RCGR, 0,
-				    15, 0,
-				    NSS_CC_PPE_SRC_SEL_GCC_GPLL0_OUT_AUX);
-		break;
-	case NSS_CC_NSS_CSR_CLK:
-		/* NSS_CC_NSS_CSR: 100 MHz - uses NSS_CC_CFG_CMD_RCGR */
-		clk_rcg_set_rate_v2(priv->base, NSS_CC_CFG_CMD_RCGR, 0,
-				    4, 0,
-				    NSS_CC_PPE_SRC_SEL_GCC_GPLL0_OUT_AUX);
-		break;
-	case NSS_CC_NSSNOC_NSS_CSR_CLK:
 		/* NSS_CC_NSSNOC_NSS_CSR: 100 MHz - uses same RCG as NSS_CSR */
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_CFG_CMD_RCGR, 0,
-				    4, 0,
+				    0xF, 0,
 				    NSS_CC_PPE_SRC_SEL_GCC_GPLL0_OUT_AUX);
 		break;
 	case NSS_CC_EIP_BFDCD_CLK:
-		/* Rate: 429 MHz from CMN_PLL_NSS_CLK_429M */
+		/* Rate: 800 MHz from GPLL0 800M */
 		clk_rcg_set_rate(priv->base, NSS_CC_EIP_BFDCD_CMD_RCGR,
-				 1, CMN_PLL_NSS_CLK_429M); /* 429M source */
+				 1, NSS_CC_PPE_SRC_SEL_GCC_GPLL0_OUT_AUX);
 		break;
 	case NSS_CC_PORT1_RX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv);
