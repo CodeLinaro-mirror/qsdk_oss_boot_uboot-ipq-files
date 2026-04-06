@@ -55,6 +55,22 @@ enum csr_version {
 	CSR_VERSION_V2 = 2,
 };
 
+/*
+ * reset_version - USXGMII port reset mechanism selector
+ *
+ * RESET_VERSION_V1:
+ *   Uses VR_XS_PCS_DIG_CTRL1 USRA_RST (bit 10) - active-HIGH, self-clearing.
+ *   For UQXGMII/UDXGMII also resets per-channel VR_MII_DIG_CTRL1 USRA_RST_MII.
+ *
+ * RESET_VERSION_V2:
+ *   Uses QP_USXG_RESET (0x630) active-LOW RST_N bits.
+ *   Requires explicit assert (clear bit) then de-assert (set bit).
+ */
+enum reset_version {
+	RESET_VERSION_V1 = 1,
+	RESET_VERSION_V2 = 2,
+};
+
 /* UNIPHY_MODE_CTRL (CSR0: 0x46c) */
 union uniphy_mode_ctrl_u {
 	u32 val;
@@ -916,14 +932,14 @@ static inline void edma_unified_write_masked(phys_addr_t addr, u32 val, struct e
 #define PPE_UNIPHY_OFFSET_CALIB_4		0x1E0
 #define UNIPHY_CALIBRATION_DONE			0x1
 
-/* JHPPE UNIPHY calibration registers (QSERDES-based SerDes) */
+/* UNIPHY calibration registers (QSERDES-based SerDes) */
 #define PCS0_UNIPHY_OPTION_3_ADDRESS		0x5AC
 #define PCS_UNIPHY_OPTION_3_ADDRESS		0x588
 #define PCS_UNIPHY_OPTION_3_UNIPHY_START_BIT	BIT(4)
 #define QSERDES_RX_EXT_RO_POWER_STATE_ADDRESS	0xCDF4
-#define JHPPE_UNIPHY_POWER_STATE_DONE		0xF
-#define JHPPE_UNIPHY_POLLING_TIMEOUT		2000
-#define JHPPE_UNIPHY_POLLING_DELAY		1
+#define UNIPHY_POWER_STATE_DONE			0xF
+#define UNIPHY_POLLING_TIMEOUT			2000
+#define UNIPHY_POLLING_DELAY			1
 
 #define PPE_UNIPHY_REG_INC			0
 #define PPE_UNIPHY_MODE_CONTROL			0x46C
@@ -980,6 +996,11 @@ static inline void edma_unified_write_masked(phys_addr_t addr, u32 val, struct e
 #define SR_MII_CTRL_CHANNEL3_ADDRESS		0x1c0000
 #define SR_MII_CTRL_ADDRESS			0x1f0000
 
+#define VR_MII_DIG_CTRL1_CHANNEL1_ADDRESS	0x1a8000
+#define VR_MII_DIG_CTRL1_CHANNEL2_ADDRESS	0x1b8000
+#define VR_MII_DIG_CTRL1_CHANNEL3_ADDRESS	0x1c8000
+#define USRA_RST_MII				BIT(5)  /* usra_rst in VR_MII_DIG_CTRL1 */
+
 #define VR_MII_AN_CTRL_CHANNEL1_ADDRESS		0x1a8001
 #define VR_MII_AN_CTRL_CHANNEL2_ADDRESS		0x1b8001
 #define VR_MII_AN_CTRL_CHANNEL3_ADDRESS		0x1c8001
@@ -999,6 +1020,29 @@ static inline void edma_unified_write_masked(phys_addr_t addr, u32 val, struct e
 
 #define UNIPHYQP_USXG_OPITON1			0x584
 #define GMII_SRC_SEL				BIT(0)
+
+/*
+ * QP_USXG_RESET - UNIPHY functional reset register (RESET_VERSION_V2)
+ * Address: 0x630 (direct CSR0 access)
+ *
+ * Bit layout:
+ *   bit[0] = mmd1_reg_usxg_func_rst_n    (active-LOW, main USXG reset)
+ *   bit[1] = mmd1_reg_usxg_func_rst_n_p1 (active-LOW, port 1 reset)
+ *   bit[2] = mmd1_reg_usxg_func_rst_n_p2 (active-LOW, port 2 reset)
+ *   bit[3] = mmd1_reg_usxg_func_rst_n_p3 (active-LOW, port 3 reset)
+ *   bit[4] = mmd1_reg_pqsgmii_func_rst_n (active-LOW)
+ *   bit[5] = mmd1_reg_qsgmii_enable
+ *   bit[6] = mmd1_reg_xpcs_enable
+ *   Default: 0x7F (all resets de-asserted, XPCS+QSGMII enabled)
+ *
+ * Active-LOW bits require explicit assert (clear) then de-assert (set).
+ * Used by RESET_VERSION_V2 path in ppe_uniphy_usxgmii_port_reset().
+ */
+#define QP_USXG_RESET_ADDRESS			0x630
+#define QP_USXG_RST_N_MAIN			BIT(0)
+#define QP_USXG_RST_N_P1			BIT(1)
+#define QP_USXG_RST_N_P2			BIT(2)
+#define QP_USXG_RST_N_P3			BIT(3)
 
 #define VR_XAUI_MODE_CTRL_CHANNEL1_ADDRESS      0x1a8004
 #define VR_XAUI_MODE_CTRL_CHANNEL2_ADDRESS      0x1b8004
@@ -1722,6 +1766,17 @@ u32 ppe_port_bridge_isolation_mask(unsigned int nos_iports);
  * Return: CSR_VERSION_V1 or CSR_VERSION_V2
  */
 enum csr_version uniphy_get_csr_version(void);
+
+/**
+ * uniphy_get_reset_version - Get SoC-specific USXGMII port reset version
+ *
+ * Weak default returns RESET_VERSION_V1 (VR_XS_PCS_DIG_CTRL1 USRA_RST path).
+ * SoCs that use the QP_USXG_RESET active-LOW path provide a strong override
+ * in their *_port_config.c returning RESET_VERSION_V2.
+ *
+ * Return: RESET_VERSION_V1 or RESET_VERSION_V2
+ */
+enum reset_version uniphy_get_reset_version(void);
 
 /**
  * uniphy_set_base_addr - Set UNIPHY base address
