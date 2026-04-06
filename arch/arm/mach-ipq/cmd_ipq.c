@@ -161,13 +161,14 @@ struct log_buff {
 #define FUSEPROV_SUCCESS		0x0
 #define FUSEPROV_INVALID_HASH		0x09
 #define SEC_IMG_AUTH_FAILURE		0x101
+#define TEE_ERROR_BAD_PARAMETERS	0xFFFF0006
+#define TEE_ERROR_BAD_STATE		0xFFFF0007
+#define TEE_ERROR_NOT_SUPPORTED		0xFFFF000A
+#define TEE_ERROR_OUT_OF_MEMORY		0xFFFF000C
+#define TEE_ERROR_SECURITY		0xFFFF000F
+#define TEE_ERROR_BAD_FORMAT		0xFFFF0011
 
 #define MAX_FUSE_ADDR_SIZE		0x8
-
-struct load_seg_info {
-	uint32_t startAddr;       /**< Region start address (SoC view) */
-	uint32_t endAddr;	 /**< Region end address (SoC view) */
-};
 
 #ifdef CONFIG_PHY_AQUANTIA
 static int ipq_aquantia_load_memory(struct phy_device *phydev, u32 addr,
@@ -646,7 +647,7 @@ U_BOOT_CMD(secure_authenticate, 5, 0, do_secure,
 
 #ifdef CONFIG_FUSE_IPQ
 
-#ifdef CONFIG_FUSEIPQ_V1
+#if defined (CONFIG_FUSEIPQ_V1) || (CONFIG_FUSEIPQ_V3)
 #define FUSEIPQ_MAX_ARGS 3
 
 char fuseipq_cmd_usage[] = ("\nfuseipq [address] [size]  - Load fuse(s) and" \
@@ -664,16 +665,16 @@ static int do_fuseipq(struct cmd_tbl *cmdtp, int flag, int argc,
 				char *const argv[])
 {
 	int ret = CMD_RET_FAILURE;
-	struct scm_param param;
 	uint32_t fuse_status = 0;
 	uint32_t fuse_bin_addr = 0;
-#ifdef CONFIG_FUSEIPQ_V1
+#if defined (CONFIG_FUSEIPQ_V1) || (CONFIG_FUSEIPQ_V3)
 	uint64_t fuse_bin_size = 0;
 #endif
 	struct load_seg_info *load_seg_buff = NULL;
 	uint8_t load_seg_cnt = 0;
 	unsigned long meta_data_size = 0;
 	void *load_addr = NULL;
+	struct fuseipq_params fuseipq_param;
 
 	if (argc == 1)
 		return CMD_RET_USAGE;
@@ -685,18 +686,20 @@ static int do_fuseipq(struct cmd_tbl *cmdtp, int flag, int argc,
 
 	fuse_bin_addr = simple_strtoul(argv[1], NULL, 16);
 	load_addr = (void *)(uintptr_t)fuse_bin_addr;
-#ifdef CONFIG_FUSEIPQ_V1
+	fuseipq_param.addr = (uint64_t) fuse_bin_addr;
+#if defined (CONFIG_FUSEIPQ_V1) || (CONFIG_FUSEIPQ_V3)
 	if (IS_ELF(*(Elf32_Ehdr *)load_addr)) {
 		if (argc != 3)
 			return CMD_RET_USAGE;
 		fuse_bin_size = simple_strtoul(argv[2], NULL, 16);
+		fuseipq_param.size = fuse_bin_size;
 	} else {
 		if (argc != 2)
 			return CMD_RET_USAGE;
 	}
 #endif
 
-#ifdef CONFIG_FUSEIPQ_V2
+#if defined (CONFIG_FUSEIPQ_V2) || (CONFIG_FUSEIPQ_V3)
 	if (!load_addr || !IS_ELF(*(Elf32_Ehdr *)load_addr)) {
 		printf("It is not a elf image\n");
 		goto exit;
@@ -726,42 +729,54 @@ static int do_fuseipq(struct cmd_tbl *cmdtp, int flag, int argc,
 #endif
 	do {
 		ret = -ENOTSUPP;
-		IPQ_SCM_FUSE_IPQ(param, (uint64_t) fuse_bin_addr,
-					meta_data_size, 0x2B,
-					(uintptr_t)load_seg_buff,
-					load_seg_cnt);
-#ifdef CONFIG_FUSEIPQ_V1
-	if (IS_ELF(*(Elf32_Ehdr *)load_addr)) {
-		param.type = SCM_FUSE_IPQ_UIE_KEY;
-		param.buff[1] = fuse_bin_size;
-		param.arg_type[1] = SCM_VAL;
-		param.len = 2;
-	}
-#endif
-		param.get_ret = true;
+		fuseipq_param.meta_data_size = meta_data_size;
+		fuseipq_param.load_seg_buff = load_seg_buff;
+		fuseipq_param.load_seg_cnt = load_seg_cnt;
 		/*
 		 * Disable data cache to ensure direct memory access during
 		 * fuse operation
 		 */
 		dcache_disable();
-		ret = ipq_scm_call(&param);
+		ret = ipq_comm_handler(FUNC_FUSEIPQ, &fuseipq_param);
 		dcache_enable();
 		invalidate_dcache_all();
-
-		fuse_status = param.res.result[0];
-
-		if (ret)
+		if (ret) {
 			printf("%s: Error in QFPROM write (%d)\n",
 				__func__, ret);
-		else {
+			ret = CMD_RET_FAILURE;
+		} else {
+			fuse_status = fuseipq_param.fuse_status;
+			ret = CMD_RET_SUCCESS;
 			switch (fuse_status) {
 			case FUSEPROV_SUCCESS:
 				printf("Fuse Blow Success\n");
 				break;
+#if defined (CONFIG_FUSEIPQ_V3)
+			case TEE_ERROR_BAD_PARAMETERS:
+				printf("Bad parameters\n");
+				break;
+			case TEE_ERROR_BAD_STATE:
+				printf("Invalid state\n");
+				break;
+			case TEE_ERROR_NOT_SUPPORTED:
+				printf("Operation not supported\n");
+				break;
+			case TEE_ERROR_OUT_OF_MEMORY:
+				printf("Out of secure memory\n");
+				break;
+			case TEE_ERROR_SECURITY:
+				printf("Security violation\n");
+				break;
+			case TEE_ERROR_BAD_FORMAT:
+				printf("Bad format\n");
+				break;
+#endif
+#if defined (CONFIG_FUSEIPQ_V1) || (CONFIG_FUSEIPQ_V2)
 			case FUSEPROV_INVALID_HASH:
 				printf("Invalid sec.dat\n");
 				break;
-#ifdef CONFIG_FUSEIPQ_V1
+#endif
+#if defined (CONFIG_FUSEIPQ_V1)
 			case SEC_IMG_AUTH_FAILURE:
 				printf("Image authentication failure\n");
 				break;
@@ -773,13 +788,9 @@ static int do_fuseipq(struct cmd_tbl *cmdtp, int flag, int argc,
 		}
 	} while (0);
 
-	if (ret == -ENOTSUPP) {
-		printf("Unsupported SCM call\n");
-	}
-
 	ret = CMD_RET_SUCCESS;
 
-#ifdef CONFIG_FUSEIPQ_V2
+#if defined (CONFIG_FUSEIPQ_V2) || (CONFIG_FUSEIPQ_V3)
 exit:
 #endif
 	if (load_seg_buff)
