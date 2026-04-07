@@ -2827,13 +2827,15 @@ void qcn92xx_global_soc_reset(uintptr_t bar0_base, bool force_reset)
 int hex_string_to_binary(const char *hex_str, uint8_t *binary,
 			 size_t binary_len)
 {
-	size_t hex_len = strlen(hex_str);
+	size_t hex_len;
 	size_t i;
 
 	if (!hex_str || !binary) {
 		printf("Invalid input: NULL pointer\n");
 		return -1;
 	}
+
+	hex_len = strlen(hex_str);
 
 	/* Check if hex string length is valid
 	 * (must be even and match binary length * 2) */
