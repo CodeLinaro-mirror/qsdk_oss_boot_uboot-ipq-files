@@ -722,14 +722,8 @@ static int do_fuseipq(struct cmd_tbl *cmdtp, int flag, int argc,
 		fuseipq_param.meta_data_size = meta_data_size;
 		fuseipq_param.load_seg_buff = load_seg_buff;
 		fuseipq_param.load_seg_cnt = load_seg_cnt;
-		/*
-		 * Disable data cache to ensure direct memory access during
-		 * fuse operation
-		 */
-		dcache_disable();
+
 		ret = ipq_comm_handler(FUNC_FUSEIPQ, &fuseipq_param);
-		dcache_enable();
-		invalidate_dcache_all();
 		if (ret) {
 			printf("%s: Error in QFPROM write (%d)\n",
 				__func__, ret);
