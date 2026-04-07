@@ -3612,7 +3612,7 @@ void qti_nandc_command(struct mtd_info *mtd, int dat, unsigned int ctrl) {
 uint8_t qti_nandc_read_byte (struct mtd_info *mtd)
 {
 	struct qcom_nand_controller *nandc = MTD_QTI_NAND_DEV(mtd);
-	if(nandc->id_buff >= sizeof(nandc->data_buffers))
+	if(nandc->id_buff >= ARRAY_SIZE(nandc->data_buffers))
 		nandc->id_buff = 0;
 	return nandc->data_buffers[nandc->id_buff++];
 }
