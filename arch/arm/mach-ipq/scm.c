@@ -511,7 +511,14 @@ int ipq_fuseipq_scm_impl(void *params)
 	}
 #endif
 	param.get_ret = true;
+	/*
+	 * Disable data cache to ensure direct memory access during
+	 * fuse operation
+	 */
+	dcache_disable();
 	ret = ipq_scm_call(&param);
+	dcache_enable();
+	invalidate_dcache_all();
 	if (ret == -ENOTSUPP) {
 		printf("Unsupported SCM call\n");
 	}
