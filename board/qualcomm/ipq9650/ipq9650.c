@@ -17,6 +17,7 @@
 /* MACH IDs for various RDPs */
 #define MACH_TYPE_IPQ9650_EMULATION		0xF060000
 #define MACH_TYPE_IPQ9650_DB_JU01		0x1090000
+#define MACH_TYPE_IPQ9650_DB_JU01_C1	0x1090001
 #define MACH_TYPE_IPQ9650_DB_JU02		0x1090100
 #define MACH_TYPE_IPQ9650_RDP488		0x8090000
 #define MACH_TYPE_IPQ9650_RDP506		0x8090001
@@ -189,6 +190,12 @@ struct machid_dts_map machid_dts[] = {
 		MACH_TYPE_IPQ9650_DB_JU01,
 		"ipq9650-db-ju01",
 		"db-ju01",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ9650_DB_JU01_C1,
+		"ipq9650-db-ju01-c1",
+		"db-ju01-c1",
 		"1"
 	},
 	{
