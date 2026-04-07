@@ -684,8 +684,8 @@ static struct ipq_eth_port_config ipq5210_port_config[] = {
 	{
 		QCE1204_PHY_TYPE,
 		{
-			CLK_1_25_MHZ,
-			CLK_12_5_MHZ,
+			CLK_2_5_MHZ,
+			CLK_25_MHZ,
 			CLK_125_MHZ,
 			-1,
 			CLK_312_5_MHZ,
