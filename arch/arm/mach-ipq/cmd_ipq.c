@@ -504,9 +504,6 @@ static int do_secure(struct cmd_tbl *cmdtp, int flag, int argc,
 	struct load_seg_info *load_seg_buff = NULL;
 	uint8_t load_seg_cnt = 0;
 	struct secure_auth_params auth_params;
-#ifdef CONFIG_SECURE_AUTH_V3
-	u32 flags = 1;
-#endif
 
 #ifdef CONFIG_VERSION_ROLLBACK_PARTITION_INFO
 	int active_part = PRI_PARTITION;
@@ -527,10 +524,8 @@ static int do_secure(struct cmd_tbl *cmdtp, int flag, int argc,
 
 #if defined(CONFIG_SECURE_AUTH_V1)
 		if (argc != 4)
-#elif CONFIG_SECURE_AUTH_V2
+#elif defined (CONFIG_SECURE_AUTH_V2) || (CONFIG_SECURE_AUTH_V3)
 		if (argc != 3 && argc != 4)
-#elif CONFIG_SECURE_AUTH_V3
-		if (argc != 5)
 #endif
 			return CMD_RET_USAGE;
 
@@ -566,9 +561,6 @@ static int do_secure(struct cmd_tbl *cmdtp, int flag, int argc,
 
 		if (argc == 4)
 			auth_buf.size = simple_strtoul(argv[3], NULL, 16);
-#ifdef CONFIG_SECURE_AUTH_V3
-		flags = simple_strtoul(argv[4], NULL, 16);
-#endif
 
 		if (!load_addr || !IS_ELF(*(Elf32_Ehdr *)load_addr)) {
 			printf("It is not a elf image\n");
@@ -606,7 +598,7 @@ static int do_secure(struct cmd_tbl *cmdtp, int flag, int argc,
 		auth_params.load_seg_info_size = sizeof(struct load_seg_info);
 		auth_params.relocate = 1;
 #ifdef CONFIG_SECURE_AUTH_V3
-		auth_params.flags = flags;
+		auth_params.flags = 1;
 #endif
 
 		ret = ipq_comm_handler(FUNC_SECURE_AUTH, &auth_params);
@@ -633,14 +625,12 @@ U_BOOT_CMD(is_sec_boot_enabled, 1, 0, do_secure,
 		"check secure boot fuse is enabled or not\n",
 		"is_sec_boot_enabled - check secure boot fuse "
 		"is enabled or not\n");
-U_BOOT_CMD(secure_authenticate, 5, 0, do_secure,
+U_BOOT_CMD(secure_authenticate, 4, 0, do_secure,
 	   "authenticate the signed image\n",
 #ifdef CONFIG_SECURE_AUTH_V1
 		"secure_authenticate <sw_id> <img_addr> <img_size>\n"
-#elif CONFIG_SECURE_AUTH_V2
+#elif CONFIG_SECURE_AUTH_V2 || CONFIG_SECURE_AUTH_V3
 		"secure_authenticate <sw_id> <img_addr> [meta_data_size]\n"
-#elif CONFIG_SECURE_AUTH_V3
-		"secure_authenticate <sw_id> <img_addr> [meta_data_size] <flags>\n"
 #endif
 		"       - authenticate the signed image\n");
 #endif
