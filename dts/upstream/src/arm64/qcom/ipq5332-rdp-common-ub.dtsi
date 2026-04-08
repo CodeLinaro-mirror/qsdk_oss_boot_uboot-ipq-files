@@ -110,8 +110,8 @@
 			reg = <0x4b1000 0x800>;
 			phy-type = "gen3";
 			#phy-cells = <0>;
-			qcom,multiplexed-phy;
-			qcom,phy-mux-regs = <&tcsr 0x10544>;
+			qti,multiplexed-phy;
+			qti,phy-mux-regs = <0x1947544>;
 			phy-ahb-shared-reset;
 			clocks = <&gcc GCC_PCIE3X2_PIPE_CLK>,
 				<&gcc GCC_SNOC_PCIE3_2LANE_M_CLK>,
@@ -139,8 +139,8 @@
 			#phy-cells = <0>;
 			phy-ahb-shared-reset;
 
-			qcom,multiplexed-phy;
-			qcom,phy-mux-regs = <&tcsr 0x10544>;
+			qti,multiplexed-phy;
+			qti,phy-mux-regs = <0x1947544>;
 
 			clocks = <&gcc GCC_PCIE3X1_1_PIPE_CLK>,
 				<&gcc GCC_SNOC_PCIE3_1LANE_1_M_CLK>,
@@ -167,7 +167,7 @@
 			phy-type = "gen3";
 			#phy-cells = <0>;
 
-			qcom,phy-mux-regs = <&tcsr 0x10544>;
+			qti,phy-mux-regs = <0x1947544>;
 
 			clocks = <&gcc GCC_PCIE3X2_PIPE_CLK>,
 				<&gcc GCC_SNOC_PCIE3_2LANE_M_CLK>,

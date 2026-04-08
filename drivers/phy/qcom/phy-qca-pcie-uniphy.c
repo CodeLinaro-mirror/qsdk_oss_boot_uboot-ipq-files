@@ -72,7 +72,7 @@ struct qca_uni_pcie_phy {
 	struct clk *phy_ahb_clk;
 	struct reset_ctl *res_phy;
 	struct reset_ctl *res_phy_phy;
-	struct reset_ctl *res_phy_ahb;
+	struct reset_ctl res_phy_ahb;
 	struct reset_ctl_bulk rsts;
 	struct clk_bulk clks;
 	u32 is_phy_gen3;
@@ -181,7 +181,7 @@ static int  phy_mux_sel(struct qca_uni_pcie_phy *phy, unsigned int mode)
 {
 	phys_addr_t lane_reg = 0;
 
-	dev_read_u32(phy->dev, "lane-regs", (unsigned int *)&lane_reg);
+	dev_read_u32(phy->dev, "qti,phy-mux-regs", (unsigned int *)&lane_reg);
 
 	if (lane_reg)
 		writel(mode, lane_reg);
@@ -216,7 +216,7 @@ static int qca_uni_pcie_get_resources(struct qca_uni_pcie_phy *phy)
 	}
 
 	if(phy->phy_ahb_shared_reset)
-		if (reset_get_by_name(phy->dev, "phy_ahb", phy->res_phy_ahb))
+		if (reset_get_by_name(phy->dev, "phy_ahb", &phy->res_phy_ahb))
 			dev_warn(phy->dev, "failed to get nocsr reset\n");
 
 	name = dev_read_string(phy->dev, "phy-type");
