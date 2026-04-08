@@ -2356,7 +2356,7 @@ int qcom_configure_ice_key_with_context(struct ice_config_sec *ice,
 		hex_salt_len = 128;
 	}
 
-	if (dump_config->debug) {
+	if (dump_config && dump_config->debug) {
 		printf("\n data context \n");
 		for (i = 0; i < hex_data_len; i++) {
 			printf("%02x", hex_data_context[i]);
