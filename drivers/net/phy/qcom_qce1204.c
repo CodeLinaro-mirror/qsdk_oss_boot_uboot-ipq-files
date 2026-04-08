@@ -256,7 +256,10 @@ enum qce1204_clk_type {
 };
 
 #ifdef CONFIG_PHY_QCE_2204
-#define QCE1204_MAX_SWITCH_PORTS		4
+#define QCE1204_MAX_SWITCH_PORTS		5
+
+/* PHY type value for QCA81xx (matches dt-bindings/net/qcom_ipqsoc.h) */
+#define QCA81XX_PHY_TYPE			12
 
 struct qce1204_switch_port {
 	int		 port_id;
@@ -271,6 +274,9 @@ struct qce1204_switch_port {
 	int		 last_duplex;
 	bool		 configured;
 	bool		 valid;
+	/* Port 5: external PHY (QCA81xx) via SFP cage */
+	bool		 is_external;
+	struct phy_device *ext_phydev;
 };
 
 static bool g_switch_ppe_initialized;
@@ -327,6 +333,18 @@ struct qce1204_shared_clk_data {
 	struct reset_ctl mac4_rx_reset;
 	struct reset_ctl mac5_tx_reset;
 	struct reset_ctl mac5_rx_reset;
+	/* SRDS0 clocks and resets (for port 5 USXGMII via PCS0) */
+	struct clk srds0_sys_clk;
+	struct clk mac5_tx_srds0_clk;
+	struct clk mac5_tx_srds0_ch0_xgmii_clk;
+	struct clk mac5_rx_srds0_clk;
+	struct clk mac5_rx_srds0_ch0_xgmii_clk;
+	struct reset_ctl srds0_sys_reset;
+	struct reset_ctl srds0_xpcs_reset;
+	struct reset_ctl mac5_tx_srds0_reset;
+	struct reset_ctl mac5_tx_srds0_ch0_xgmii_reset;
+	struct reset_ctl mac5_rx_srds0_reset;
+	struct reset_ctl mac5_rx_srds0_ch0_xgmii_reset;
 };
 
 struct qce1204_clk_data {
@@ -498,6 +516,45 @@ static int qce1204_pcs_modify_mmd(struct phy_device *phydev, int devad,
 
 	return ret;
 }
+
+/* PCS0 (SRDS0) wrapper functions — mirror of PCS1 wrappers above */
+#ifdef CONFIG_PHY_QCE_2204
+static int qce1204_pcs0_read_mmd(struct phy_device *phydev, int devad, int regnum)
+{
+	struct phy_device local_phydev;
+	struct qce1204_priv *priv = phydev->priv;
+
+	memcpy(&local_phydev, phydev, sizeof(struct phy_device));
+	local_phydev.addr = priv->base_phy_addr + PCS0_ADDR_OFFSET;
+	return phy_read(&local_phydev, devad, regnum);
+}
+
+static int qce1204_pcs0_write_mmd(struct phy_device *phydev, int devad, int regnum, u16 val)
+{
+	struct phy_device local_phydev;
+	struct qce1204_priv *priv = phydev->priv;
+
+	memcpy(&local_phydev, phydev, sizeof(struct phy_device));
+	local_phydev.addr = priv->base_phy_addr + PCS0_ADDR_OFFSET;
+	return phy_write(&local_phydev, devad, regnum, val);
+}
+
+static int qce1204_pcs0_modify_mmd(struct phy_device *phydev, int devad, int regnum,
+				   u16 mask, u16 set)
+{
+	int ret;
+	struct phy_device local_phydev;
+	struct qce1204_priv *priv = phydev->priv;
+
+	memcpy(&local_phydev, phydev, sizeof(struct phy_device));
+	local_phydev.addr = priv->base_phy_addr + PCS0_ADDR_OFFSET;
+	ret = phy_read(&local_phydev, devad, regnum);
+	if (ret < 0)
+		return ret;
+	return phy_write(&local_phydev, devad, regnum, (ret & ~mask) | set);
+}
+
+#endif /* CONFIG_PHY_QCE_2204 */
 
 static int qce1204_pcs_mmd_get(struct phy_device *phydev, int channel)
 {
@@ -1234,6 +1291,66 @@ static int qce1204_phy_shared_clk_init(struct phy_device *phydev,
 	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
 		return ret;
 
+	/* SRDS0 clocks and resets (optional, for port 5 USXGMII) */
+	ret = qce1204_clk_get_from_node(phydev, phy_node,
+					&clk_data->srds0_sys_clk, "srds0_sys_clk");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	ret = qce1204_clk_get_from_node(phydev, phy_node,
+					&clk_data->mac5_tx_srds0_clk, "mac5_tx_srds0_clk");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	ret = qce1204_clk_get_from_node(phydev, phy_node,
+					&clk_data->mac5_tx_srds0_ch0_xgmii_clk,
+					"mac5_tx_srds0_ch0_xgmii_clk");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	ret = qce1204_clk_get_from_node(phydev, phy_node,
+					&clk_data->mac5_rx_srds0_clk, "mac5_rx_srds0_clk");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	ret = qce1204_clk_get_from_node(phydev, phy_node,
+					&clk_data->mac5_rx_srds0_ch0_xgmii_clk,
+					"mac5_rx_srds0_ch0_xgmii_clk");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	ret = qce1204_reset_get_from_node(phydev, phy_node,
+					  &clk_data->srds0_sys_reset, "srds0_sys_reset");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	ret = qce1204_reset_get_from_node(phydev, phy_node,
+					  &clk_data->srds0_xpcs_reset, "srds0_xpcs_reset");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	ret = qce1204_reset_get_from_node(phydev, phy_node,
+					  &clk_data->mac5_tx_srds0_reset, "mac5_tx_srds0_reset");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	ret = qce1204_reset_get_from_node(phydev, phy_node,
+					  &clk_data->mac5_tx_srds0_ch0_xgmii_reset,
+					  "mac5_tx_srds0_ch0_xgmii_reset");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	ret = qce1204_reset_get_from_node(phydev, phy_node,
+					  &clk_data->mac5_rx_srds0_reset, "mac5_rx_srds0_reset");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	ret = qce1204_reset_get_from_node(phydev, phy_node,
+					  &clk_data->mac5_rx_srds0_ch0_xgmii_reset,
+					  "mac5_rx_srds0_ch0_xgmii_reset");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
 	return 0;
 }
 
@@ -1310,6 +1427,23 @@ static int qce1204_switch_clks_enable(struct phy_device *phydev)
 	if (ret < 0)
 		return ret;
 	ret = qce1204_clk_enable(phydev, &clk_data->mac4_rx_clk, true);
+	if (ret < 0)
+		return ret;
+
+	/* Enable SRDS0 clocks for port 5 USXGMII (optional — absent if port 5 not used) */
+	ret = qce1204_clk_enable(phydev, &clk_data->srds0_sys_clk, true);
+	if (ret < 0)
+		return ret;
+	ret = qce1204_clk_enable(phydev, &clk_data->mac5_tx_srds0_clk, true);
+	if (ret < 0)
+		return ret;
+	ret = qce1204_clk_enable(phydev, &clk_data->mac5_tx_srds0_ch0_xgmii_clk, true);
+	if (ret < 0)
+		return ret;
+	ret = qce1204_clk_enable(phydev, &clk_data->mac5_rx_srds0_clk, true);
+	if (ret < 0)
+		return ret;
+	ret = qce1204_clk_enable(phydev, &clk_data->mac5_rx_srds0_ch0_xgmii_clk, true);
 	if (ret < 0)
 		return ret;
 
@@ -1525,6 +1659,25 @@ static int qce1204_switch_clks_reset_deassert(struct phy_device *phydev)
 	ret = qce1204_reset_assert(phydev, &clk_data->mac5_rx_reset, false);
 	if (ret)
 		return ret;
+	/* SRDS0 resets (optional — absent if port 5 not used) */
+	ret = qce1204_reset_assert(phydev, &clk_data->srds0_sys_reset, false);
+	if (ret)
+		return ret;
+	ret = qce1204_reset_assert(phydev, &clk_data->srds0_xpcs_reset, false);
+	if (ret)
+		return ret;
+	ret = qce1204_reset_assert(phydev, &clk_data->mac5_tx_srds0_reset, false);
+	if (ret)
+		return ret;
+	ret = qce1204_reset_assert(phydev, &clk_data->mac5_tx_srds0_ch0_xgmii_reset, false);
+	if (ret)
+		return ret;
+	ret = qce1204_reset_assert(phydev, &clk_data->mac5_rx_srds0_reset, false);
+	if (ret)
+		return ret;
+	ret = qce1204_reset_assert(phydev, &clk_data->mac5_rx_srds0_ch0_xgmii_reset, false);
+	if (ret)
+		return ret;
 
 	return 0;
 }
@@ -1612,6 +1765,25 @@ static int qce1204_switch_clks_reset_assert(struct phy_device *phydev)
 	ret = qce1204_reset_assert(phydev, &clk_data->mac5_rx_reset, true);
 	if (ret)
 		return ret;
+	/* SRDS0 resets (optional — absent if port 5 not used) */
+	ret = qce1204_reset_assert(phydev, &clk_data->srds0_sys_reset, true);
+	if (ret)
+		return ret;
+	ret = qce1204_reset_assert(phydev, &clk_data->srds0_xpcs_reset, true);
+	if (ret)
+		return ret;
+	ret = qce1204_reset_assert(phydev, &clk_data->mac5_tx_srds0_reset, true);
+	if (ret)
+		return ret;
+	ret = qce1204_reset_assert(phydev, &clk_data->mac5_tx_srds0_ch0_xgmii_reset, true);
+	if (ret)
+		return ret;
+	ret = qce1204_reset_assert(phydev, &clk_data->mac5_rx_srds0_reset, true);
+	if (ret)
+		return ret;
+	ret = qce1204_reset_assert(phydev, &clk_data->mac5_rx_srds0_ch0_xgmii_reset, true);
+	if (ret)
+		return ret;
 
 	return 0;
 }
@@ -1668,6 +1840,15 @@ static int qce1204_switch_ports_parse(struct phy_device *phydev,
 		priv->sw_ports[port_id - 1].port_id  = (int)port_id;
 		priv->sw_ports[port_id - 1].phy_addr = (int)phy_addr;
 		priv->sw_ports[port_id - 1].valid    = true;
+
+		/* Check if this is an external PHY port (e.g. QCA81xx on port 5) */
+		{
+			u32 phy_type = 0;
+
+			ofnode_read_u32(port_node, "phy_type", &phy_type);
+			if (phy_type == QCA81XX_PHY_TYPE)
+				priv->sw_ports[port_id - 1].is_external = true;
+		}
 
 		ret = qce1204_clk_get_from_node(phydev, port_node,
 						&priv->sw_ports[port_id - 1].tx_clk,
@@ -1886,6 +2067,56 @@ static int qce1204_switch_configure_ports(struct phy_device *phydev)
 
 		if (!port->valid)
 			continue;
+
+		/* Port 5 with external QCA81xx PHY: use standard PHY framework */
+		if (port->is_external && port->ext_phydev) {
+			ret = phy_startup(port->ext_phydev);
+			if (ret < 0) {
+				debug("QCE1204: Port %d: phy_startup failed: %d\n",
+				      port->port_id, ret);
+				continue;
+			}
+			link   = port->ext_phydev->link;
+			speed  = port->ext_phydev->speed;
+			duplex = port->ext_phydev->duplex;
+
+			printf("PORT%d %s Speed :%d %s duplex\n",
+			       port->port_id,
+			       link ? "Up" : "Down",
+			       speed,
+			       duplex == DUPLEX_FULL ? "Full" : "Half");
+
+			if (!link) {
+				if (port->last_link) {
+					port->last_link  = 0;
+					port->configured = false;
+				}
+				continue;
+			}
+
+			any_link_up = 1;
+
+			if (port->configured &&
+			    port->last_link   == link  &&
+			    port->last_speed  == speed &&
+			    port->last_duplex == duplex) {
+				debug("QCE1204: Port %d: state unchanged, skipping\n",
+				      port->port_id);
+				continue;
+			}
+
+			ret = qce2204_port5_link_up(phydev, speed, duplex, true, true);
+			if (ret < 0) {
+				debug("QCE1204: Port %d: qce2204_port5_link_up failed: %d\n",
+				      port->port_id, ret);
+			}
+
+			port->last_link   = link;
+			port->last_speed  = speed;
+			port->last_duplex = duplex;
+			port->configured  = true;
+			continue;
+		}
 
 		ret = qce1204_switch_port_read_link(phydev, port->phy_addr,
 						    &link, &speed, &duplex);
@@ -2721,6 +2952,135 @@ static int qce1204_probe(struct phy_device *phydev)
 	return 0;
 }
 
+#ifdef CONFIG_PHY_QCE_2204
+static int qce1204_pcs0_usxgmii_mode_set(struct phy_device *phydev)
+{
+	int ret;
+	u16 pcs_data;
+	u32 retries;
+
+	/* Uniphy MSLDO settings */
+	ret = qce1204_pcs0_write_mmd(phydev, MDIO_MMD_PMAPMD, QCE1204_PCS_MMD1_MS_LDO0, 0xcd);
+	if (ret < 0)
+		return ret;
+	ret = qce1204_pcs0_write_mmd(phydev, MDIO_MMD_PMAPMD, QCE1204_PCS_MMD1_MS_LDO1, 0x7f6d);
+	if (ret < 0)
+		return ret;
+
+	/* Assert SRDS0 XPCS reset */
+	ret = qce1204_reset_assert(phydev, &g_shared_clk_data->srds0_xpcs_reset, true);
+	if (ret < 0)
+		return ret;
+
+	/* Select XPCS mode */
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PMAPMD,
+				      QCE1204_PCS_MMD1_MODE_CTRL,
+				      0x1f00, QCE1204_PCS_MMD1_XPCS_MODE);
+	if (ret < 0)
+		return ret;
+
+	/* Analog soft reset assert */
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PMAPMD,
+				      QCE1204_PCS_MMD1_PLL_POWER_ON_AND_RESET,
+				      QCE1204_PCS_MMD1_ANA_SOFT_RESET_MASK,
+				      QCE1204_PCS_MMD1_ANA_SOFT_RESET);
+	if (ret < 0)
+		return ret;
+	mdelay(10);
+
+	/* Analog soft reset release */
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PMAPMD,
+				      QCE1204_PCS_MMD1_PLL_POWER_ON_AND_RESET,
+				      QCE1204_PCS_MMD1_ANA_SOFT_RESET_MASK,
+				      QCE1204_PCS_MMD1_ANA_SOFT_RELEASE);
+	if (ret < 0)
+		return ret;
+
+	/* Poll for calibration done */
+	retries = 100;
+	do {
+		mdelay(1);
+		if (retries-- == 0) {
+			debug("QCE1204: PCS0 calibration timeout!\n");
+			return -ETIMEDOUT;
+		}
+		pcs_data = qce1204_pcs0_read_mmd(phydev, MDIO_MMD_PMAPMD,
+						 QCE1204_PCS_MMD1_CALIBRATION4);
+	} while (!(pcs_data & QCE1204_PCS_MMD1_CALIBRATION_DONE));
+
+	/* Open SSC clock */
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PMAPMD,
+				      QCE1204_PCS_MMD1_SSC_CLK,
+				      QCE1204_PCS_MMD1_SSC_CLK_EN,
+				      QCE1204_PCS_MMD1_SSC_CLK_EN);
+	if (ret < 0)
+		return ret;
+
+	/* Enable SSCG */
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PMAPMD,
+				      QCE1204_PCS_MMD1_CDA_CONTROL1,
+				      0x8, QCE1204_PCS_MMD1_SSCG_ENABLE);
+	if (ret < 0)
+		return ret;
+
+	/* De-assert SRDS0 XPCS reset */
+	ret = qce1204_reset_assert(phydev, &g_shared_clk_data->srds0_xpcs_reset, false);
+	if (ret < 0)
+		return ret;
+
+	/* Set BaseR mode */
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PCS,
+				      QCE1204_PCS_MMD3_PCS_CTRL2,
+				      0xf, QCE1204_PCS_MMD3_PCS_TYPE_10GBASE_R);
+	if (ret < 0)
+		return ret;
+
+	/* Poll for 10G Base-R link up */
+	retries = 100;
+	do {
+		mdelay(1);
+		if (retries-- == 0) {
+			debug("QCE1204: PCS0 10G Base-R link up timeout!\n");
+			return -ETIMEDOUT;
+		}
+		pcs_data = qce1204_pcs0_read_mmd(phydev, MDIO_MMD_PCS,
+						 QCE1204_PCS_MMD3_10GBASE_PCS_STATUS1);
+	} while (!(pcs_data & QCE1204_PCS_MMD3_10GBASE_UP));
+
+	/* Enable USXGMII mode: set BIT(9) in VR_XS_PCS_DIG_CTRL1 */
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PCS,
+				      QCE1204_PCS_MMD3_DIG_CTRL1,
+				      BIT(9), BIT(9));
+	if (ret < 0)
+		return ret;
+
+	/* Enable AN: 10G full-duplex + AN-enable in SR_MII_CTRL (VEND2 reg 0) */
+	ret = qce1204_pcs0_write_mmd(phydev, MDIO_MMD_VEND2,
+				     QCE1204_PCS_MMD_MII_CTRL, 0x3060);
+	if (ret < 0)
+		return ret;
+
+	/* XPCS soft reset — poll until self-clearing */
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PCS,
+				      QCE1204_PCS_MMD3_DIG_CTRL1,
+				      0x8000, QCE1204_PCS_MMD3_XPCS_SOFT_RESET);
+	if (ret < 0)
+		return ret;
+
+	retries = 100;
+	do {
+		mdelay(1);
+		if (retries-- == 0)
+			return -ETIMEDOUT;
+		pcs_data = qce1204_pcs0_read_mmd(phydev, MDIO_MMD_PCS,
+						 QCE1204_PCS_MMD3_DIG_CTRL1);
+	} while (pcs_data & QCE1204_PCS_MMD3_XPCS_SOFT_RESET);
+
+	debug("QCE1204: PCS0 USXGMII mode set complete\n");
+	return 0;
+}
+#endif
+
 int qce2204_phy_stats_enable(struct phy_device *phydev)
 {
 	int ret = 0;
@@ -2859,6 +3219,46 @@ static int qce1204_config(struct phy_device *phydev)
 			if (ret < 0)
 				return ret;
 
+			/* Port 5: init PCS0 for USXGMII if an external PHY is present */
+			{
+				struct qce1204_switch_port *p5 =
+					&priv->sw_ports[QCE1204_MAX_SWITCH_PORTS - 1];
+
+				if (p5 && p5->valid && p5->is_external) {
+					ret = qce1204_set_srds_mux(phydev);
+					if (ret < 0)
+						return ret;
+
+					ret = qce1204_pcs0_usxgmii_mode_set(phydev);
+					if (ret < 0)
+						return ret;
+
+					/*
+					 * Select PCS0 for port 5:
+					 * PORT_MUX_CTRL offset=0x10, port5_pcs_sel=bit4, PCS0=0
+					 */
+					ret = qce2204_ppe_update_bits(phydev, 0x10, BIT(4), 0);
+					if (ret < 0)
+						return ret;
+
+					/* Connect QCA81xx via standard PHY framework */
+					p5->ext_phydev = phy_connect(phydev->bus,
+								     p5->phy_addr,
+								     phydev->dev,
+								     PHY_INTERFACE_MODE_USXGMII);
+					if (p5->ext_phydev) {
+						ret = phy_config(p5->ext_phydev);
+						if (ret < 0)
+							dev_warn(phydev->dev,
+								 "QCE1204: Port 5 phy_config failed: %d\n",
+								 ret);
+					} else {
+						dev_warn(phydev->dev,
+							 "QCE1204: Port 5 phy_connect failed\n");
+					}
+				}
+			}
+
 			ret = qce2204_phy_stats_enable(phydev);
 			if (ret < 0)
 				return ret;
@@ -2921,6 +3321,9 @@ static int qce1204_config(struct phy_device *phydev)
 		memcpy(&local_phydev, phydev, sizeof(struct phy_device));
 		for (i = 0; i < QCE1204_MAX_SWITCH_PORTS; i++) {
 			if (!priv->sw_ports[i].valid)
+				continue;
+			/* External PHY ports (e.g. QCA81xx) are handled via phy_config() */
+			if (priv->sw_ports[i].is_external)
 				continue;
 			local_phydev.addr = priv->sw_ports[i].phy_addr;
 			ret = phy_modify(&local_phydev, MDIO_MMD_VEND2,

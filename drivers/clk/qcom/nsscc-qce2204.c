@@ -398,6 +398,14 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 				  xgmii_dev);
 		break;
 
+	case QCE2204_NSSCC_MAC5_TX_CLK:
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv,
+						&xgmii_dev);
+		qce2204_clk_rcg_set_rate_v2(priv, GCC_MAC5_TX_CMD_RCGR,
+					    GCC_MAC5_TX_DIV_CDIVR, div, cdiv,
+					    7 << 8);
+		break;
+
 	case QCE2204_NSSCC_MAC1_RX_CLK:
 	case QCE2204_NSSCC_MAC1_SRDS1_CH0_RX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv,
@@ -445,6 +453,14 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 				  QCE2204_CLK_REG_BASE +
 				  GCC_MAC4_SRDS1_CH3_XGMII_RX_DIV_CDIVR,
 				  xgmii_dev);
+		break;
+
+	case QCE2204_NSSCC_MAC5_RX_CLK:
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv,
+						&xgmii_dev);
+		qce2204_clk_rcg_set_rate_v2(priv, GCC_MAC5_RX_CMD_RCGR,
+					    GCC_MAC5_RX_DIV_CDIVR, div, cdiv,
+					    6 << 8);
 		break;
 
 	case QCE2204_NSSCC_AHB_CLK:
