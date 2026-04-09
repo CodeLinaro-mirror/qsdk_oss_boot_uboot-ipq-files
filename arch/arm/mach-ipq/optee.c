@@ -18,7 +18,7 @@
 #include <vsprintf.h>
 
 /* OPTEE fuseipq implementation */
-#define PTA_CMD_QFPROM_BLOW_SECELF 3
+#define PTA_CMD_QFPROM_BLOW_SECELF 0
 #define TA_FUSEIPQ_UUID \
 	{ 0x7e5e8c5d, 0x5375, 0x4ab0, \
 	{ 0x8b, 0x11, 0x95, 0x14, 0x96, 0x65, 0xdc, 0x88} }
