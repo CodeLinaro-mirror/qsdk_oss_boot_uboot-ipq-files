@@ -1069,12 +1069,13 @@
 				};
 			};
 		};
+
 		watchdog: non-sec@b017000 {
 			compatible = "qcom,apss-wdt-ipq5210", "qcom,kpss-wdt";
 			reg =  <0x0 0xb017000 0x0 0x1000>;
 			clocks = <&sleep_clk>;
 			timeout-sec = <30>;
-			status = "disabled";
+			status = "okay";
 		};
 	};
 };

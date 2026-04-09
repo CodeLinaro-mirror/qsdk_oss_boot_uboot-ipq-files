@@ -76,7 +76,9 @@ void ipq_enable_non_sec_watchdog(void)
 #if !defined(CONFIG_SPL)
 void lowlevel_init(void)
 {
-
+#ifdef CONFIG_IPQ_EARLY_WDT
+	ipq_enable_non_sec_watchdog();
+#endif
 }
 #endif /* !CONFIG_SPL */
 
