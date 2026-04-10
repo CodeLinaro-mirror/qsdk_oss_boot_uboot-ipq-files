@@ -545,6 +545,7 @@ typedef void (*ipq_spl_jump_img_entry_t)(void *arg1, void *arg2);
 /*
  * Forward declarations for image fixup functions
  */
+static int ipq_spl_dpr_fixup(void *ctx);
 static int ipq_spl_xcfg_fixup(void *ctx);
 static int ipq_spl_qclib_fixup(void *ctx);
 static int ipq_spl_tfa_fixup(void *ctx);
@@ -618,6 +619,12 @@ static struct ipq_spl_fuse_info tme_fuse_info_array[] = {
  */
 struct ipq_spl_img_ctx img_tbl_fit[] = {
 	{
+		.img_name = "dpr",
+		.sw_id = IPQ_SPL_DPR_SEC_AUTH_SWID,
+		.auth = true,
+		.optional = true,
+		.fixup = ipq_spl_dpr_fixup,
+	}, {
 		.img_name = "qcconfig-meta",
 		.sw_id = IPQ_SPL_QCCONFIG_SEC_AUTH_SWID,
 		.auth = true,
@@ -1736,6 +1743,20 @@ struct ipq_spl_img_ctx *ipq_spl_get_img_ctx_by_name(char *img_name)
 	}
 
 	return NULL;
+}
+
+/**
+ * ipq_spl_dpr_fixup() - Perform fixups for the DPR ELF image.
+ * @ctx:	Pointer to the global SPL context.
+ *
+ * The DPR (Device Protection Region) ELF is loaded as a whole image
+ * before qcconfig. 
+ * Return: 0 on success, or a negative error code on failure.
+ */
+static int ipq_spl_dpr_fixup(void *ctx)
+{
+	pr_debug("DPR fixup skipped\n");
+	return 0;
 }
 
 /**
