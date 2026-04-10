@@ -30,10 +30,18 @@
 			status = "okay";
 		};
 
+		pcie0_phy: phy@84000 {
+			status = "okay";
+		};
+
 		pcie0: pcie@70000000 {
 			pinctrl-0 = <&pcie0_default_state>;
 			pinctrl-names = "default";
 			perst-gpios = <&tlmm 32 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+
+		pcie1_phy: phy@f4000 {
 			status = "okay";
 		};
 
