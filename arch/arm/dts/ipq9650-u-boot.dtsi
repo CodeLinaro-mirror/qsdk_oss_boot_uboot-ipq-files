@@ -857,7 +857,7 @@
 			pinctrl-names = "default";
 			reg = <0x00000000 0x00090000 0x00000000 0x00000064>;
 			clocks = <&gcc GCC_MDIO_AHB_CLK>;
-			clk_div = /bits/ 8 <15>;
+			clk_div = /bits/ 8 <31>;
 			status = "okay";
 		};
 
