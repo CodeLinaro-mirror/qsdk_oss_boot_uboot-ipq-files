@@ -40,6 +40,7 @@ static struct crashdump_infos dumpinfo_n[] = {
 		.is_aligned_access = false,
 		.compression_support = true
 	},
+#if (CONFIG_NR_DRAM_BANKS > 1)
 	{
 		/* DDR Bank 1 */
 		.name = "EBICS.BIN",
@@ -50,6 +51,7 @@ static struct crashdump_infos dumpinfo_n[] = {
 		.is_aligned_access = false,
 		.compression_support = true
 	},
+#endif
 	{
 		.name = "IMEM.BIN",
 		.start_addr = 0x08600000,
