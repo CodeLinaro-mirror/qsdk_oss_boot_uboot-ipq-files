@@ -402,6 +402,12 @@ config FUSEIPQ_V2
 	help
 	  This config provides support for fuseipq command version 2.
 
+config FUSEIPQ_V3
+	bool "Enable fuseipq command support with version 3"
+	default n
+	help
+	  This config provides support for fuseipq command version 3.
+
 config LIST_FUSE
 	bool "Enable list_fuse command"
 	default n
@@ -916,6 +922,8 @@ config TARGET_IPQ5210
 	imply MDIO_AHB
 	select TEE
 	select OPTEE
+	imply FUSE_IPQ
+	imply FUSEIPQ_V3 if IPQ_SECURE && SCM_V2
 
 	help
 	  Support for IPQ5210 SoC.
@@ -958,6 +966,7 @@ config TARGET_IPQ9650
 	imply PHY_QCE_1204 if !SPL
 	imply PHY_QCE_2204 if !SPL
 	imply CLK_QCOM_NSSCC_QCE2204 if !SPL
+	imply CLK_QCOM_CMN_PLL if !SPL
 	help
 	  Support for IPQ9650 SoC.
 	  - Board Open Platform Specifications.

@@ -716,10 +716,10 @@ static const rcgr_config_entry_t ipq9650_rcgr_configs[] = {
 	 SRC_GPLL0, 25, 0, 0, 0},
 	{GCC_QUPV3_WRAP_SE4_CMD_RCGR, GCC_QUPV3_WRAP_SE4_CFG_RCGR,
 	 GCC_QUPV3_WRAP_SE4_M, GCC_QUPV3_WRAP_SE4_N, GCC_QUPV3_WRAP_SE4_D,
-	 SRC_GPLL0, 25, 0, 0, 0},
+	 SRC_GPLL0, 16, 0, 0, 0},
 	{GCC_QUPV3_WRAP_SE5_CMD_RCGR, GCC_QUPV3_WRAP_SE5_CFG_RCGR,
 	 GCC_QUPV3_WRAP_SE5_M, GCC_QUPV3_WRAP_SE5_N, GCC_QUPV3_WRAP_SE5_D,
-	 SRC_GPLL0, 25, 0, 0, 0},
+	 SRC_GPLL0, 16, 0, 0, 0},
 	//{GCC_QUPV3_WRAP_SE6_CMD_RCGR, GCC_QUPV3_WRAP_SE6_CFG_RCGR,
 	// GCC_QUPV3_WRAP_SE6_M, GCC_QUPV3_WRAP_SE6_N, GCC_QUPV3_WRAP_SE6_D,
 	// SRC_GPLL0, 25, 0, 0, 0},
@@ -819,7 +819,7 @@ static const rcgr_config_entry_t ipq9650_rcgr_configs[] = {
 	 0, 0, 0, SRC_GPLL4, 4, 0, 0, 0},
 	{GCC_REFGEN_CORE_CMD_RCGR, GCC_REFGEN_CORE_CFG_RCGR, 0, 0, 0, SRC_XO, 2, 0, 0, 0},
 	{GCC_TSENS_AOSS_CMD_RCGR, GCC_TSENS_AOSS_CFG_RCGR, 0, 0, 0, SRC_XO, 2, 0, 0, 0},
-	{GCC_QMIP_CORE_CMD_RCGR, GCC_QMIP_CORE_CFG_RCGR, 0, 0, 0, SRC_GPLL0, 16, 0, 0, 0},
+	{GCC_QMIP_CORE_CMD_RCGR, GCC_QMIP_CORE_CFG_RCGR, 0, 0, 0, SRC_GPLL4, 8, 0, 0, 0},
 
 	/* PrimeSS Clocks */
 	/* gcc_primess_clk_src: GPLL0 (800MHz) / 1 = 800MHz */
@@ -878,6 +878,7 @@ int hermosa_gcc_configure_rcgr_entry(const rcgr_config_entry_t *entry)
 
 	/* Trigger update */
 	cmd_val |= RCGR_CMD_UPDATE;
+	cmd_val |= RCGR_CMD_ROOT_EN;
 	writel(cmd_val, entry->cmd_rcgr);
 
 	/* Wait for update to complete */

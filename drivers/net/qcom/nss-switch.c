@@ -103,7 +103,7 @@ int  csr1_read(int phy_id, int  addr)
 	return  readl(ahb_l);
 }
 
-static int ppe_uniphy_calibration(struct port_info *port)
+int ppe_uniphy_calibration(struct port_info *port)
 {
 	int retries = 100, calibration_done = 0;
 	u32 reg_value = 0;

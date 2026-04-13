@@ -219,14 +219,27 @@ __weak int ipq_auth_rootfs_elf_scm_impl(void *p)
 	return -EOPNOTSUPP;
 }
 
+__weak int ipq_fuseipq_scm_impl(void *p)
+{
+	debug("SCM communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_fuseipq_optee_impl(void *p)
+{
+	debug("OPTEE communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
 /* Function Pointer Table for communication handlers */
 static int (*const comm_functions[FUNC_MAX][COMM_TYPE_MAX])(void *) = {
-	[FUNC_LIST_FUSE]       = {ipq_list_fuse_tme_impl, ipq_list_fuse_scm_impl},
-	[FUNC_DUMP_FUSE]       = {ipq_dump_fuse_tme_impl, ipq_dump_fuse_scm_impl},
-	[FUNC_CHECK_SECURE_BOOT] = {ipq_check_secure_boot_tme_impl, ipq_check_secure_boot_scm_impl},
-	[FUNC_SECURE_AUTH]     = {ipq_secure_auth_tme_impl, ipq_secure_auth_scm_impl},
-	[FUNC_IMAGE_AUTH]      = {ipq_image_auth_tme_impl, ipq_image_auth_scm_impl},
-	[FUNC_AUTH_ROOTFS_ELF] = {ipq_auth_rootfs_elf_tme_impl, ipq_auth_rootfs_elf_scm_impl}
+	[FUNC_LIST_FUSE]	 = {ipq_list_fuse_tme_impl, ipq_list_fuse_scm_impl, NULL},
+	[FUNC_DUMP_FUSE]	 = {ipq_dump_fuse_tme_impl, ipq_dump_fuse_scm_impl, NULL},
+	[FUNC_CHECK_SECURE_BOOT] = {ipq_check_secure_boot_tme_impl, ipq_check_secure_boot_scm_impl, NULL},
+	[FUNC_SECURE_AUTH]	 = {ipq_secure_auth_tme_impl, ipq_secure_auth_scm_impl, NULL},
+	[FUNC_IMAGE_AUTH]	 = {ipq_image_auth_tme_impl, ipq_image_auth_scm_impl, NULL},
+	[FUNC_AUTH_ROOTFS_ELF]	 = {ipq_auth_rootfs_elf_tme_impl, ipq_auth_rootfs_elf_scm_impl, NULL},
+	[FUNC_FUSEIPQ]		 = { NULL, ipq_fuseipq_scm_impl, ipq_fuseipq_optee_impl}
 };
 
 /**
@@ -268,9 +281,20 @@ int ipq_comm_handler(enum cmd_function_id func_id, void *params)
 	/* Get function pointer from table */
 	func_ptr = comm_functions[func_id][comm_type];
 	if (!func_ptr) {
-		printf((comm_type == COMM_TYPE_SCM) ?
-		       "SCM communication not supported\n" :
-		       "TME communication not supported\n");
+		switch (comm_type) {
+			case COMM_TYPE_SCM:
+				printf("SCM communication not supported\n");
+			break;
+			case COMM_TYPE_TME:
+				printf("TME communication not supported\n");
+			break;
+			case COMM_TYPE_OPTEE:
+				printf("OPTEE communication not supported\n");
+			break;
+			case COMM_TYPE_MAX:
+				printf("Invalid communication type\n");
+			break;
+		};
 		return -EOPNOTSUPP;
 	}
 
@@ -2803,13 +2827,15 @@ void qcn92xx_global_soc_reset(uintptr_t bar0_base, bool force_reset)
 int hex_string_to_binary(const char *hex_str, uint8_t *binary,
 			 size_t binary_len)
 {
-	size_t hex_len = strlen(hex_str);
+	size_t hex_len;
 	size_t i;
 
 	if (!hex_str || !binary) {
 		printf("Invalid input: NULL pointer\n");
 		return -1;
 	}
+
+	hex_len = strlen(hex_str);
 
 	/* Check if hex string length is valid
 	 * (must be even and match binary length * 2) */

@@ -34,12 +34,13 @@
 
 		xo_clk: xo-clk {
 			compatible = "fixed-clock";
+			clock-frequency = <24000000>;
 			#clock-cells = <0>;
 		};
 
 		ref_48mhz_clk: ref-48mhz-clk {
-			compatible = "fixed-factor-clock";
-			clocks = <&xo_clk>;
+			compatible = "fixed-clock";
+			clock-frequency = <48000000>;
 			#clock-cells = <0>;
 		};
 	};
@@ -237,10 +238,13 @@
 			reg = <0x0 0x7d000 0x0 0x1c0>,
 				<0x0 0x7d200 0x0 0x170>,
 				<0x0 0x7d400 0x0 0x200>,
-				<0x0 0x7d800 0x0 0x1f0>;
+				<0x0 0x7d800 0x0 0x1f0>,
+				<0x0 0x7de00 0x0 0x60>;
 			reg-names = "com_base", "tx_base",
-				"rx_base", "pcs_base";
-			clocks = <&gcc GCC_USB0_PIPE_CLK>;
+				"rx_base", "pcs_base", "pcs_usb_base";
+			clocks = <&gcc GCC_USB0_AUX_CLK>,
+				 <&gcc GCC_USB0_PHY_CFG_AHB_CLK>,
+				 <&gcc GCC_USB0_PIPE_CLK>;
 			#phy-cells = <0>;
 			resets =  <&gcc GCC_USB0_PHY_BCR>,
 			       <&gcc GCC_USB3PHY_0_PHY_BCR>;
@@ -290,8 +294,8 @@
 				<&gcc GCC_USB0_PHY_CFG_AHB_CLK>;
 			resets = <&gcc GCC_USB_BCR>;
 			ranges;
-			qcom,quirk-ref-clk-per = <0x4004010>;
-			qcom,quirk-ref-clk-adj = <0x4945720>;
+			qcom,quirk-ref-clk-per = <0xA40C010>;
+			qcom,quirk-ref-clk-adj = <0xA87F0A0>;
 			status = "disabled";
 
 			dwc3@8a00000 {
@@ -884,13 +888,22 @@
 			status = "disabled";
 
 			assigned-clocks = <&gcc GCC_SYSTEM_NOC_BFDCD_CLK>,
-					  <&nsscc NSS_CC_PPE_CLK>, <&nsscc NSS_CC_EIP_BFDCD_CLK>;
-			assigned-clock-rates = <133333333>, <462000000>, <429000000>;
+					  <&nsscc NSS_CC_PPE_CLK>,
+					  <&nsscc NSS_CC_CE_AXI_CLK>,
+					  <&nsscc NSS_CC_CFG_CLK>,
+					  <&nsscc NSS_CC_EIP_BFDCD_CLK>;
+			assigned-clock-rates = <266333333>,
+					       <462000000>,
+					       <462000000>,
+					       <100000000>,
+					       <800000000>;
 
 			clocks = <&gcc GCC_CMN_12GPLL_AHB_CLK>,
 				<&gcc GCC_CMN_12GPLL_APU_CLK>,
 				<&gcc GCC_CMN_12GPLL_SYS_CLK>,
 				<&gcc GCC_CMN_LDO_CLK>,
+				<&gcc GCC_REFGEN_CMN_UPHY_CORE_CLK>,
+				<&gcc GCC_REFGEN_CMN_UPHY_HCLK_CLK>,
 				<&gcc GCC_UNIPHY0_AHB_CLK>,
 				<&gcc GCC_UNIPHY0_SYS_CLK>,
 				<&gcc GCC_UNIPHY1_AHB_CLK>,
@@ -958,6 +971,8 @@
 				"cmn_apu_clk",
 				"cmn_sys_clk",
 				"gcc_cmn_ldo_clk",
+				"refgen_core_clk",
+				"refgen_hclk",
 				"uniphy0_ahb_clk",
 				"uniphy0_sys_clk",
 				"uniphy1_ahb_clk",
@@ -1031,9 +1046,14 @@
 				<&gcc GCC_UNIPHY0_SYS_ARES>,
 				<&gcc GCC_UNIPHY1_SYS_ARES>,
 				<&gcc GCC_UNIPHY2_SYS_ARES>,
+				<&gcc GCC_UNIPHY0_PMA_ARES>,
+				<&gcc GCC_UNIPHY1_PMA_ARES>,
+				<&gcc GCC_UNIPHY2_PMA_ARES>,
 				<&gcc GCC_UNIPHY0_XPCS_ARES>,
 				<&gcc GCC_UNIPHY1_XPCS_ARES>,
 				<&gcc GCC_UNIPHY2_XPCS_ARES>,
+				<&gcc GCC_REFGEN_CMN_UPHY_CORE_ARES>,
+				<&gcc GCC_REFGEN_CMN_UPHY_HCLK_ARES>,
 				<&nsscc NSS_CC_PPE_EDMA_ARES>,
 				<&nsscc NSS_CC_UNIPHY_PORT1_RX_CLK_ARES>,
 				<&nsscc NSS_CC_UNIPHY_PORT1_TX_CLK_ARES>,
@@ -1076,9 +1096,14 @@
 				"uniphy0_sys_rst",
 				"uniphy1_sys_rst",
 				"uniphy2_sys_rst",
+				"uniphy0_pma_rst",
+				"uniphy1_pma_rst",
+				"uniphy2_pma_rst",
 				"uniphy0_xpcs_rst",
 				"uniphy1_xpcs_rst",
 				"uniphy2_xpcs_rst",
+				"refgen_core_ares",
+				"refgen_hclk_ares",
 				"ppe_edma_rst",
 				"uniphy_port1_rx_rst",
 				"uniphy_port1_tx_rst",

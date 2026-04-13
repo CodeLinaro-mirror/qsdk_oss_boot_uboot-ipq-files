@@ -76,7 +76,9 @@ void ipq_enable_non_sec_watchdog(void)
 #if !defined(CONFIG_SPL)
 void lowlevel_init(void)
 {
-
+#ifdef CONFIG_IPQ_EARLY_WDT
+	ipq_enable_non_sec_watchdog();
+#endif
 }
 #endif /* !CONFIG_SPL */
 
@@ -179,12 +181,13 @@ struct multidtb_config *g_board_dtb_info = &ipq5210_dtb_info;
 
 /* Board-Specific Communication Type Mapping */
 const u8 comm_type_map[FUNC_MAX] = {
-	[FUNC_LIST_FUSE]       = COMM_TYPE_TME,
-	[FUNC_DUMP_FUSE]       = COMM_TYPE_TME,
-	[FUNC_SECURE_AUTH]     = COMM_TYPE_TME,
+	[FUNC_LIST_FUSE]	 = COMM_TYPE_TME,
+	[FUNC_DUMP_FUSE]	 = COMM_TYPE_TME,
+	[FUNC_SECURE_AUTH]	 = COMM_TYPE_TME,
 	[FUNC_CHECK_SECURE_BOOT] = COMM_TYPE_TME,
-	[FUNC_IMAGE_AUTH]      = COMM_TYPE_TME,
-	[FUNC_AUTH_ROOTFS_ELF] = COMM_TYPE_TME
+	[FUNC_IMAGE_AUTH]	 = COMM_TYPE_TME,
+	[FUNC_AUTH_ROOTFS_ELF] 	 = COMM_TYPE_TME,
+	[FUNC_FUSEIPQ]		 = COMM_TYPE_OPTEE
 };
 
 static struct crashdump_infos dumpinfo_n[] = {

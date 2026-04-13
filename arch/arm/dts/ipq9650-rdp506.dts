@@ -34,6 +34,18 @@
 			status = "okay";
 		};
 
+		pcie1_phy: phy@f4000 {
+			status = "okay";
+		};
+
+		pcie2_phy: phy@fc000 {
+			status = "okay";
+		};
+
+		pcie3_phy: phy@b4000 {
+			status = "okay";
+		};
+
 		pcie1: pcie@50000000 {
 			pinctrl-0 = <&pcie1_default_state>;
 			pinctrl-names = "default";
@@ -45,6 +57,13 @@
 			pinctrl-0 = <&pcie2_default_state>;
 			pinctrl-names = "default";
 			perst-gpios = <&tlmm 52 GPIO_ACTIVE_LOW>;
+			status = "okay";
+		};
+
+		pcie3: pcie@30000000 {
+			pinctrl-0 = <&pcie3_default_state>;
+			pinctrl-names = "default";
+			perst-gpios = <&tlmm 41 GPIO_ACTIVE_LOW>;
 			status = "okay";
 		};
 
@@ -287,9 +306,9 @@
 			phy5: phy@12 {
 				phy_addr = <12>;
 				phy_type = <QCA81xx_PHY_TYPE>;
-				id = <5>;
-				uniphy_id = <1>;
-				uniphy_type = <1>;
+				id = <6>;
+				uniphy_id = <2>;
+				uniphy_type = <0>;
 				xgmac;
 			};
 		};
@@ -329,6 +348,16 @@
 		};
 	};
 
+	pcie3_default_state: pcie3-default-state {
+		perst-n-pins {
+			pins = "gpio41";
+			function = "gpio";
+			drive-strength = <8>;
+			bias-pull-down;
+			output-low;
+		};
+	};
+
 	i2c1_pinmux: i2c1 {
 		i2c1_scl {
 			pins = "gpio16";
@@ -348,14 +377,18 @@
 	phy_rst_pinmux: phy_rst {
 		qce1204_rst {
 			pins = "gpio18";
-			drive-strength = <8>;
+			function = "gpio";
+			drive-strength = <2>;
 			bias-pull-up;
+			output-low;
 		};
 
 		qca81xx_rst {
 			pins = "gpio14";
-			drive-strength = <8>;
+			function = "gpio";
+			drive-strength = <2>;
 			bias-pull-up;
+			output-low;
 		};
 	};
 };

@@ -187,6 +187,7 @@
 	perst-gpios = <&tlmm 47 GPIO_ACTIVE_LOW>;
 	phys = <&pcie1_phy>;
 	phy-names = "pciephy";
+	num-lanes = <1>;
 	status = "okay";
 };
 

@@ -19,6 +19,7 @@
 #include <malloc.h>
 #include <memalign.h>
 #include <mach/ipq.h>
+#include <elf.h>
 
 #ifdef DEBUG
 #define debugf(fmt, args...)						\
@@ -486,5 +487,42 @@ int ipq_secure_auth_scm_impl(void *params)
 	}
 
 exit:
+	return ret;
+}
+
+int ipq_fuseipq_scm_impl(void *params)
+{
+	int ret = CMD_RET_FAILURE;
+	struct fuseipq_params *fuseipq_params = (struct fuseipq_params *)params;
+	struct scm_param param;
+	void *load_addr = NULL;
+
+	load_addr = (void *)(uintptr_t)fuseipq_params->addr;
+	IPQ_SCM_FUSE_IPQ(param, (uint64_t) fuseipq_params->addr,
+				fuseipq_params->meta_data_size, 0x2B,
+				(uintptr_t)fuseipq_params->load_seg_buff,
+				fuseipq_params->load_seg_cnt);
+#ifdef CONFIG_FUSEIPQ_V1
+	if (IS_ELF(*(Elf32_Ehdr *)load_addr)) {
+		param.type = SCM_FUSE_IPQ_UIE_KEY;
+		param.buff[1] = fuseipq_params->size;
+		param.arg_type[1] = SCM_VAL;
+		param.len = 2;
+	}
+#endif
+	param.get_ret = true;
+	/*
+	 * Disable data cache to ensure direct memory access during
+	 * fuse operation
+	 */
+	dcache_disable();
+	ret = ipq_scm_call(&param);
+	dcache_enable();
+	invalidate_dcache_all();
+	if (ret == -ENOTSUPP) {
+		printf("Unsupported SCM call\n");
+	}
+
+	fuseipq_params->fuse_status = param.res.result[0];
 	return ret;
 }

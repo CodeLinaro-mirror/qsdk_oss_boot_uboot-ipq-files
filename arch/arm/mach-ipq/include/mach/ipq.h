@@ -290,6 +290,7 @@ enum cmd_function_id {
 	FUNC_AES_CLEAR_KEY,
 	FUNC_IMAGE_AUTH,
 	FUNC_AUTH_ROOTFS_ELF,
+	FUNC_FUSEIPQ,
 	FUNC_MAX
 };
 
@@ -297,6 +298,7 @@ enum cmd_function_id {
 enum comm_type_id {
 	COMM_TYPE_TME,
 	COMM_TYPE_SCM,
+	COMM_TYPE_OPTEE,
 	COMM_TYPE_MAX
 };
 
@@ -489,7 +491,23 @@ struct cal_dt_config {
 };
 #endif
 
+struct load_seg_info {
+	uint32_t startAddr;       /**< Region start address (SoC view) */
+	uint32_t endAddr;	 /**< Region end address (SoC view) */
+};
+
 /* All CMD-related parameters should be declared below*/
+struct fuseipq_params {
+	u32 addr;
+#if defined (CONFIG_FUSEIPQ_V1) || (CONFIG_FUSEIPQ_V3)
+	u32 size;
+#endif
+	unsigned long meta_data_size;
+	struct load_seg_info *load_seg_buff;
+	uint8_t load_seg_cnt;
+	u32 fuse_status;
+};
+
 struct list_fuse_params {
 	struct fuse_payload *fuse;
 	u8 fuse_read_cnt;

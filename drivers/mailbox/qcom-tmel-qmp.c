@@ -739,7 +739,7 @@ static int tmel_process_request(struct tmel *tdev, u32 msg_uid, void *msg_buf,
  */
 static int tmel_secboot_sec_auth(struct tmel *tdev, struct tmel_sec_auth *msg)
 {
-	struct tmel_secboot_sec_auth smsg;
+	struct tmel_secboot_sec_auth smsg __aligned(CONFIG_SYS_CACHELINE_SIZE) = {0};
 	struct udevice *dev = tdev->dev;
 	int ret;
 
@@ -779,7 +779,7 @@ static int tmel_secboot_sec_auth(struct tmel *tdev, struct tmel_sec_auth *msg)
  */
 static int tmel_secboot_sec_auth_v2(struct tmel *tdev, struct tmel_sec_auth_v2 *msg)
 {
-	struct tmel_secboot_sec_auth_v2 smsg;
+	struct tmel_secboot_sec_auth_v2 smsg __aligned(CONFIG_SYS_CACHELINE_SIZE) = {0};
 	struct udevice *dev = tdev->dev;
 	int ret;
 
