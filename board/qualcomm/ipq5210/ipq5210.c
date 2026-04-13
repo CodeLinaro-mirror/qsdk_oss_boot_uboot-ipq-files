@@ -315,11 +315,7 @@ void ipq_board_early_init_f(void)
 	writel((readl(IM_SLEEP_CLK) | BIT(0)), IM_SLEEP_CLK);
 }
 
-#if defined(CONFIG_SPL)
-void reset_cpu(void)
-{
-}
-#else
+#if !defined(CONFIG_SPL)
 void reset_cpu(void)
 {
 #ifdef CONFIG_FAILSAFE_V2
@@ -336,7 +332,7 @@ void reset_cpu(void)
 #endif
 	psci_sys_reset(SYSRESET_COLD);
 }
-#endif
+#endif /* !CONFIG_SPL */
 
 uint32_t is_board_support_image_auth(void)
 {

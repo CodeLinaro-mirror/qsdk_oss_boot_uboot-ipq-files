@@ -61,6 +61,10 @@
 #include <u-boot/crc.h>
 #include <dm/device-internal.h>
 #include <linux/ipq-enable-all-clks.h>
+#include <env.h>
+#include <env_internal.h>
+#include <bootcount.h>
+#include <sysreset.h>
 
 /**
  * PBL Boot interface
@@ -130,12 +134,61 @@ struct pbl_shared_data {
 #define IPQ_SPL_TCSR_REG_ADDR		0x195C100
 #define IPQ_SPL_DLOAD_MASK		GENMASK(4, 4)
 #define IPQ_SPL_DLOAD_SHFT		0x4
+#define IPQ_SPL_EDL_MASK		GENMASK(0, 0)
+#define IPQ_SPL_EDL_SHFT		0x0
+#define IPQ_SPL_POR_RESET_MASK		GENMASK(10, 10)
+#define IPQ_SPL_POR_RESET_SHFT		0xA
 
-#define IPQ_SPL_IS_DLOAD_BIT_SET	((readl(IPQ_SPL_TCSR_REG_ADDR) & \
-					IPQ_SPL_DLOAD_MASK) >> \
-					IPQ_SPL_DLOAD_SHFT)
+#define IPQ_SPL_TCSR_BOOT_INFO_ADDR	0x195C158
+#define IPQ_SPL_SETB_MASK		GENMASK(31, 31)
+#define IPQ_SPL_SETB_SHFT		0x1F
 
-#define IPQ_SPL_FIT_IMG_PARTITION	"0:BOOTLDR"
+#define IPQ_SPL_IS_DLOAD_BIT_SET()	((readl(IPQ_SPL_TCSR_REG_ADDR) & \
+					  IPQ_SPL_DLOAD_MASK) >> \
+					  IPQ_SPL_DLOAD_SHFT)
+
+#define IPQ_SPL_IS_POR_RESET()		((readl(IPQ_SPL_TCSR_REG_ADDR) & \
+					  IPQ_SPL_POR_RESET_MASK) >> \
+					  IPQ_SPL_POR_RESET_SHFT == 0)
+
+#define IPQ_SPL_IS_TCSR_SETB()		((readl(IPQ_SPL_TCSR_BOOT_INFO_ADDR) & \
+					  IPQ_SPL_SETB_MASK) >> \
+					  IPQ_SPL_SETB_SHFT)
+
+#define IPQ_SPL_SET_TCSR_SETA()		clrbits_le32(\
+						IPQ_SPL_TCSR_BOOT_INFO_ADDR, \
+						IPQ_SPL_SETB_MASK)
+
+#define IPQ_SPL_SET_TCSR_SETB()		setbits_le32(\
+						IPQ_SPL_TCSR_BOOT_INFO_ADDR, \
+						IPQ_SPL_SETB_MASK)
+
+#define IPQ_SPL_SET_TCSR_EDL()		setbits_le32(\
+						IPQ_SPL_TCSR_REG_ADDR, \
+						IPQ_SPL_EDL_MASK)
+
+#define IPQ_SPL_FORCE_INACTIVE_ADDR	0x86000CC
+#define IPQ_SPL_IS_FORCE_INACTIVE_EN()	\
+	(readl(IPQ_SPL_FORCE_INACTIVE_ADDR) == 1)
+
+#define IPQ_SPL_FIT_IMG_PARTITION		"0:BOOTLDR"
+#define IPQ_SPL_FIT_IMG_ALT_PARTITION		"0:BOOTLDR_1"
+
+#define IPQ_SPL_ENV_PARTITION			"0:APPSBLENV"
+#define IPQ_SPL_DEFAULT_BOOTLIMIT		0x3
+#define IPQ_SPL_DEFAULT_SPL_PARTITION_LABEL	"0:SPL"
+#define IPQ_SPL_DEFAULT_SPL_PARTITION_GUID	EFI_GUID(\
+						0xdea0ba2c, 0xcbdd, 0x4805,\
+						0xb4, 0xf9, 0xf4, 0x28,\
+						0x25, 0x1c, 0x3e, 0x98)
+
+#define IPQ_SPL_QPIC_NAND_ADDR0_REG		0x79B0004
+#define IPQ_SPL_QPIC_NAND_ADDR0_MSB_MASK	GENMASK(31, 16)
+#define IPQ_SPL_QPIC_NAND_ADDR0_MSB_SHFT	0x10
+
+#define IPQ_SPL_GET_QPIC_PAGE_INDEX()	((readl(IPQ_SPL_QPIC_NAND_ADDR0_REG) & \
+					  IPQ_SPL_QPIC_NAND_ADDR0_MSB_MASK) >> \
+					  IPQ_SPL_QPIC_NAND_ADDR0_MSB_SHFT)
 
 #define SPL_ERR_CAT_BOOT		0x00010000
 #define SPL_ERR_CAT_DDR			0x00020000
@@ -304,16 +357,50 @@ static bool secure_boot_enabled;
 enum {
 	IPQ_SPL_BOOT_FROM_ACTIVE		= 0x0,
 	IPQ_SPL_BOOT_FROM_INACTIVE		= 0x1,
-	IPQ_SPL_BOOT_FROM_FORCE_INACTIVE	= 0x2,
-	IPQ_SPL_BOOT_SET_MAX
+	IPQ_SPL_BOOT_SET_MAX,
 };
 
 enum {
-	IPQ_SPL_BOOT_PATH_DEFAULT	= 0x0,
-	IPQ_SPL_BOOT_PATH_FORCE_INACIVE	= 0x1,
-	IPQ_SPL_BOOT_PATH_FAILOVER_EN	= 0x2,
-	IPQ_SPL_BOOT_PATH_MAX,
+	IPQ_SPL_BOOT_MODE_DEFAULT	= 0x0,
+	IPQ_SPL_BOOT_MODE_SPL_INACTIVE	= 0x1,
+	IPQ_SPL_BOOT_MODE_FORCE_INACIVE	= 0x2,
+	IPQ_SPL_BOOT_MODE_FAILOVER_EN	= 0x3,
+	IPQ_SPL_BOOT_MODE_MAX,
 };
+
+/**
+ * struct ipq_spl_bootrec_ctx - SPL failsafe boot record context
+ * @boot_mode:          Resolved boot mode (DEFAULT/FAILOVER_EN/FORCE_INACTIVE)
+ * @boot_set:           Final boot set used to load the bootloader
+ * @exp_boot_set:       Expected boot set derived from boot_mode and bootcount
+ * @pbl_set:            Boot set PBL actually loaded SPL from
+ * @is_pbl_set_parsed:  Flag indicating pbl_set has been read and verified
+ * @tcsr_set:           Current boot set stored in TCSR register
+ * @exp_tcsr_set:       Expected TCSR set after failsafe resolution
+ * @env_failover:       ENV "failover" key value (0=disabled)
+ * @env_bootlimit:      ENV "bootlimit" key value (max retries per slot)
+ * @env_bootfrom:       ENV "bootfrom" key value (NAND only; ACTIVE for others)
+ * @qpic_page_index:    QPIC page index recorded by PBL (NAND only)
+ */
+struct ipq_spl_bootrec_ctx {
+	u8 boot_mode;
+	u8 boot_set;
+	u8 exp_boot_set;
+	u8 pbl_set;
+	u8 is_pbl_set_parsed;
+	u8 tcsr_set;
+	u8 exp_tcsr_set;
+
+	u32 env_failover;
+	u32 env_bootlimit;
+	u32 env_bootfrom;
+	u32 qpic_page_index;
+};
+
+/**
+ * @g_bootrec: Global SPL failsafe boot record
+ */
+static struct ipq_spl_bootrec_ctx g_bootrec;
 
 /* Global variables to store MIBIB partition table and bootloader offset */
 static struct flash_partition_table g_mibib_parti_tbl;
@@ -610,6 +697,16 @@ static void ipq_spl_log_lcs_state(void);
 static void ipq_spl_log_debug_state(void);
 static void ipq_spl_log_otp_version(void);
 
+/*
+ * Forward declarations for flash specific functions
+ */
+int (*get_guid_fn)(char *part_name, efi_guid_t *type_guid);
+static int ipq_spl_spinor_gpt_read(char *part_name, void *buf, ulong *read_sz);
+static int ipq_spl_spinor_get_guid(char *part_name, efi_guid_t *type_guid);
+static int ipq_spl_mmc_read(char *part_name, void *buf, ulong *read_sz);
+static int ipq_spl_mmc_get_guid(char *part_name, efi_guid_t *type_guid);
+static int ipq_spl_nand_read(char *part_name, void *buf, ulong *read_sz);
+
 /**
  * fuse_info_array - Array of fuse information.
  *
@@ -749,7 +846,7 @@ static void enable_sec_wdog(u32 timeout_ms)
 /*
  * disable_sec_wdog() - Disable secure watchdog timer
  */
-static void disable_sec_wdog(void)
+static void __maybe_unused disable_sec_wdog(void)
 {
 	writel(0x0, WDT2_BASE_ADDR + WDT_SECURE);
 
@@ -1036,6 +1133,87 @@ static bool ipq_spl_tmel_bypass_enabled(void)
 #endif
 
 /**
+ * bootset_str() - Return a printable name for a boot set value
+ * @bootset: IPQ_SPL_BOOT_FROM_ACTIVE or IPQ_SPL_BOOT_FROM_INACTIVE
+ *
+ * Return: "SET-ACTIVE" or "SET-INACTIVE"
+ */
+static inline const char *bootset_str(u8 bootset)
+{
+	return bootset == IPQ_SPL_BOOT_FROM_INACTIVE ?
+		"SET-INACTIVE" : "SET-ACTIVE";
+}
+
+/**
+ * ipq_spl_alt_bootset() - Return the alternate boot set
+ * @bootset: Current boot set (IPQ_SPL_BOOT_FROM_ACTIVE/_INACTIVE)
+ *
+ * Return: Opposite boot set of @bootset.
+ */
+u8 ipq_spl_alt_bootset(u8 bootset)
+{
+	return bootset == IPQ_SPL_BOOT_FROM_INACTIVE ?
+		IPQ_SPL_BOOT_FROM_ACTIVE : IPQ_SPL_BOOT_FROM_INACTIVE;
+}
+
+/**
+ * ipq_spl_get_tcsr_set() - Read the current boot set from TCSR
+ *
+ * Return: IPQ_SPL_BOOT_FROM_INACTIVE if SETB bit is set, else
+ *         IPQ_SPL_BOOT_FROM_ACTIVE.
+ */
+u8 ipq_spl_get_tcsr_set(void)
+{
+	return IPQ_SPL_IS_TCSR_SETB() == 1 ?
+		IPQ_SPL_BOOT_FROM_INACTIVE : IPQ_SPL_BOOT_FROM_ACTIVE;
+}
+
+/**
+ * ipq_spl_set_tcsr_set() - Write the boot set to TCSR
+ * @bootset: IPQ_SPL_BOOT_FROM_ACTIVE or IPQ_SPL_BOOT_FROM_INACTIVE
+ */
+void ipq_spl_set_tcsr_set(u8 bootset)
+{
+	if (bootset == IPQ_SPL_BOOT_FROM_INACTIVE) {
+		IPQ_SPL_SET_TCSR_SETB();
+		g_bootrec.tcsr_set = IPQ_SPL_BOOT_FROM_INACTIVE;
+
+	} else {
+		IPQ_SPL_SET_TCSR_SETA();
+		g_bootrec.tcsr_set = IPQ_SPL_BOOT_FROM_ACTIVE;
+	}
+}
+
+/**
+ * ipq_spl_reset_cpu() - Log and trigger a CPU reset
+ */
+void ipq_spl_reset_cpu(void)
+{
+	printf("Resetting CPU ...\n");
+	reset_cpu();
+}
+
+/**
+ * ipq_spl_edl_reset() - Set EDL bit, reset state, and trigger CPU reset
+ *
+ * Sets the EDL bit in TCSR, restores TCSR boot set to env_bootfrom,
+ * clears bootcount, and resets the CPU. Does not return.
+ */
+void ipq_spl_edl_reset(void)
+{
+	IPQ_SPL_SET_TCSR_EDL();
+
+	/*
+	 * Reset Failsafe IMEM info
+	 */
+	ipq_spl_set_tcsr_set(g_bootrec.env_bootfrom);
+	bootcount_store(0);
+
+	printf("Entering EDL ...\n");
+	ipq_spl_reset_cpu();
+}
+
+/**
  * ipq_spl_error_handler() - Centralized SPL error handler with file:line tracking
  * @file:	Source file where error occurred
  * @line:	Line number where error occurred
@@ -1057,6 +1235,7 @@ static bool ipq_spl_tmel_bypass_enabled(void)
  */
 void ipq_spl_error_handler(const char *file, u32 line, u32 err_code)
 {
+	pr_err("Entered the SPL Error Handler\n");
 
 	if (g_spl_error_info.file == NULL) {
 		g_spl_error_info.file = file;
@@ -1089,6 +1268,27 @@ void ipq_spl_error_handler(const char *file, u32 line, u32 err_code)
 	}
 #endif
 
+	switch (g_bootrec.boot_mode) {
+	case IPQ_SPL_BOOT_MODE_DEFAULT:
+	case IPQ_SPL_BOOT_MODE_SPL_INACTIVE:
+		printf("Default: Boot failed\n");
+		ipq_spl_edl_reset();
+		break;
+
+	case IPQ_SPL_BOOT_MODE_FORCE_INACIVE:
+		printf("Forceinactive: Boot Failed\n");
+		ipq_spl_reset_cpu();
+		break;
+
+	case IPQ_SPL_BOOT_MODE_FAILOVER_EN:
+		printf("Failover: Boot Failed\n");
+		ipq_spl_reset_cpu();
+		break;
+
+	default:
+		pr_err("System entered hang state\n");
+	}
+
 	/*
 	 * End of Error handler. If we reach here, it means the system
 	 * has reached a hang state.
@@ -1118,6 +1318,64 @@ void ipq_spl_setup_arch_cntfreq(void)
 	}
 }
 #endif
+
+/**
+ * bootcount_store() - Store value to bootcount address.
+ * @a: Value to store.
+ *
+ * This function stores a value to the bootcount address. It is used to
+ * maintain the boot count across resets. The bootcount address is defined
+ * by CONFIG_SYS_BOOTCOUNT_ADDR. The function also ensures that the memory
+ * is flushed to ensure data consistency.
+ *
+ * Return: None.
+ */
+void bootcount_store(ulong a)
+{
+	void *reg = (void *)CONFIG_SYS_BOOTCOUNT_ADDR;
+	uintptr_t flush_start = rounddown(CONFIG_SYS_BOOTCOUNT_ADDR,
+					CONFIG_SYS_CACHELINE_SIZE);
+	uintptr_t flush_end;
+
+	/*
+	 * Bootcount remains unchanged during the crash path
+	 * and when called from board_init_r().
+	 */
+	if ((IPQ_SPL_IS_DLOAD_BIT_SET()) || (gd->flags & GD_FLG_SPL_INIT))
+		return;
+
+	raw_bootcount_store(reg, (CONFIG_SYS_BOOTCOUNT_MAGIC & 0xffff0000) | a);
+
+	flush_end = roundup(CONFIG_SYS_BOOTCOUNT_ADDR + 4,
+				CONFIG_SYS_CACHELINE_SIZE);
+
+	flush_dcache_range(flush_start, flush_end);
+}
+
+/**
+ * ipq_spl_clear_force_inactive() - Clear force-inactive flag from IMEM
+ *
+ * Clears the force-inactive information stored in the IMEM region and
+ * flushes the corresponding cache lines to ensure data consistency.
+ *
+ * Return: None.
+ */
+void ipq_spl_clear_force_inactive(void)
+{
+	uintptr_t flush_start = rounddown(IPQ_SPL_FORCE_INACTIVE_ADDR,
+						CONFIG_SYS_CACHELINE_SIZE);
+	uintptr_t flush_end;
+
+	/*
+	 * Clear the value in the imem region
+	 */
+	clrbits_le32(IPQ_SPL_FORCE_INACTIVE_ADDR, U32_MAX);
+
+	flush_end = roundup(IPQ_SPL_FORCE_INACTIVE_ADDR + 4,
+				CONFIG_SYS_CACHELINE_SIZE);
+
+	flush_dcache_range(flush_start, flush_end);
+}
 
 #if CONFIG_IS_ENABLED(SYS_MALLOC_F)
 /**
@@ -1434,6 +1692,25 @@ static void ipq_spl_boot_logs(void)
 }
 
 /**
+ * ipq_spl_bootldr_partition_name() - Get bootloader FIT partition name
+ *
+ * Returns the bootloader FIT image partition name based on the
+ * current SPL boot set (active, inactive, or force-inactive).
+ *
+ * Return: Pointer to the selected partition name string.
+ */
+static char *ipq_spl_bootldr_partition_name(void)
+{
+	switch (g_bootrec.boot_set) {
+	case IPQ_SPL_BOOT_FROM_INACTIVE:
+		return (char *)IPQ_SPL_FIT_IMG_ALT_PARTITION;
+	case IPQ_SPL_BOOT_FROM_ACTIVE:
+	default:
+		return (char *)IPQ_SPL_FIT_IMG_PARTITION;
+	}
+}
+
+/**
  * ipq_spl_get_fit_img_entry_point() - Get entry point from FIT image node.
  * @fit:	Pointer to the FIT image blob.
  * @node:	Node ID within the FIT image.
@@ -1491,8 +1768,8 @@ static int ipq_spl_populate_smem(void *ctx)
 	struct udevice *smem;
 	size_t size;
 	u32 *fltype;
-	u32 *trymode;
-	u32 *atf_en;
+	u32 *boot_mode;
+	u32 *boot_set;
 
 	if (!pctx) {
 		pr_err("Invalid SPL context\n");
@@ -1549,41 +1826,41 @@ static int ipq_spl_populate_smem(void *ctx)
 	}
 
 	/*
-	 * Populate Trymode info
+	 * Populate SPL boot mode info
 	 */
 	size = sizeof(u32);
-	ret = smem_alloc(smem, -1, SMEM_TRY_MODE_INPROGRESS, size);
+	ret = smem_alloc(smem, -1, SMEM_FAILSAFE_BOOT_MODE, size);
 	if (ret) {
 		pr_err(
-		"Failed to alloc item: SMEM_TRY_MODE_INPROGRESS (ret=%d)\n",
+		"Failed to alloc item: SMEM_FAILSAFE_BOOT_MODE (ret=%d)\n",
 		ret);
 		return ret;
 	}
 
-	trymode = (u32 *)smem_get(smem, -1, SMEM_TRY_MODE_INPROGRESS, &size);
-	if (!trymode) {
-		pr_err("Failed to get item: SMEM_TRY_MODE_INPROGRESS\n");
+	boot_mode = (u32 *)smem_get(smem, -1, SMEM_FAILSAFE_BOOT_MODE, &size);
+	if (!boot_mode) {
+		pr_err("Failed to get item: SMEM_FAILSAFE_BOOT_MODE\n");
 		return -ENOENT;
 	}
-	*trymode = false;
+	*boot_mode = g_bootrec.boot_mode;
 
 	/*
-	 * Populate ATF info
+	 * Populate SPL boot set info
 	 */
 	size = sizeof(u32);
-	ret = smem_alloc(smem, -1, SMEM_ATF_ENABLE, size);
+	ret = smem_alloc(smem, -1, SMEM_BOOT_SET_INFO, size);
 	if (ret) {
-		pr_err("Failed to alloc item: SMEM_ATF_ENABLE (ret=%d)\n",
+		pr_err("Failed to alloc item: SMEM_BOOT_SET_INFO (ret=%d)\n",
 			ret);
 		return ret;
 	}
 
-	atf_en = (u32 *)smem_get(smem, -1, SMEM_ATF_ENABLE, &size);
-	if (!atf_en) {
-		pr_err("Failed to get item: SMEM_ATF_ENABLE\n");
+	boot_set = (u32 *)smem_get(smem, -1, SMEM_BOOT_SET_INFO, &size);
+	if (!boot_set) {
+		pr_err("Failed to get item: SMEM_BOOT_SET_INFO\n");
 		return -ENOENT;
 	}
-	*atf_en = true;
+	*boot_set = g_bootrec.boot_set;
 
 #if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
 	/*
@@ -1885,7 +2162,7 @@ struct ipq_spl_img_ctx *ipq_spl_get_img_ctx_by_name(char *img_name)
  * @ctx:	Pointer to the global SPL context.
  *
  * The DPR (Device Protection Region) ELF is loaded as a whole image
- * before qcconfig. 
+ * before qcconfig.
  * Return: 0 on success, or a negative error code on failure.
  */
 static int ipq_spl_dpr_fixup(void *ctx)
@@ -2076,7 +2353,7 @@ static int ipq_spl_tfa_fixup(void *ctx)
 	/*
 	 * Populate SMEM in coldboot (Dload bit not set)
 	 */
-	if (!IPQ_SPL_IS_DLOAD_BIT_SET) {
+	if (!IPQ_SPL_IS_DLOAD_BIT_SET()) {
 		printf("Populating SMEM\n");
 		ret = ipq_spl_populate_smem(pctx);
 		if (ret) {
@@ -2773,6 +3050,511 @@ void spl_board_init(void)
 #endif /* CONFIG_IPQ_SOFTSKU_SUPPORT */
 }
 
+/**
+ * ipq_spl_failsafe_init() - Initialize the global boot record for failsafe
+ * logic
+ * @boot_device: Boot device type
+ *
+ * Initializes all fields of the global @g_bootrec structure to their safe
+ * default values prior to executing any failsafe boot decision logic.
+ */
+void ipq_spl_failsafe_init(u8 boot_device)
+{
+	/**
+	 * Initialize default bootrec variables
+	 */
+	g_bootrec.boot_set = IPQ_SPL_BOOT_FROM_ACTIVE;
+	g_bootrec.exp_boot_set = IPQ_SPL_BOOT_FROM_ACTIVE;
+	g_bootrec.boot_mode = IPQ_SPL_BOOT_MODE_DEFAULT;
+	g_bootrec.pbl_set = IPQ_SPL_BOOT_FROM_ACTIVE;
+	g_bootrec.is_pbl_set_parsed = 0;
+	g_bootrec.exp_tcsr_set = IPQ_SPL_BOOT_FROM_ACTIVE;
+
+	g_bootrec.tcsr_set = ipq_spl_get_tcsr_set();
+	printf("Failsafe info: TCSR Set %s\n",
+		bootset_str(g_bootrec.tcsr_set));
+
+	g_bootrec.env_failover = 0;
+	g_bootrec.env_bootlimit = (ulong)(IPQ_SPL_DEFAULT_BOOTLIMIT);
+	g_bootrec.env_bootfrom = IPQ_SPL_BOOT_FROM_ACTIVE;
+
+	/*
+	 * Store the PBL accessed page index, to identify
+	 * SPL image region used from NAND flash memory
+	 */
+	g_bootrec.qpic_page_index = (boot_device == BOOT_DEVICE_NAND) ?
+					IPQ_SPL_GET_QPIC_PAGE_INDEX() :
+					0;
+}
+
+/**
+ * ipq_spl_failsafe_get_env_info() - Read and parse ENV partition for
+ *                                    failsafe boot parameters
+ * @boot_device: Boot device type
+ *
+ * Reads the ENV partition from the active boot device into a temporary
+ * buffer at IPQ_SPL_QCLIB_TEXT_BASE, verifies the CRC, and on success
+ * populates the fields in @g_bootrec from the environment
+ *
+ * On CRC mismatch the ENV is skipped and @g_bootrec retains its
+ * defaults set by ipq_spl_failsafe_init().
+ *
+ * Return: 0 on success,
+ *         -EINVAL if @boot_device is not supported,
+ *         negative errno on partition read failure.
+ */
+int ipq_spl_failsafe_get_env_info(u8 boot_device)
+{
+	int ret;
+	env_t *env_addr;
+	ulong env_sz;
+	uint32_t crc_val;
+	bool crc_ok;
+
+	env_addr = (env_t *)((ulong)IPQ_SPL_QCLIB_TEXT_BASE);
+	env_sz = (ulong)(IPQ_SPL_QCLIB_TEXT_SIZE);
+
+	/**
+	 * Read the ENV partition
+	 */
+	if (boot_device == BOOT_DEVICE_NAND) {
+		ret = ipq_spl_nand_read((char *)IPQ_SPL_ENV_PARTITION,
+					(void *)env_addr, &env_sz);
+		if (ret)
+			return ret;
+
+	} else if (boot_device == BOOT_DEVICE_MMC1) {
+		ret = ipq_spl_mmc_read((char *)IPQ_SPL_ENV_PARTITION,
+					(void *)env_addr, &env_sz);
+		if (ret)
+			return ret;
+
+	} else if (boot_device == BOOT_DEVICE_SPI) {
+		ret = ipq_spl_spinor_gpt_read((char *)IPQ_SPL_ENV_PARTITION,
+					(void *)env_addr, &env_sz);
+		if (ret)
+			return ret;
+
+	} else {
+		printf("Unsupported flash type\n");
+		return -EINVAL;
+	}
+
+	/**
+	 * Verify ENV
+	 */
+	crc_val = crc32(0, env_addr->data, env_sz - ENV_HEADER_SIZE);
+	pr_debug("ENV info: ENV SZ = %lx\n", env_sz);
+	pr_debug("ENV info: ENV CRC = %x\n", env_addr->crc);
+	pr_debug("ENV info: ENV CRC calculated  = %x\n", crc_val);
+
+	if (crc_val == env_addr->crc)
+		crc_ok = 1;
+	else if (boot_device == BOOT_DEVICE_NAND)
+		/* TODO: Skip CRC for NAND for now,
+		 * since the NAND ENV is 512KB but SPL has only 300KB for ENV.
+		 */
+		crc_ok = 1;
+	else
+		crc_ok = 0;
+
+
+	if (crc_ok) {
+		printf("Loading Environment ... OK\n");
+		gd->env_valid = ENV_VALID;
+		gd->env_addr = (ulong)env_addr->data;
+
+		/*
+		 * Populate failsafe fields from ENV
+		 */
+		g_bootrec.env_failover = env_get_hex("failover",
+						     g_bootrec.env_failover);
+		if (g_bootrec.env_failover > 1)
+			g_bootrec.env_failover = 0;
+
+		g_bootrec.env_bootlimit = env_get_hex("bootlimit",
+						      g_bootrec.env_bootlimit);
+		if ((g_bootrec.env_bootlimit == 0) ||
+		    (g_bootrec.env_bootlimit > 31))
+			g_bootrec.env_bootlimit =
+				(ulong)(IPQ_SPL_DEFAULT_BOOTLIMIT);
+
+		g_bootrec.env_bootfrom = env_get_hex("bootfrom",
+						     g_bootrec.env_bootfrom);
+		if (g_bootrec.env_bootfrom > 1)
+			g_bootrec.env_bootfrom = 0;
+
+	} else
+		printf("Loading Environment ... Failed due to bad CRC\n");
+
+	/*
+	 * Bootfrom is applicable only for NAND flash type.
+	 * Override parsed value with the default value for NOR/EMMC.
+	 */
+	if (boot_device != BOOT_DEVICE_NAND)
+		g_bootrec.env_bootfrom = IPQ_SPL_BOOT_FROM_ACTIVE;
+
+	/*
+	 * print the ENV info
+	 */
+	if (g_bootrec.env_failover)
+		printf("Failsafe info: failover = ENABLED\n");
+	else
+		printf("Failsafe info: failover = DISABLED\n");
+
+	printf("Failsafe info: bootlimit = %x\n", g_bootrec.env_bootlimit);
+
+	printf("Failsafe info: bootfrom = %s\n",
+		bootset_str(g_bootrec.env_bootfrom));
+
+	return 0;
+}
+
+/**
+ * ipq_spl_failsafe_parse_bootmode() - Resolve and latch the SPL boot mode
+ *
+ * Priority: FORCE_INACTIVE > FAILOVER_EN > DEFAULT.
+ * Resets bootcount to 0 for FORCE_INACTIVE and DEFAULT modes.
+ *
+ */
+void ipq_spl_failsafe_parse_bootmode(void)
+{
+	if (IPQ_SPL_IS_FORCE_INACTIVE_EN()) {
+		g_bootrec.boot_mode = IPQ_SPL_BOOT_MODE_FORCE_INACIVE;
+		bootcount_store(0);
+		printf("Failsafe info: BOOT_MODE_FORCE_INACIVE\n");
+
+	} else if (g_bootrec.env_failover) {
+		g_bootrec.boot_mode = IPQ_SPL_BOOT_MODE_FAILOVER_EN;
+		printf("Failsafe info: BOOT_MODE_FAILOVER_EN\n");
+	} else {
+		g_bootrec.boot_mode = IPQ_SPL_BOOT_MODE_DEFAULT;
+		bootcount_store(0);
+		printf("Failsafe info: BOOT_MODE_DEFAULT\n");
+	}
+}
+
+/**
+ * ipq_spl_failsafe_parse_bootset() - Resolve expected boot and TCSR set
+ *
+ * Derives exp_boot_set from boot_mode and bootcount, then mirrors
+ * it to exp_tcsr_set. Triggers EDL reset if bootcount > 2*bootlimit.
+ *
+ */
+void ipq_spl_failsafe_parse_bootset(void)
+{
+	ulong bootcount = bootcount_load();
+
+	if (g_bootrec.boot_mode == IPQ_SPL_BOOT_MODE_FORCE_INACIVE)
+		g_bootrec.exp_boot_set =
+			ipq_spl_alt_bootset(g_bootrec.env_bootfrom);
+
+	else if (bootcount <= g_bootrec.env_bootlimit)
+		g_bootrec.exp_boot_set = g_bootrec.env_bootfrom;
+
+	else if (bootcount <= 2*g_bootrec.env_bootlimit) {
+		printf("Failover: Bootlimit (%u) exceeded.\n",
+			g_bootrec.env_bootlimit);
+
+		g_bootrec.exp_boot_set =
+			ipq_spl_alt_bootset(g_bootrec.env_bootfrom);
+
+	} else {
+		printf("Failover: 2*Bootlimit (%u) exceeded.\n",
+			2*g_bootrec.env_bootlimit);
+
+		ipq_spl_edl_reset();
+	}
+
+	g_bootrec.exp_tcsr_set = g_bootrec.exp_boot_set;
+}
+
+/**
+ * ipq_spl_failsafe_parse_pblset() - Parse and verify the PBL booted set
+ * @boot_device: Boot device type (BOOT_DEVICE_SPI/MMC1/NAND)
+ *
+ * Reads pbl_set from PBL shared data and validates it against the
+ * physical flash (GUID for GPT, QPIC page index for NAND). Flips
+ * pbl_set and exp_tcsr_set if a PBL fallback is detected.
+ * No-op if already parsed.
+ *
+ * Return: 0 on success, negative errno on failure.
+ */
+int ipq_spl_failsafe_parse_pblset(u8 boot_device)
+{
+	int ret;
+	char *part_name = (char *)IPQ_SPL_DEFAULT_SPL_PARTITION_LABEL;
+	const efi_guid_t spl_guid = IPQ_SPL_DEFAULT_SPL_PARTITION_GUID;
+	efi_guid_t type_guid;
+	struct mtd_info *mtd;
+	uint32_t part_offset, part_size;
+	uint32_t start_blk, blk_cnt, qpic_offset;
+
+	/**
+	 * check if already parsed
+	 */
+	if (g_bootrec.is_pbl_set_parsed != 0)
+		return 0;
+
+	/*
+	 * Get GUID function pointer for GPT based flash memory
+	 */
+	if (boot_device == BOOT_DEVICE_SPI)
+		get_guid_fn = ipq_spl_spinor_get_guid;
+	else if (boot_device == BOOT_DEVICE_MMC1)
+		get_guid_fn = ipq_spl_mmc_get_guid;
+	else
+		get_guid_fn = NULL;
+
+	/*
+	 * Get the PBL set info from the PBL shared data
+	 */
+	if (g_pbl_shared_data.shared_data_entry[
+		PBL_APPS_SPL_SHARED_DATA_PARAM_ID_CURRENT_IMAGE_SET].param_val)
+		g_bootrec.pbl_set = IPQ_SPL_BOOT_FROM_INACTIVE;
+	else
+		g_bootrec.pbl_set = IPQ_SPL_BOOT_FROM_ACTIVE;
+
+	printf("Failsafe: PBL Booted set (shared) %s\n",
+		bootset_str(g_bootrec.pbl_set));
+
+	/**
+	 * Verify the PBL set info
+	 */
+	if ((boot_device == BOOT_DEVICE_SPI) ||
+		(boot_device == BOOT_DEVICE_MMC1)) {
+		if (get_guid_fn == NULL)
+			return -ENODEV;
+
+		ret = get_guid_fn(part_name, &type_guid);
+		if (ret)
+			return ret;
+
+		/*
+		 * Verify GUID booted by PBL with the default GUID
+		 */
+		if (!memcmp(&spl_guid, &type_guid, sizeof(efi_guid_t)))
+			printf("%s GUID: matches with default\n", part_name);
+		else {
+			/*
+			 * GUID not matches with the default GUID,
+			 * update the PBL set info and the expected TCSR set
+			 */
+			printf("%s GUID: mismatches with default\n",
+				part_name);
+
+			g_bootrec.pbl_set =
+			ipq_spl_alt_bootset(g_bootrec.pbl_set);
+
+			g_bootrec.exp_tcsr_set =
+			ipq_spl_alt_bootset(g_bootrec.exp_boot_set);
+		}
+
+	} else if (boot_device == BOOT_DEVICE_NAND) {
+		/*
+		 * Find partition using generic MIBIB lookup
+		 */
+		ret = ipq_spl_mibib_getpart(part_name, &start_blk, &blk_cnt);
+		if (ret) {
+			printf("%s not found in MIBIB\n", part_name);
+			return -ENOENT;
+		}
+
+		/* Convert block offset to byte offset */
+		mtd = get_nand_dev_by_index(0);
+		if (mtd) {
+			part_offset = start_blk * mtd->erasesize;
+			part_size = blk_cnt * mtd->erasesize;
+		} else
+			return -ENODEV;
+
+		/*
+		 * Verify the QPIC page index is present within the
+		 * SPL Active set.
+		 */
+		qpic_offset = g_bootrec.qpic_page_index * mtd->writesize;
+
+		if (!((qpic_offset >= part_offset) &&
+			(qpic_offset < part_offset+part_size)))
+			g_bootrec.pbl_set = IPQ_SPL_BOOT_FROM_INACTIVE;
+
+	} else {
+		printf("Unsupported flash type\n");
+		return -EINVAL;
+	}
+
+	printf("Failsafe: PBL Booted set (parsed) %s\n",
+		bootset_str(g_bootrec.pbl_set));
+
+	/*
+	 * PBL Set parsing done. Set the flag.
+	 */
+	g_bootrec.is_pbl_set_parsed = 1;
+
+	return 0;
+}
+
+/**
+ * ipq_spl_failsafe_verify_tcsr_set() - Align TCSR to the expected boot set
+ *
+ * If tcsr_set != exp_tcsr_set, updates TCSR and resets. Decrements
+ * bootcount before reset to avoid accounting the current boot attempt.
+ *
+ */
+void ipq_spl_failsafe_verify_tcsr_set(void)
+{
+	ulong bootcount = bootcount_load();
+
+	/**
+	 * Align TCSR set, when it dooesnot have expected tcsr set.
+	 */
+	if (g_bootrec.tcsr_set != g_bootrec.exp_tcsr_set) {
+		printf("Failsafe: Align TCSR set to %s\n",
+			bootset_str(g_bootrec.exp_tcsr_set));
+
+		ipq_spl_set_tcsr_set(g_bootrec.exp_tcsr_set);
+
+		/*
+		 * Intermediate reset - Ignore the current bootcunt
+		 */
+		if (bootcount > 0)
+			bootcount_store(--bootcount);
+
+		ipq_spl_reset_cpu();
+	}
+}
+
+/**
+ * ipq_spl_failsafe_verify_pbl_set() - Handle PBL boot set mismatch
+ *
+ * Reconciles pbl_set against exp_boot_set per boot mode and takes
+ * corrective action (TCSR fixup, bootcount cap, EDL, or mode override).
+ *
+ */
+void ipq_spl_failsafe_verify_pbl_set(void)
+{
+	u8 boot_set_var;
+
+	if (g_bootrec.boot_mode == IPQ_SPL_BOOT_MODE_FORCE_INACIVE) {
+		ipq_spl_clear_force_inactive();
+
+		boot_set_var = ipq_spl_alt_bootset(g_bootrec.tcsr_set);
+		ipq_spl_set_tcsr_set(boot_set_var);
+
+		if (g_bootrec.pbl_set != g_bootrec.exp_boot_set) {
+			printf("Forceinactive: PBL failed to SPL from %s\n",
+				bootset_str(g_bootrec.exp_boot_set));
+
+			printf("Forceinactive: Failed\n");
+		}
+
+	} else if (g_bootrec.boot_mode == IPQ_SPL_BOOT_MODE_FAILOVER_EN) {
+		if (g_bootrec.pbl_set != g_bootrec.exp_boot_set) {
+
+			if (g_bootrec.pbl_set != g_bootrec.env_bootfrom) {
+				printf("Failover: PBL failed to SPL from %s\n",
+				bootset_str(g_bootrec.exp_boot_set));
+
+				bootcount_store(g_bootrec.env_bootlimit + 1);
+				printf("Failover: Bootcount (%lu)\n",
+					bootcount_load());
+
+				printf("Failover: Bootlimit (%u) exceeded.\n",
+					g_bootrec.env_bootlimit);
+
+				boot_set_var = ipq_spl_alt_bootset(
+							g_bootrec.tcsr_set);
+				ipq_spl_set_tcsr_set(boot_set_var);
+
+			} else {
+				printf("Failover: PBL failed to SPL from %s\n",
+				bootset_str(g_bootrec.exp_boot_set));
+
+				bootcount_store(2*g_bootrec.env_bootlimit + 1);
+				printf("Failover: Bootcount (%lu)\n",
+					bootcount_load());
+
+				printf("Failover: 2*Bootlimit (%u) exceeded.\n",
+					2*g_bootrec.env_bootlimit);
+
+				ipq_spl_edl_reset();
+			}
+		}
+
+	} else {
+		if (g_bootrec.pbl_set != g_bootrec.exp_boot_set) {
+			printf("Default: PBL failed to SPL from %s\n",
+				bootset_str(g_bootrec.exp_boot_set));
+
+			g_bootrec.boot_mode = IPQ_SPL_BOOT_MODE_SPL_INACTIVE;
+		}
+	}
+}
+
+/**
+ * ipq_spl_failsafe_check() - Entry point for SPL failsafe boot logic
+ * @boot_device: Boot device type (BOOT_DEVICE_SPI/MMC1/NAND)
+ *
+ * Handles the full failsafe sequence:
+ *   init -> get_env -> parse_bootmode -> parse_bootset ->
+ *   parse_pblset -> verify_tcsr -> verify_pblset
+ *
+ * Return: 0 on success, negative errno on failure.
+ */
+int ipq_spl_failsafe_check(u8 boot_device)
+{
+	int ret;
+	ulong bootcount = bootcount_load();
+
+	/*
+	 * Increment bootcount on each boot
+	 */
+	bootcount_store(++bootcount);
+	bootcount = bootcount_load();
+	printf("Failsafe info: Bootcount (%lu)\n", bootcount);
+
+	/*
+	 * Initialize OCIMEM info during POR reset.
+	 */
+	if (IPQ_SPL_IS_POR_RESET())
+		ipq_spl_clear_force_inactive();
+
+	/*
+	 * Initailize failsafe and read the ENV info from the flash partition
+	 */
+	ipq_spl_failsafe_init(boot_device);
+	ret = ipq_spl_failsafe_get_env_info(boot_device);
+	if (ret)
+		return ret;
+
+	/*
+	 * Parse the bootmode and the expected bootset
+	 */
+	ipq_spl_failsafe_parse_bootmode();
+	ipq_spl_failsafe_parse_bootset();
+
+	/*
+	 * Parse the PBL bootset
+	 */
+	ret = ipq_spl_failsafe_parse_pblset(boot_device);
+	if (ret)
+		return ret;
+
+	/*
+	 * Verify TCSR and PBL set against the expected bootset
+	 */
+	ipq_spl_failsafe_verify_tcsr_set();
+	ipq_spl_failsafe_verify_pbl_set();
+
+	/*
+	 * Continue to boot from PBL SET
+	 */
+	g_bootrec.boot_set = g_bootrec.pbl_set;
+	printf("Final Boot Set: %s\n", bootset_str(g_bootrec.boot_set));
+
+	return 0;
+}
+
 #if !defined(CONFIG_SPL_FRAMEWORK_BOARD_INIT_F)
 /**
  * board_init_f() - Main entry point for SPL.
@@ -2865,6 +3647,12 @@ void board_init_f(ulong dummy)
 
 	enable_caches();
 #endif
+
+	ret = ipq_spl_failsafe_check(spl_boot_device());
+	if (ret) {
+		pr_debug("ipq_spl_failsafe_check() failed (ret=%d)\n", ret);
+		goto fail;
+	}
 
 	ret = ipq_spl_loader_pre_ddr(spl_boot_device());
 	if (ret) {
@@ -3158,6 +3946,46 @@ static struct flash_partition_table *nand_retrieve_mibib(void)
 }
 
 /**
+ * ipq_spl_ensure_mibib() - Ensure MIBIB partition table is available
+ *
+ * This function validates whether the global MIBIB partition table
+ * is already populated. If not, it initializes NAND, scans the flash
+ * for a valid MIBIB, and copies the partition table into the global
+ * structure.
+ *
+ * Return: 0 on success, -ENODEV if not found
+ */
+static int ipq_spl_ensure_mibib(void)
+{
+	struct flash_partition_table *mibib_parti_ptr;
+
+	/*
+	 * Skip if already probed
+	 */
+	if ((g_mibib_parti_tbl.magic1 == FLASH_PART_MAGIC1) &&
+	    (g_mibib_parti_tbl.magic2 == FLASH_PART_MAGIC2) &&
+	    (g_mibib_parti_tbl.version == FLASH_PARTITION_VERSION))
+		return 0;
+
+	/*
+	 * Initialized only once.
+	 */
+	nand_init();
+
+	mibib_parti_ptr = nand_retrieve_mibib();
+	if (!mibib_parti_ptr) {
+		printf("MIBIB not found\n");
+		return -ENODEV;
+	}
+
+	memcpy(&g_mibib_parti_tbl, mibib_parti_ptr,
+	       sizeof(struct flash_partition_table));
+	free(mibib_parti_ptr);
+
+	return 0;
+}
+
+/**
  * ipq_spl_mibib_getpart() - Find partition info by name from MIBIB table
  * @part_name: Name of the partition to find
  * @start_blk: Pointer to store the start block offset
@@ -3174,15 +4002,17 @@ static struct flash_partition_table *nand_retrieve_mibib(void)
 int ipq_spl_mibib_getpart(const char *part_name, uint32_t *start_blk,
 			   uint32_t *blk_cnt)
 {
-	int i;
+	int i, ret;
 
 	if (!part_name || !start_blk || !blk_cnt) {
 		pr_err("Invalid parameters for MIBIB partition lookup\n");
 		return -EINVAL;
 	}
 
-	if (g_mibib_parti_tbl.magic1 != FLASH_PART_MAGIC1) {
-		pr_err("MIBIB partition table not available\n");
+	/* Ensure MIBIB is loaded */
+	ret = ipq_spl_ensure_mibib();
+	if (ret) {
+		printf("MIBIB not found\n");
 		return -ENOENT;
 	}
 
@@ -3211,67 +4041,96 @@ int ipq_spl_mibib_getpart(const char *part_name, uint32_t *start_blk,
 int spl_nand_get_uboot_raw_page(void)
 {
 	struct mtd_info *mtd;
-	struct flash_partition_table *mibib_parti_ptr;
+	int ret;
+	char *part_name = ipq_spl_bootldr_partition_name();
 	uint32_t start_blk = 0, blk_cnt = 0;
 
-	/*
-	 * If bootloader offset is already calculated, return it directly
-	 */
+	/* Return cached value if already computed */
 	if (g_bootldr_offset != 0)
 		return g_bootldr_offset;
 
 	/*
-	 * Retrieve MIBIB if invalid magic
+	 * Initialize bootldr offset
 	 */
-	if ((g_mibib_parti_tbl.magic1 != FLASH_PART_MAGIC1) ||
-			(g_mibib_parti_tbl.magic2 != FLASH_PART_MAGIC2) ||
-			(g_mibib_parti_tbl.version != FLASH_PARTITION_VERSION)) {
-
-		/*
-		 * Retrieve MIBIB
-		 */
-		mibib_parti_ptr = nand_retrieve_mibib();
-		if (!mibib_parti_ptr) {
-			/*
-			 * Use default offset if MIBIB not found
-			 */
 #if defined(CONFIG_SYS_NAND_U_BOOT_OFFS)
-			g_bootldr_offset = CONFIG_SYS_NAND_U_BOOT_OFFS;
+	g_bootldr_offset = CONFIG_SYS_NAND_U_BOOT_OFFS;
 #else
-			g_bootldr_offset = 0;
+	g_bootldr_offset = 0;
 #endif
-			printf("MIBIB not found, using default offset: 0x%X\n",
-					g_bootldr_offset);
-
-			return g_bootldr_offset;
-		}
-
-		/*
-		 * Store the MIBIB struct
-		 */
-		memcpy(&g_mibib_parti_tbl,
-				mibib_parti_ptr,
-				sizeof(struct flash_partition_table));
-		free(mibib_parti_ptr);
-	}
 
 	/* Find BOOTLDR partition using generic MIBIB lookup */
-	if (ipq_spl_mibib_getpart("0:BOOTLDR", &start_blk, &blk_cnt) != 0)
-		ipq_spl_mibib_getpart("BOOTLDR", &start_blk, &blk_cnt);
+	ret = ipq_spl_mibib_getpart(part_name, &start_blk, &blk_cnt);
+	if (ret) {
+		printf("%s not found in MIBIB, using default offset: 0x%X\n",
+		       part_name, g_bootldr_offset);
+		return g_bootldr_offset;
+	}
 
+	/*
+	 * save the startblk of the partition
+	 */
 	g_bootldr_offset = start_blk;
 
-	/* Convert block offset to byte offset */
+	/* Convert block offset to page offset */
 	mtd = get_nand_dev_by_index(0);
 	if (mtd)
-		g_bootldr_offset = g_bootldr_offset * (mtd->erasesize);
+		g_bootldr_offset *= mtd->erasesize;
 
 	printf("BOOTLDR partition found at page offset: 0x%X\n",
-			g_bootldr_offset);
+		g_bootldr_offset);
 
 	return g_bootldr_offset;
 }
 
+/**
+ * ipq_spl_nand_read() - Read data from NAND partition
+ * @part_name: Partition name to look up in MIBIB
+ * @buf:       Destination buffer to store read data
+ * @read_sz:   Pointer to return read size
+ *
+ * This function locates the specified partition using the MIBIB
+ * partition table, computes the corresponding NAND offset, and
+ * reads the data into the provided buffer using SPL NAND APIs.
+ *
+ * Return: 0 on success, -ENOENT if not found, -EINVAL on invalid params
+ */
+static int ipq_spl_nand_read(char *part_name, void *buf, ulong *read_sz)
+{
+	struct mtd_info *mtd;
+	uint32_t offset, size;
+	int ret;
+	uint32_t start_blk, blk_cnt;
+
+	if (!part_name || !buf || !read_sz)
+		return -EINVAL;
+
+	/* Find partition using generic MIBIB lookup */
+	ret = ipq_spl_mibib_getpart(part_name, &start_blk, &blk_cnt);
+	if (ret) {
+		printf("%s not found in MIBIB\n", part_name);
+		return -ENOENT;
+	}
+
+	/* Convert block offset to byte offset */
+	mtd = get_nand_dev_by_index(0);
+	if (mtd) {
+		offset = start_blk * mtd->erasesize;
+		size = blk_cnt * mtd->erasesize;
+	} else
+		return -ENODEV;
+
+	printf("Found partition '%s' at offset 0x%x\n", part_name, offset);
+
+	*read_sz = min_t(ulong, *read_sz, size);
+	ret = nand_spl_load_image(offset, *read_sz, buf);
+	if (ret) {
+		printf("%s: nand_spl_load_image failed (err %d)\n",
+		       __func__, ret);
+		return ret;
+	}
+
+	return 0;
+}
 
 /**
  * spl_find_partition_info() - Find partition information by name
@@ -3330,6 +4189,107 @@ static int spl_find_partition_info(enum uclass_id uclass_id, int device_num,
 	return ret;
 }
 
+/**
+ * ipq_spl_blk_read() - Read a GPT partition from a block device into a buffer
+ * @uclass_id:  Device class identifier (e.g. UCLASS_MMC, UCLASS_SPI)
+ * @devnum:     Device number within the given class
+ * @part_name:  GPT partition label to read from
+ * @buf:        Destination buffer for the read data
+ * @read_sz:    In  - maximum number of bytes to read;
+ *              Out - actual number of bytes read, clamped to partition size
+ *
+ * Looks up the named GPT partition on the specified block device using
+ * spl_find_partition_info(), then reads up to @read_sz bytes from the
+ * partition start into @buf using blk_dread().
+ *
+ * The actual transfer size is clamped to the smaller of the requested
+ * @read_sz and the physical partition size derived from @disk_info.
+ *
+ * Return: 0 on success,
+ *         -EINVAL if any pointer argument is NULL,
+ *         -ENODEV if the partition or block device is not found,
+ *         -EIO    if the block read transfers fewer blocks than expected.
+ */
+static int ipq_spl_blk_read(enum uclass_id uclass_id, int devnum,
+			     const char *part_name, void *buf, ulong *read_sz)
+{
+	struct disk_partition disk_info;
+	struct blk_desc *bdev;
+	lbaint_t count;
+	int ret;
+
+	if (!part_name || !buf || !read_sz)
+		return -EINVAL;
+
+	/*
+	 * Find partition
+	 */
+	ret = spl_find_partition_info(uclass_id, devnum, part_name, &disk_info);
+	if (ret < 0) {
+		printf("%s: partition '%s' not found (err %d)\n",
+		       __func__, part_name, ret);
+		return -ENODEV;
+	}
+
+	bdev = blk_get_devnum_by_uclass_id(uclass_id, devnum);
+	if (IS_ERR_OR_NULL(bdev))
+		return -ENODEV;
+
+	*read_sz = min_t(ulong, *read_sz, disk_info.size << bdev->log2blksz);
+	count = *read_sz >> bdev->log2blksz;
+
+	if (count != blk_dread(bdev, disk_info.start, count, buf))
+		return -EIO;
+
+	return 0;
+}
+
+/**
+ * ipq_spl_blk_get_guid() - Retrieve the type GUID of a GPT partition
+ * @uclass_id:  Device class identifier (e.g. UCLASS_MMC, UCLASS_SPI)
+ * @devnum:     Device number within the given class
+ * @part_name:  GPT partition label whose type GUID is requested
+ * @type_guid:  Output pointer to store the retrieved EFI partition type GUID
+ *
+ * Looks up the named GPT partition on the specified block device using
+ * spl_find_partition_info(), extracts the partition type GUID string via
+ * disk_partition_type_guid(), and converts it to binary form using
+ * uuid_str_to_bin() into @type_guid.
+ *
+ * Return: 0 on success,
+ *         -EINVAL if @part_name or @type_guid is NULL,
+ *         -ENODEV if the partition is not found on the device.
+ */
+static int ipq_spl_blk_get_guid(enum uclass_id uclass_id, int devnum,
+				 const char *part_name, efi_guid_t *type_guid)
+{
+	struct disk_partition disk_info;
+	const char *uuid_str;
+	int ret;
+
+	if (!part_name || !type_guid) {
+		printf("%s: invalid parameters\n", __func__);
+		return -EINVAL;
+	}
+
+	/*
+	 * Find partition
+	 */
+	ret = spl_find_partition_info(uclass_id, devnum, part_name, &disk_info);
+	if (ret < 0) {
+		printf("%s: partition '%s' not found (err %d)\n",
+		       __func__, part_name, ret);
+		return -ENODEV;
+	}
+
+	uuid_str = disk_partition_type_guid(&disk_info);
+	printf("GPT Label: %s; GUID: %s\n", part_name, uuid_str);
+
+	uuid_str_to_bin(uuid_str, type_guid->b, UUID_STR_FORMAT_GUID);
+
+	return 0;
+}
+
 #if CONFIG_IPQ_MMC
 /**
  * spl_mmc_boot_mode() - Determine the boot mode for MMC
@@ -3364,7 +4324,9 @@ int spl_mmc_boot_partition(const u32 boot_device)
 	/*
 	 * Use common partition lookup function
 	 */
-	ret = spl_find_partition_info(UCLASS_MMC, 0, IPQ_SPL_FIT_IMG_PARTITION, &info);
+	ret = spl_find_partition_info(UCLASS_MMC, 0,
+					ipq_spl_bootldr_partition_name(),
+					&info);
 	if (ret < 0) {
 		printf("Using default MMC partition %d\n",
 				CONFIG_SYS_MMCSD_RAW_MODE_U_BOOT_PARTITION);
@@ -3387,6 +4349,16 @@ unsigned long spl_mmc_get_uboot_raw_sector(struct mmc *mmc,
 					unsigned long raw_sect)
 {
 	return 0;
+}
+
+static int ipq_spl_mmc_get_guid(char *part_name, efi_guid_t *type_guid)
+{
+	return ipq_spl_blk_get_guid(UCLASS_MMC, 0, part_name, type_guid);
+}
+
+static int ipq_spl_mmc_read(char *part_name, void *buf, ulong *read_sz)
+{
+	return ipq_spl_blk_read(UCLASS_MMC, 0, part_name, buf, read_sz);
 }
 #endif /*CONFIG_IPQ_MMC*/
 
@@ -3445,7 +4417,7 @@ static int spl_spi_find_partition_offset(struct spi_flash *flash,
 unsigned int spl_spi_get_uboot_offs(struct spi_flash *flash)
 {
 	unsigned int offset;
-	const char *part_name = IPQ_SPL_FIT_IMG_PARTITION;
+	const char *part_name = ipq_spl_bootldr_partition_name();
 	int ret;
 
 	/*
@@ -3453,18 +4425,17 @@ unsigned int spl_spi_get_uboot_offs(struct spi_flash *flash)
 	 */
 	ret = spl_spi_find_partition_offset(flash, part_name, &offset);
 
-	if (ret != 0) {
-		/*
-		 * Partition not found, hang
-		 */
+	/*
+	 * if Partition not found
+	 */
+	if (ret)
 		ipq_spl_error_handler(__FILE__, __LINE__,
 				      SPL_ERR_CAT_FLASH | SPL_ERR_NOT_FOUND);
-	} else {
-		/*
-		 * Partition found, return its offset
-		 */
-		return offset;
-	}
+
+	/*
+	 * Partition found, return its offset
+	 */
+	return offset;
 }
 
 /**
@@ -3493,6 +4464,38 @@ u32 spl_spi_boot_cs(void)
 	 * Return the SPI chip select to use
 	 */
 	return CONFIG_SF_DEFAULT_CS;
+}
+
+static int ipq_spl_spinor_get_guid(char *part_name, efi_guid_t *type_guid)
+{
+	struct spi_flash *flash;
+
+	flash = spi_flash_probe(spl_spi_boot_bus(), spl_spi_boot_cs(),
+				CONFIG_SF_DEFAULT_SPEED,
+				CONFIG_SF_DEFAULT_MODE);
+	if (!flash) {
+		printf("%s: SPI probe failed\n", __func__);
+		return -ENODEV;
+	}
+
+	return ipq_spl_blk_get_guid(UCLASS_SPI, CONFIG_SF_DEFAULT_BUS,
+				    part_name, type_guid);
+}
+
+static int ipq_spl_spinor_gpt_read(char *part_name, void *buf, ulong *read_sz)
+{
+	struct spi_flash *flash;
+
+	flash = spi_flash_probe(spl_spi_boot_bus(), spl_spi_boot_cs(),
+				CONFIG_SF_DEFAULT_SPEED,
+				CONFIG_SF_DEFAULT_MODE);
+	if (!flash) {
+		printf("%s: SPI probe failed\n", __func__);
+		return -ENODEV;
+	}
+
+	return ipq_spl_blk_read(UCLASS_SPI, CONFIG_SF_DEFAULT_BUS,
+				part_name, buf, read_sz);
 }
 #endif /*CONFIG_IPQ_SPI_NOR*/
 

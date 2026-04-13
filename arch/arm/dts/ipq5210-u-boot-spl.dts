@@ -422,5 +422,12 @@
 			pinctrl-names = "default";
 			status = "okay";
 		};
+
+		restart@4ab000 {
+			bootph-all;
+			compatible = "qcom,pshold";
+			reg = <0x0 0x4AB000 0x0 0x4>;
+			status = "okay";
+		};
 	};
 };

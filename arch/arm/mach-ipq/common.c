@@ -2101,7 +2101,9 @@ void ipq_setup_board_default_env(void)
 
 void setup_board_default_env(void)
 {
+#if !IS_ENABLED(CONFIG_SPL)
 	ipq_setup_board_default_env();
+#endif /* !CONFIG_SPL */
 }
 
 int write_tcsr_boot_misc_reg(uint32_t mask, uint32_t value)
