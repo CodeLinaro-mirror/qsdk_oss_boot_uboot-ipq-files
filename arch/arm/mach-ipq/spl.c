@@ -1814,10 +1814,6 @@ static int ipq_spl_xcfg_fixup(void *ctx)
 	 * Note: The last 10 KB is reserved for QCCONFIG
 	 * and must not be cleared.
 	 */
-	memset((void *)IPQ_SPL_QCLIB_TEXT_BASE,
-		0x0,
-		IPQ_SPL_QCLIB_TEXT_SIZE - (SZ_8K + SZ_2K));
-
 	if (!ipq_spl_tmel_bypass_enabled()) {
 #if defined(CONFIG_IPQ_LCP_DARE)
 		/*
