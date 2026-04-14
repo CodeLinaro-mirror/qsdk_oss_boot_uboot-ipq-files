@@ -115,6 +115,10 @@
 #define QCA81XX_PCS_MMD3_EEE_MODE_CTRL1		0x800b
 #define QCA81XX_PCS_MMD3_AN_LP_BASE_ABL2		0x14
 
+/*MMD7 (AN) registers*/
+#define QCA81XX_AN_SPEED_CTRL			0x20
+#define QCA81XX_AN_SPEED_CTRL_1G		0x63
+
 /*UNIPHY MMD31 register*/
 #define QCA81XX_PCS_MMD31_MII_CTRL			0
 #define QCA81XX_PCS_MMD31_MII_DIG_CTRL		0x8000
@@ -1368,6 +1372,16 @@ static int qca_81xx_config(struct phy_device *phydev)
 		goto fail;
 
 	ret = qca81xx_phy_ana_capacitance_update(phydev);
+
+	/* Force 1G speed if qcom,force-speed is set in DTS */
+	if (ofnode_read_bool(phydev->node, "qcom,force-speed") &&
+	    ofnode_read_u32_default(phydev->node, "max-speed", -1) == SPEED_1000) {
+		ret = phy_write(phydev, MDIO_MMD_AN, QCA81XX_AN_SPEED_CTRL,
+				QCA81XX_AN_SPEED_CTRL_1G);
+		if (ret)
+			goto fail;
+	}
+
 fail:
 	if (ret)
 		printf("%s %d failed ret: %d\n", __func__, __LINE__, ret);
