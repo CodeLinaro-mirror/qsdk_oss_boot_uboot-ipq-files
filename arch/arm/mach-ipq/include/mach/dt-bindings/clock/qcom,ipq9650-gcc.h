@@ -191,4 +191,5 @@
 #define NSS_CC_NSSNOC_EIP_CLK		180
 #define GCC_CMN_12GPLL_APU_CLK		181
 #define GCC_CMN_LDO_CLK			182
+#define GCC_QUPV3_I2C_SE1_CLK		183
 #endif
