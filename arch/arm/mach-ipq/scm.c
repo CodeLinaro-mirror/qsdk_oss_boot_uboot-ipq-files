@@ -519,10 +519,60 @@ int ipq_fuseipq_scm_impl(void *params)
 	ret = ipq_scm_call(&param);
 	dcache_enable();
 	invalidate_dcache_all();
-	if (ret == -ENOTSUPP) {
+	if (ret == -EOPNOTSUPP)
 		printf("Unsupported SCM call\n");
-	}
 
 	fuseipq_params->fuse_status = param.res.result[0];
 	return ret;
 }
+
+#if IS_ENABLED(CONFIG_IPQ_INLINE_ENCRYPTION)
+int ipq_ice_configure_scm_impl(void *params)
+{
+	struct ice_configure_params *ice_params =
+		(struct ice_configure_params *)params;
+	struct scm_param param;
+	int ret;
+
+	IPQ_SCM_ICE_CONFIGURE(param, (uintptr_t)ice_params->ice,
+			      ice_params->ice_size);
+
+	invalidate_dcache_all();
+	ret = ipq_scm_call(&param);
+
+	if (ret) {
+		printf("ipq_scm_call: IPQ_SCM_ICE_CONFIGURE failed, ret : %d\n", ret);
+		if (ret == -EOPNOTSUPP)
+			printf("Unsupported SCM call\n");
+	}
+
+	return ret;
+}
+
+int ipq_ice_key_configure_scm_impl(void *params)
+{
+	struct ice_key_configure_params *key_params =
+		(struct ice_key_configure_params *)params;
+	struct scm_param param;
+	int ret;
+
+	IPQ_SCM_ICE_KEY_CONFIGURE(param, key_params->seedtype,
+				  key_params->key_size,
+				  key_params->algo_mode,
+				  (uintptr_t)key_params->hex_data_context,
+				  key_params->hex_data_len,
+				  (uintptr_t)key_params->hex_salt_context,
+				  key_params->hex_salt_len);
+
+	invalidate_dcache_all();
+	ret = ipq_scm_call(&param);
+
+	if (ret) {
+		printf("ipq_scm_call: IPQ_SCM_ICE_KEY_CONFIGURE failed, ret: %d\n", ret);
+		if (ret == -EOPNOTSUPP)
+			printf("Unsupported SCM call\n");
+	}
+
+	return ret;
+}
+#endif

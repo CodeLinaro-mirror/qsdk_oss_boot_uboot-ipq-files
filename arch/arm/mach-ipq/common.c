@@ -231,6 +231,30 @@ __weak int ipq_fuseipq_optee_impl(void *p)
 	return -EOPNOTSUPP;
 }
 
+__weak int ipq_ice_configure_scm_impl(void *p)
+{
+	debug("SCM communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_ice_key_configure_scm_impl(void *p)
+{
+	debug("SCM communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_ice_configure_optee_impl(void *p)
+{
+	debug("OPTEE communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_ice_key_configure_optee_impl(void *p)
+{
+	debug("OPTEE communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
 /* Function Pointer Table for communication handlers */
 static int (*const comm_functions[FUNC_MAX][COMM_TYPE_MAX])(void *) = {
 	[FUNC_LIST_FUSE]	 = {ipq_list_fuse_tme_impl, ipq_list_fuse_scm_impl, NULL},
@@ -239,7 +263,11 @@ static int (*const comm_functions[FUNC_MAX][COMM_TYPE_MAX])(void *) = {
 	[FUNC_SECURE_AUTH]	 = {ipq_secure_auth_tme_impl, ipq_secure_auth_scm_impl, NULL},
 	[FUNC_IMAGE_AUTH]	 = {ipq_image_auth_tme_impl, ipq_image_auth_scm_impl, NULL},
 	[FUNC_AUTH_ROOTFS_ELF]	 = {ipq_auth_rootfs_elf_tme_impl, ipq_auth_rootfs_elf_scm_impl, NULL},
-	[FUNC_FUSEIPQ]		 = { NULL, ipq_fuseipq_scm_impl, ipq_fuseipq_optee_impl}
+	[FUNC_FUSEIPQ]		 = { NULL, ipq_fuseipq_scm_impl, ipq_fuseipq_optee_impl},
+	[FUNC_ICE_CONFIGURE]	 = {NULL, ipq_ice_configure_scm_impl,
+				    ipq_ice_configure_optee_impl},
+	[FUNC_ICE_KEY_CONFIGURE] = {NULL, ipq_ice_key_configure_scm_impl,
+				    ipq_ice_key_configure_optee_impl}
 };
 
 /**

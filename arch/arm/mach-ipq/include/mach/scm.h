@@ -996,29 +996,16 @@ struct scm_param {
 };
 
 #ifdef CONFIG_IPQ_INLINE_ENCRYPTION
-struct ice_config_sec {
-	uint32_t index;
-	uint8_t key_size;
-	uint8_t algo_mode;
-	uint8_t key_mode;
-};
-
-enum ice_cryto_algo_mode {
-	ICE_CRYPTO_ALGO_MODE_HW_AES_ECB = 0x0,
-	ICE_CRYPTO_ALGO_MODE_HW_AES_XTS = 0x3,
-};
-
-enum ice_crpto_key_size {
-	ICE_CRYPTO_KEY_SIZE_HW_128 = 0x0,
-	ICE_CRYPTO_KEY_SIZE_HW_256 = 0x2,
-};
-
 int qcom_ice_init_crashdump(void);
 #endif
 
 int hex_string_to_binary(const char *hex_str, uint8_t *binary_data,
 			 size_t binary_len);
 void generate_random_context(uint8_t *context, size_t context_len);
+
+/* ICE SCM implementation functions */
+int ipq_ice_configure_scm_impl(void *params);
+int ipq_ice_key_configure_scm_impl(void *params);
 
 int qca_scm_sdi(void);
 int qca_scm_dload(uintptr_t tcsr_addr, u32 magic_cookie);

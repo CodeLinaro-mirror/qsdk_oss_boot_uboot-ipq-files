@@ -2292,7 +2292,6 @@ int qcom_configure_ice_key_with_context(struct ice_config_sec *ice,
 	uint8_t *crypto_header = NULL;
 	uint64_t hex_salt_len = 128, hex_data_len = 128;
 	uint32_t seedtype = 1;
-	struct scm_param param;
 	int ret = 0, i;
 
 	if (!ice) {
@@ -2373,19 +2372,18 @@ int qcom_configure_ice_key_with_context(struct ice_config_sec *ice,
 		}
 	}
 	do {
-		IPQ_SCM_ICE_KEY_CONFIGURE(param, seedtype, ice->key_size,
-				ice->algo_mode, (uintptr_t)hex_data_context,
-				hex_data_len, (uintptr_t)hex_salt_context,
-				hex_salt_len);
+		struct ice_key_configure_params key_params = {
+			.seedtype = seedtype,
+			.key_size = ice->key_size,
+			.algo_mode = ice->algo_mode,
+			.hex_data_context = hex_data_context,
+			.hex_data_len = hex_data_len,
+			.hex_salt_context = hex_salt_context,
+			.hex_salt_len = hex_salt_len
+		};
 
-		invalidate_dcache_all();
-		ret = ipq_scm_call(&param);
+		ret = ipq_comm_handler(FUNC_ICE_KEY_CONFIGURE, &key_params);
 		if (ret) {
-			printf("ipq_scm_call: IPQ_SCM_ICE_KEY_CONFIGURE "
-					"failed, ret: %d\n", ret);
-			if (ret == -ENOTSUPP) {
-				printf("Unsupported SCM call\n");
-			}
 			ret = CMD_RET_FAILURE;
 			if (crypto_header) {
 				free(crypto_header);
@@ -2485,7 +2483,6 @@ cleanup:
 int qcom_set_ice_config(crashdump_config_t *dump_config)
 {
 	struct ice_config_sec *ice = NULL;
-	struct scm_param param;
 	int ret = 0;
 	const char *crypto_mode = env_get("dump_encryption");
 	char *crypto_config_str = NULL;
@@ -2598,22 +2595,17 @@ int qcom_set_ice_config(crashdump_config_t *dump_config)
 	}
 
 	do {
-		IPQ_SCM_ICE_CONFIGURE(param, (uintptr_t)ice,
-				sizeof(struct ice_config_sec));
-		invalidate_dcache_all();
-		ret = ipq_scm_call(&param);
+		struct ice_configure_params ice_params = {
+			.ice = ice,
+			.ice_size = sizeof(struct ice_config_sec)
+		};
+
+		ret = ipq_comm_handler(FUNC_ICE_CONFIGURE, &ice_params);
 		if (ret) {
-			printf("\nipq_scm_call: IPQ_SCM_ICE_CONFIGURE"
-					" failed, ret : %d\n", ret);
 			ret = CMD_RET_FAILURE;
 			goto cleanup_and_disable;
 		}
 	} while(0);
-
-	if (ret == -ENOTSUPP) {
-		printf("Unsupported SCM call\n");
-		ret = CMD_RET_FAILURE;
-	}
 
 	if (ret != 0) {
 		printf("ICE configuration failed, disabling crypto\n");

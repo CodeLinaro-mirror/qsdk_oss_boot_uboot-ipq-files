@@ -291,6 +291,8 @@ enum cmd_function_id {
 	FUNC_IMAGE_AUTH,
 	FUNC_AUTH_ROOTFS_ELF,
 	FUNC_FUSEIPQ,
+	FUNC_ICE_CONFIGURE,
+	FUNC_ICE_KEY_CONFIGURE,
 	FUNC_MAX
 };
 
@@ -541,6 +543,45 @@ struct secure_auth_params {
 	u32 flags;
 #endif
 };
+
+#ifdef CONFIG_IPQ_INLINE_ENCRYPTION
+/* ICE hardware configuration structure */
+struct ice_config_sec {
+	u32 index;
+	u8 key_size;
+	u8 algo_mode;
+	u8 key_mode;
+};
+
+/* ICE crypto algorithm modes */
+enum ice_cryto_algo_mode {
+	ICE_CRYPTO_ALGO_MODE_HW_AES_ECB = 0x0,
+	ICE_CRYPTO_ALGO_MODE_HW_AES_XTS = 0x3,
+};
+
+/* ICE crypto key sizes */
+enum ice_crpto_key_size {
+	ICE_CRYPTO_KEY_SIZE_HW_128 = 0x0,
+	ICE_CRYPTO_KEY_SIZE_HW_256 = 0x2,
+};
+
+/* ICE configuration parameters - unified for SCM/OP-TEE */
+struct ice_configure_params {
+	struct ice_config_sec *ice;
+	size_t ice_size;
+};
+
+/* ICE key configuration parameters - unified for SCM/OP-TEE */
+struct ice_key_configure_params {
+	u32 seedtype;
+	u8 key_size;
+	u8 algo_mode;
+	u8 *hex_data_context;
+	u64 hex_data_len;
+	u8 *hex_salt_context;
+	u64 hex_salt_len;
+};
+#endif /* CONFIG_IPQ_INLINE_ENCRYPTION */
 
 /*********************************************************************
  * Function declaration
