@@ -60,6 +60,7 @@
 
 		mdio: mdio@90000 {
 			status = "okay";
+			clk_div = /bits/ 8 <31>;
 			phy0: phy@8 {
 				phy-reset-gpio = <&tlmm 24 0>;
 				phy_addr = <8>;
@@ -68,6 +69,8 @@
 				uniphy_id = <0>;
 				uniphy_type = <0>;
 				xgmac;
+				qcom,force-speed;
+				max-speed = <1000>;
 			};
 		};
 
