@@ -1578,14 +1578,17 @@ int ipq_spl_list_fuse(struct ipq_spl_fuse_info *fuse_arr, size_t fuse_cnt)
 }
 
 /**
- * ipq_spl_log_lcs_state() - Log TME-L LCS state
+ * ipq_spl_log_lcs_state() - Log TME-L LCS state and validate provisioning
  *
- * This function reads the SOC LCS register and prints the decoded LCS state.
+ * This function reads the SOC LCS register, prints the decoded LCS state,
+ * and blocks boot if the chip is not provisioned (based on LCS state).
+ * Only allows boot in DEVELOPMENT, OPERATIONAL_EXT, OPERATIONAL_INT, and RMA states.
  */
 static void ipq_spl_log_lcs_state(void)
 {
 	u32 lcs_state;
 	const char *lcs_str;
+	bool allow_boot = false;
 
 	/*
 	 * Read and decode LCS state
@@ -1596,25 +1599,39 @@ static void ipq_spl_log_lcs_state(void)
 	switch (lcs_state) {
 	case 0x0:
 		lcs_str = "BLANK";
+		allow_boot = false;
 		break;
 	case 0xE:
 		lcs_str = "DEVELOPMENT";
+		allow_boot = true;
 		break;
 	case 0x5:
 		lcs_str = "OPERATIONAL_EXT";
+		allow_boot = true;
 		break;
 	case 0xB:
 		lcs_str = "OPERATIONAL_INT";
+		allow_boot = true;
 		break;
 	case 0x7:
 		lcs_str = "RMA";
+		allow_boot = true;
 		break;
 	default:
 		lcs_str = "Unknown";
+		allow_boot = false;
 		break;
 	}
 
 	printf("%-24s %s\n", "TME-L LCS:", lcs_str);
+
+	/*
+	 * Block boot if chip is not provisioned
+	 */
+	if (!allow_boot) {
+		pr_err("Unprovisioned chip: Boot not allowed (LCS=%s)\n", lcs_str);
+		hang();
+	}
 }
 
 /**
