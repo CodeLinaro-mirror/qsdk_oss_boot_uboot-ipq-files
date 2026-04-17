@@ -128,7 +128,8 @@ struct fuse_payload {
 	u32 msb_val;
 };
 
-#define CFG_QTI_KERN_WDT_ADDR			*((unsigned int *)0x8600758)
+#define CFG_QTI_KERN_WDT_ADDR			*((unsigned int *)0x8600658)
+#define CFG_QTI_KERN_TLV_ADDR			*((unsigned int *)0x8600758)
 
 #if defined(CONFIG_IPQ_MINIDUMP_VERSION_V2)
 #define TLV_BUF_OFFSET				0

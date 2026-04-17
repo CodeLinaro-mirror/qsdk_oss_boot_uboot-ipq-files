@@ -45,6 +45,7 @@ struct fuse_payload {
 
 #define CRASH_DUMP_ADDR_IMEM			0x8600658
 #define CFG_QTI_KERN_WDT_ADDR			*((unsigned int *)0x08600658)
+#define CFG_QTI_KERN_TLV_ADDR		(CFG_QTI_KERN_WDT_ADDR + TLV_BUF_OFFSET)
 
 #ifdef CONFIG_BOOT_BANK_FIXUP
 #define BOOTED_BANK_ADDR_IMEM			0x86000D0
