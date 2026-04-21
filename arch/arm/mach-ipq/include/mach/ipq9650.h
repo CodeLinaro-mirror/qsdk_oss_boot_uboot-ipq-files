@@ -117,7 +117,8 @@
 #define TME_CTXT_SIZE				(128 * 1024)
 #define CPU_CNTXT_HDR_SIZE			4624
 
-#define CFG_QTI_KERN_WDT_ADDR			*((unsigned int *)0x8600758)
+#define CFG_QTI_KERN_WDT_ADDR			*((unsigned int *)0x8600658)
+#define CFG_QTI_KERN_TLV_ADDR			*((unsigned int *)0x8600758)
 
 #if defined(CONFIG_IPQ_MINIDUMP_VERSION_V2)
 #define TLV_BUF_OFFSET				0

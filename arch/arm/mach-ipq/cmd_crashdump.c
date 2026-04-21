@@ -870,8 +870,7 @@ static int wdt_extract_dump(crashdump_config_t *dump_config, int dump_idx,
 	if (tlv_type == QTI_WDT_LOG_DUMP_TYPE_INVALID)
 		return ret;
 
-	tlv_info.msg_buf = (uint8_t*)(uintptr_t)
-		(CFG_QTI_KERN_WDT_ADDR + TLV_BUF_OFFSET);
+	tlv_info.msg_buf = (uint8_t*)(uintptr_t)(CFG_QTI_KERN_TLV_ADDR);
 	tlv_info.cur_msg_buf = tlv_info.msg_buf;
 	tlv_info.buf_len = CFG_TLV_DUMP_SIZE;
 
