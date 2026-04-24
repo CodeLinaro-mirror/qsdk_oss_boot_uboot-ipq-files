@@ -284,8 +284,6 @@ int qce2204_port_link_up(struct phy_device *phydev, int port,
 			int speed, int duplex,
 			phy_interface_t interface,
 			bool tx_pause, bool rx_pause);
-int qce2204_port5_link_up(struct phy_device *phydev, int speed, int duplex,
-			  bool tx_pause, bool rx_pause);
 
 /* Scheduler Configuration Structures (from Linux) */
 struct qce2204_ppe_scheduler_bm_config {
