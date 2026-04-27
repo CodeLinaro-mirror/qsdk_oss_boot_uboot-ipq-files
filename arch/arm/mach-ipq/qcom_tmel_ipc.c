@@ -485,3 +485,429 @@ int ipq_license_enforce_hw_features_tme(struct sec_enforceHWFeatureId *fidBuff,
 	return 0;
 }
 #endif /* CONFIG_IPQ_SOFTSKU_SUPPORT */
+
+#ifdef CONFIG_CMD_AES_256
+/* AES TME implementations */
+
+/* AES 256 encryption TME implementation */
+int ipq_aes_256_enc_tme_impl(void *params)
+{
+	struct aes_256_params *aes_params = params;
+	struct tmelcom *tmelcom_priv;
+	struct tmel_qmp_msg tmsg;
+	struct tmel_aes_encrypt_msg msg __aligned(CONFIG_SYS_CACHELINE_SIZE);
+	int ret;
+
+	ret = ipq_get_tmelcom_device(&tmelcom_priv);
+	if (ret || !tmelcom_priv) {
+		printf("Failed to find TMELCOM node %d\n", ret);
+		return -ENODEV;
+	}
+
+	/* Parse incoming request */
+	struct crypto_aes_req_data_t *req =
+		(struct crypto_aes_req_data_t *)aes_params->req_ptr;
+
+	/* Build TME encrypt message */
+	memset(&msg, 0, sizeof(msg));
+
+	/* Set algorithm */
+	if (req->mode == 0)
+		msg.req.algo = TME_KAL_AES256_ECB;  /* 0xC */
+	else if (req->mode == 1)
+		msg.req.algo = TME_KAL_AES256_CBC;  /* 0x8 */
+	else {
+		printf("Invalid AES mode: %llu\n", (unsigned long long)req->mode);
+		return -EINVAL;
+	}
+
+	/* Set key handle from derived key */
+	msg.req.key_id = (u32)req->key_handle;
+
+	/* Set input plaintext buffer */
+	msg.req.in_plain_txt.buf = (u32)req->req_buf;
+	msg.req.in_plain_txt.buf_len = (u32)req->req_len;
+
+	/* Set AAD buffer */
+	msg.req.in_aad.buf = 0;
+	msg.req.in_aad.buf_len = 0;
+
+	/* Set output cipher text buffer */
+	msg.resp.out_cipher_txt.buf = (u32)req->resp_buf;
+	msg.resp.out_cipher_txt.length = (u32)req->resp_len;
+	msg.resp.out_cipher_txt.length_used = 0;
+
+	/* Set output IV buffer (for CBC mode) */
+	if (req->mode == 1 && req->ivdata) {  /* CBC mode */
+		msg.resp.out_iv.buf = (u32)req->ivdata;
+		msg.resp.out_iv.length = (u32)req->iv_len;
+		msg.resp.out_iv.length_used = 0;
+	}
+
+	/* Flush cache before sending */
+	flush_cache((ulong)req->req_buf, req->req_len);
+	flush_cache((ulong)&msg, sizeof(msg));
+
+	/* Send via mailbox */
+	memset(&tmsg, 0, sizeof(tmsg));
+	tmsg.msg_id = TMEL_MSG_UID_AES_ENCRYPT;
+	tmsg.msg = &msg;
+	tmsg.size = sizeof(msg);
+
+	ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
+
+	/* Invalidate cache after receiving response */
+	invalidate_cache((ulong)&msg, (ulong)&msg + sizeof(msg));
+	invalidate_cache((ulong)req->resp_buf, (ulong)req->resp_buf + req->resp_len);
+
+	if (!ret && !msg.resp.status)
+		return ret;
+
+	printf("TME encryption failed: ret=%d status=0x%x\n",
+	       ret, msg.resp.status);
+	return -EIO;
+}
+
+/* AES 256 decryption TME implementation */
+int ipq_aes_256_dec_tme_impl(void *params)
+{
+	struct aes_256_params *aes_params = params;
+	struct tmelcom *tmelcom_priv;
+	struct tmel_qmp_msg tmsg;
+	struct tmel_aes_decrypt_msg msg __aligned(CONFIG_SYS_CACHELINE_SIZE);
+	int ret;
+
+	ret = ipq_get_tmelcom_device(&tmelcom_priv);
+	if (ret || !tmelcom_priv) {
+		printf("Failed to find TMELCOM node %d\n", ret);
+		return -ENODEV;
+	}
+
+	/* Parse incoming request */
+	struct crypto_aes_req_data_t *req =
+		(struct crypto_aes_req_data_t *)aes_params->req_ptr;
+
+	/* Build TME decrypt message */
+	memset(&msg, 0, sizeof(msg));
+
+	/* Set algorithm */
+	if (req->mode == 0)
+		msg.req.algo = TME_KAL_AES256_ECB;  /* 0xC */
+	else if (req->mode == 1)
+		msg.req.algo = TME_KAL_AES256_CBC;  /* 0x8 */
+	else {
+		printf("Invalid AES mode: %llu\n", (unsigned long long)req->mode);
+		return -EINVAL;
+	}
+
+	/* Set key handle from derived key */
+	msg.req.key_id = (u32)req->key_handle;
+
+	/* Set input cipher text buffer */
+	msg.req.in_cipher_txt.buf = (u32)req->req_buf;
+	msg.req.in_cipher_txt.buf_len = (u32)req->req_len;
+
+	/* Set IV buffer (for CBC mode) */
+	if (req->mode == 1 && req->ivdata) {  /* CBC mode */
+		msg.req.in_iv.buf = (u32)req->ivdata;
+		msg.req.in_iv.buf_len = (u32)req->iv_len;
+	} else {
+		msg.req.in_iv.buf = 0;
+		msg.req.in_iv.buf_len = 0;
+	}
+
+	/* Set AAD buffer */
+	msg.req.in_aad.buf = 0;
+	msg.req.in_aad.buf_len = 0;
+
+	/* Set tag buffer (empty for now - used for GCM mode) */
+	msg.req.in_tag.buf = 0;
+	msg.req.in_tag.buf_len = 0;
+
+	/* Set output plain text buffer */
+	msg.resp.out_plain_txt.buf = (u32)req->resp_buf;
+	msg.resp.out_plain_txt.length = (u32)req->resp_len;
+	msg.resp.out_plain_txt.length_used = 0;
+
+	/* Flush cache before sending */
+	flush_cache((ulong)req->req_buf, req->req_len);
+	if (req->ivdata && req->iv_len)
+		flush_cache((ulong)req->ivdata, req->iv_len);
+	flush_cache((ulong)&msg, sizeof(msg));
+
+	/* Send via mailbox */
+	memset(&tmsg, 0, sizeof(tmsg));
+	tmsg.msg_id = TMEL_MSG_UID_AES_DECRYPT;
+	tmsg.msg = &msg;
+	tmsg.size = sizeof(msg);
+
+	ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
+
+	/* Invalidate cache after receiving response */
+	invalidate_cache((ulong)&msg, (ulong)&msg + sizeof(msg));
+	invalidate_cache((ulong)req->resp_buf, (ulong)req->resp_buf + req->resp_len);
+
+	if (!ret && !msg.resp.status)
+		return ret;
+
+	printf("TME decryption failed: ret=%d status=0x%x\n",
+	       ret, msg.resp.status);
+	return -EIO;
+}
+
+
+#ifdef CONFIG_AES_256_DERIVE_KEY
+
+#define CHIP_RANDOM_BASE_KEY		0x0
+#define OEM_PRODUCT_SEED		0x1
+
+/* AES 256 derive key TME implementation */
+int ipq_aes_derive_key_tme_impl(void *params)
+{
+	struct aes_derive_key_params *key_params = params;
+	struct tmelcom *tmelcom_priv;
+	struct tmel_qmp_msg tmsg;
+	struct tme_kdf_spec *kdf;
+	struct tme_derive_msg msg __aligned(CONFIG_SYS_CACHELINE_SIZE);
+	int ret;
+
+	ret = ipq_get_tmelcom_device(&tmelcom_priv);
+	if (ret || !tmelcom_priv) {
+		printf("Failed to find TMELCOM node %d\n", ret);
+		return -ENODEV;
+	}
+
+	/* Allocate aligned memory for KDF spec */
+	kdf = memalign(ARCH_DMA_MINALIGN, sizeof(*kdf));
+	if (!kdf) {
+		printf("Memory allocation failed\n");
+		return -ENOMEM;
+	}
+
+	/* Parse incoming request */
+	struct crypto_aes_derive_key_cmd_t_v1 *req =
+		(struct crypto_aes_derive_key_cmd_t_v1 *)key_params->req_ptr;
+
+	/* Build KDF spec */
+	memset(kdf, 0, sizeof(*kdf));
+
+	/* KDF algorithm */
+	kdf->kdf_algo = TME_KAL_KDF_NIST;
+
+	/* PRF digest algorithm */
+	kdf->prf_digest_algo = TME_KAL_SHA512_HMAC;
+
+	/* L2 key */
+	kdf->l2_key = TME_KID_L2_SECURESTRGSVC;
+
+	/* Set source-dependent parameters */
+	switch (req->source) {
+	case CHIP_RANDOM_BASE_KEY:
+		kdf->input_key = TME_KID_CHIP_RAND_BASE;
+		kdf->policy.low = 0x4c204c20;
+		kdf->policy.high = 0x84044;
+		break;
+	case OEM_PRODUCT_SEED:
+		kdf->input_key = TME_KID_OEM_PRODUCT_SEED;
+		kdf->policy.low = 0xc204c20;
+		kdf->policy.high = 0x84048;
+		break;
+	default:
+		printf("Invalid source: 0x%x\n", req->source);
+		free(kdf);
+		return -EINVAL;
+	}
+
+	/* Mix key */
+	kdf->mix_key = (u32)req->mixing_key;
+
+	/* Set security context - this is the bindings bitmask */
+	kdf->security_context = req->hw_key_bindings.bindings;
+
+	/* Copy context data (salt/label) */
+	if (req->hw_key_bindings.context_len > 0 && req->hw_key_bindings.context_len <= 64) {
+		memcpy(kdf->sw_context, req->hw_key_bindings.context,
+		       req->hw_key_bindings.context_len);
+		kdf->sw_context_len = req->hw_key_bindings.context_len;
+	}
+
+	/* Build TME message */
+	memset(&msg, 0, sizeof(msg));
+	msg.req.key_id = TME_KID_ALLOC;
+	msg.req.kdf_buf = (u32)(uintptr_t)kdf;
+	msg.req.kdf_len = sizeof(*kdf);
+
+	/* Flush cache before sending */
+	flush_cache((ulong)kdf, sizeof(*kdf));
+	flush_cache((ulong)&msg, sizeof(msg));
+
+	/* Send via mailbox */
+	memset(&tmsg, 0, sizeof(tmsg));
+	tmsg.msg_id = TMEL_MSG_UID_AES_DERIVE_KEY;
+	tmsg.msg = &msg;
+	tmsg.size = sizeof(msg);
+
+	ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
+
+	/* Invalidate cache after receiving response */
+	invalidate_cache((ulong)&msg, (ulong)&msg + sizeof(msg));
+
+	if (!ret && !msg.resp.status) {
+		*key_params->key_handle = msg.resp.key_id;
+		free(kdf);
+		return ret;
+	}
+
+	printf("TME key derivation failed: ret=%d status=0x%x\n",
+	       ret, msg.resp.status);
+	free(kdf);
+	return -EIO;
+}
+
+/* AES 256 derive key with max context TME implementation */
+int ipq_aes_derive_key_max_ctxt_tme_impl(void *params)
+{
+	struct aes_derive_key_max_ctxt_params *key_params = params;
+	struct tmelcom *tmelcom_priv;
+	struct tmel_qmp_msg tmsg;
+	struct tme_kdf_spec *kdf;
+	struct tme_derive_msg msg __aligned(CONFIG_SYS_CACHELINE_SIZE);
+	int ret;
+
+	ret = ipq_get_tmelcom_device(&tmelcom_priv);
+	if (ret || !tmelcom_priv) {
+		printf("Failed to find TMELCOM node %d\n", ret);
+		return -ENODEV;
+	}
+
+	/* Allocate aligned memory for KDF spec (128-byte context) */
+	kdf = memalign(ARCH_DMA_MINALIGN, sizeof(*kdf));
+	if (!kdf) {
+		printf("Memory allocation failed\n");
+		return -ENOMEM;
+	}
+
+	/* Parse incoming request */
+	struct crypto_aes_derive_key_cmd_t_v2 *req =
+		(struct crypto_aes_derive_key_cmd_t_v2 *)key_params->req_ptr;
+
+	/* Build KDF spec */
+	memset(kdf, 0, sizeof(*kdf));
+
+	/* KDF algorithm */
+	kdf->kdf_algo = TME_KAL_KDF_NIST;
+
+	/* PRF digest algorithm */
+	kdf->prf_digest_algo = TME_KAL_SHA512_HMAC;
+
+	/* L2 key */
+	kdf->l2_key = TME_KID_L2_SECURESTRGSVC;
+
+	/* Set source-dependent parameters */
+	switch (req->source) {
+	case CHIP_RANDOM_BASE_KEY:
+		kdf->input_key = TME_KID_CHIP_RAND_BASE;
+		kdf->policy.low = 0x4c204c20;
+		kdf->policy.high = 0x84044;
+		break;
+	case OEM_PRODUCT_SEED:
+		kdf->input_key = TME_KID_OEM_PRODUCT_SEED;
+		kdf->policy.low = 0xc204c20;
+		kdf->policy.high = 0x84048;
+		break;
+	default:
+		printf("Invalid source: 0x%x\n", req->source);
+		free(kdf);
+		return -EINVAL;
+	}
+
+	/* Mix key */
+	kdf->mix_key = (u32)req->mixing_key;
+
+	/* Set security context - this is the bindings bitmask */
+	kdf->security_context = req->hw_key_bindings.bindings;
+
+	/* Copy context data (salt/label) - supports up to 128 bytes */
+	if (req->hw_key_bindings.context_len > 0 &&
+	    req->hw_key_bindings.context_len <= TME_KDF_SW_CONTEXT_BYTES_MAX) {
+		memcpy(kdf->sw_context, req->hw_key_bindings.context,
+		       req->hw_key_bindings.context_len);
+		kdf->sw_context_len = req->hw_key_bindings.context_len;
+	}
+
+	/* Build TME message */
+	memset(&msg, 0, sizeof(msg));
+	msg.req.key_id = TME_KID_ALLOC;
+	msg.req.kdf_buf = (u32)(uintptr_t)kdf;
+	msg.req.kdf_len = sizeof(*kdf);
+
+	/* Flush cache before sending */
+	flush_cache((ulong)kdf, sizeof(*kdf));
+	flush_cache((ulong)&msg, sizeof(msg));
+
+	/* Send via mailbox */
+	memset(&tmsg, 0, sizeof(tmsg));
+	tmsg.msg_id = TMEL_MSG_UID_AES_DERIVE_KEY;
+	tmsg.msg = &msg;
+	tmsg.size = sizeof(msg);
+
+	ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
+
+	/* Invalidate cache after receiving response */
+	invalidate_cache((ulong)&msg, (ulong)&msg + sizeof(msg));
+
+	if (!ret && !msg.resp.status) {
+		*key_params->key_handle = msg.resp.key_id;
+		free(kdf);
+		return ret;
+	}
+
+	printf("TME key derivation (max context) failed: ret=%d status=0x%x\n",
+	       ret, msg.resp.status);
+	free(kdf);
+	return -EIO;
+}
+#endif /* CONFIG_AES_256_DERIVE_KEY */
+
+/* AES clear key TME implementation */
+int ipq_aes_clear_key_tme_impl(void *params)
+{
+	int ret;
+	struct aes_clear_key_params *clear_params = (struct aes_clear_key_params *)params;
+	struct tmelcom *tmelcom_priv;
+	struct tmel_qmp_msg tmsg;
+	struct tmel_aes_clear_key_msg msg __aligned(CONFIG_SYS_CACHELINE_SIZE);
+
+	ret = ipq_get_tmelcom_device(&tmelcom_priv);
+	if (ret || !tmelcom_priv) {
+		printf("Failed to find TMELCOM node %d\n", ret);
+		return -ENODEV;
+	}
+
+	/* Build TME AES clear key message */
+	memset(&msg, 0, sizeof(msg));
+	msg.req.key_id = clear_params->key_handle;
+
+	/* Flush cache before sending */
+	flush_cache((ulong)&msg, sizeof(msg));
+
+	/* Send via mailbox */
+	memset(&tmsg, 0, sizeof(tmsg));
+	tmsg.msg_id = TMEL_MSG_UID_AES_CLEAR_KEY;
+	tmsg.msg = &msg;
+	tmsg.size = sizeof(msg);
+
+	ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
+
+	/* Invalidate cache after receiving response */
+	invalidate_cache((ulong)&msg, (ulong)&msg + sizeof(msg));
+
+	if (!ret && !msg.resp.status) {
+		printf("AES key = %u cleared successfully\n", clear_params->key_handle);
+		return ret;
+	}
+
+	printf("TME clear key failed: ret=%d status=0x%x\n", ret, msg.resp.status);
+	return -EIO;
+}
+#endif /* CONFIG_CMD_AES_256 */

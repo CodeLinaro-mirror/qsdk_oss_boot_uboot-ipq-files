@@ -1017,3 +1017,8 @@ int ipq_list_fuse_scm_impl(void *params);
 int ipq_dump_fuse_scm_impl(void *params);
 int ipq_check_secure_boot_scm_impl(void *params);
 int ipq_secure_auth_scm_impl(void *params);
+int ipq_aes_256_enc_scm_impl(void *params);
+int ipq_aes_256_dec_scm_impl(void *params);
+int ipq_aes_derive_key_scm_impl(void *params);
+int ipq_aes_derive_key_max_ctxt_scm_impl(void *params);
+int ipq_aes_clear_key_scm_impl(void *params);

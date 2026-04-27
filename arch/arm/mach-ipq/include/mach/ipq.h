@@ -287,6 +287,7 @@ enum cmd_function_id {
 	FUNC_AES_ENCRYPT,
 	FUNC_AES_DECRYPT,
 	FUNC_AES_DERIVE_KEY,
+	FUNC_AES_DERIVE_KEY_MAX_CTXT,
 	FUNC_AES_CLEAR_KEY,
 	FUNC_IMAGE_AUTH,
 	FUNC_AUTH_ROOTFS_ELF,
@@ -591,6 +592,104 @@ struct ice_key_configure_params {
 	u64 hex_salt_len;
 };
 #endif /* CONFIG_IPQ_INLINE_ENCRYPTION */
+
+#ifdef CONFIG_CMD_AES_256
+/* AES encryption/decryption parameters */
+struct aes_256_params {
+	void *req_ptr;
+	size_t req_size;
+};
+
+struct aes_clear_key_params {
+	u32 key_handle;
+};
+
+#ifndef CONFIG_AES_256_DERIVE_KEY
+/* AES encryption/decryption request structure (without key derivation) */
+struct crypto_aes_req_data_t {
+	uint64_t type;
+	uint64_t mode;
+	uint64_t req_buf;
+	uint64_t req_len;
+	uint64_t ivdata;
+	uint64_t iv_len;
+	uint64_t resp_buf;
+	uint64_t resp_len;
+};
+#else
+/* AES key derivation parameters */
+struct aes_derive_key_params {
+	void *req_ptr;
+	size_t req_size;
+	uintptr_t *key_handle;
+};
+
+struct aes_derive_key_max_ctxt_params {
+	void *req_ptr;
+	size_t req_size;
+	uintptr_t *key_handle;
+};
+
+/* AES key derivation structures */
+#define MAX_CONTEXT_BUFFER_LEN_V1  64
+#define MAX_CONTEXT_BUFFER_LEN_V2  128
+
+struct crypto_aes_operation_policy {
+	uint32_t operations;
+	uint32_t algorithm;
+};
+
+struct crypto_aes_hwkey_policy {
+	struct crypto_aes_operation_policy op_policy;
+	uint32_t kdf_depth;
+	uint32_t permissions;
+	uint32_t key_type;
+	uint32_t destination;
+};
+
+struct crypto_aes_hwkey_bindings_v1 {
+	uint32_t bindings;
+	uint32_t context_len;
+	uint8_t context[MAX_CONTEXT_BUFFER_LEN_V1];
+};
+
+struct crypto_aes_derive_key_cmd_t_v1 {
+	struct crypto_aes_hwkey_policy policy;
+	struct crypto_aes_hwkey_bindings_v1 hw_key_bindings;
+	uint32_t source;
+	uint64_t mixing_key;
+	uint64_t key;
+};
+
+/* V2 structures for max context (128 bytes) */
+struct crypto_aes_hwkey_bindings_v2 {
+	uint32_t bindings;
+	uint32_t context_len;
+	uint8_t context[MAX_CONTEXT_BUFFER_LEN_V2];
+};
+
+struct crypto_aes_derive_key_cmd_t_v2 {
+	struct crypto_aes_hwkey_policy policy;
+	struct crypto_aes_hwkey_bindings_v2 hw_key_bindings;
+	uint32_t source;
+	uint64_t mixing_key;
+	uint64_t key;
+};
+
+/* AES encryption/decryption request structure (with key derivation) */
+struct crypto_aes_req_data_t {
+	uint64_t key_handle;
+	uint64_t type;
+	uint64_t mode;
+	uint64_t req_buf;
+	uint64_t req_len;
+	uint64_t ivdata;
+	uint64_t iv_len;
+	uint64_t resp_buf;
+	uint64_t resp_len;
+};
+#endif /* CONFIG_AES_256_DERIVE_KEY */
+#endif /* CONFIG_CMD_AES_256 */
 
 /*********************************************************************
  * Function declaration

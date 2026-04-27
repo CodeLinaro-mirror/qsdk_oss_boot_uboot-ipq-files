@@ -1782,72 +1782,9 @@ enum tz_crypto_service_aes_mode_t {
 	TZ_CRYPTO_SERVICE_AES_MODE_MAX,
 };
 
-#ifndef CONFIG_AES_256_DERIVE_KEY
-struct crypto_aes_req_data_t {
-	uint64_t type;
-	uint64_t mode;
-	uint64_t req_buf;
-	uint64_t req_len;
-	uint64_t ivdata;
-	uint64_t iv_len;
-	uint64_t resp_buf;
-	uint64_t resp_len;
-};
-#else
-#define MAX_CONTEXT_BUFFER_LEN_V1		64
-#define MAX_CONTEXT_BUFFER_LEN_V2		128
+#ifdef CONFIG_AES_256_DERIVE_KEY
 #define DEFAULT_POLICY_DESTINATION		0
 #define DEFAULT_KEY_TYPE			2
-struct crypto_aes_operation_policy {
-	uint32_t operations;
-	uint32_t algorithm;
-};
-struct crypto_aes_hwkey_policy  {
-	struct crypto_aes_operation_policy op_policy;
-	uint32_t kdf_depth;
-	uint32_t permissions;
-	uint32_t key_type;
-	uint32_t destination;
-};
-
-struct crypto_aes_hwkey_bindings_v1 {
-	uint32_t bindings;
-	uint32_t context_len;
-	uint8_t context[MAX_CONTEXT_BUFFER_LEN_V1];
-};
-
-struct crypto_aes_derive_key_cmd_t_v1 {
-	struct crypto_aes_hwkey_policy policy;
-	struct crypto_aes_hwkey_bindings_v1 hw_key_bindings;
-	uint32_t source;
-	uint64_t mixing_key;
-	uint64_t key;
-};
-
-struct crypto_aes_hwkey_bindings_v2 {
-	uint32_t bindings;
-	uint32_t context_len;
-	uint8_t context[MAX_CONTEXT_BUFFER_LEN_V2];
-};
-
-struct crypto_aes_derive_key_cmd_t_v2 {
-	struct crypto_aes_hwkey_policy policy;
-	struct crypto_aes_hwkey_bindings_v2 hw_key_bindings;
-	uint32_t source;
-	uint64_t mixing_key;
-	uint64_t key;
-};
-struct crypto_aes_req_data_t {
-	uint64_t key_handle;
-	uint64_t type;
-	uint64_t mode;
-	uint64_t req_buf;
-	uint64_t req_len;
-	uint64_t ivdata;
-	uint64_t iv_len;
-	uint64_t resp_buf;
-	uint64_t resp_len;
-};
 
 /**
  * do_derive_aes_256_key() - Handle the "derive_key" command-line command
@@ -1868,7 +1805,7 @@ static int do_derive_aes_256_key(struct cmd_tbl *cmdtp, int flag,
 	uint8_t *context_buf = NULL;
 	int context_len = 0;
 	int i = 0, j = 0;
-	struct scm_param param;
+	struct aes_derive_key_params key_params;
 
 	if (argc != 5)
 		return ret;
@@ -1895,8 +1832,8 @@ static int do_derive_aes_256_key(struct cmd_tbl *cmdtp, int flag,
 					sizeof(uint64_t));
 	if (!key_handle) {
 		printf("Error allocating memory for key handle");
-		ret = -ENOMEM;
-		goto exit;
+		free(req_ptr);
+		return -ENOMEM;
 	}
 	req_ptr->key = (uintptr_t) key_handle;
 	req_ptr->mixing_key = 0;
@@ -1904,32 +1841,22 @@ static int do_derive_aes_256_key(struct cmd_tbl *cmdtp, int flag,
 	while (i < context_len)
 		req_ptr->hw_key_bindings.context[j++] = context_buf[i++];
 
-	do {
-		ret = -ENOTSUPP;
-		IPQ_SCM_GENERATE_AES_256_KEY(param, (uintptr_t)req_ptr,
-				sizeof(struct crypto_aes_derive_key_cmd_t_v1));
-		invalidate_dcache_all();
-		ret = ipq_scm_call(&param);
+	/* Populate params and call comm_handler */
+	key_params.req_ptr = req_ptr;
+	key_params.req_size = sizeof(struct crypto_aes_derive_key_cmd_t_v1);
+	key_params.key_handle = key_handle;
 
-		if (ret) {
-			printf("\nipq_scm_call: SCM_AES_256_GEN_KEY" \
-					" failed, ret : %d\n", ret);
-			ret = CMD_RET_FAILURE;
-		} else
-			printf("Key handle is %u\n", (unsigned int)*key_handle);
-	} while (0);
-
-	if (ret == -ENOTSUPP) {
-		printf("Unsupported SCM call\n");
+	ret = ipq_comm_handler(FUNC_AES_DERIVE_KEY, &key_params);
+	if (ret) {
+		printf("Error (%d) failed to derive key\n", ret);
 		ret = CMD_RET_FAILURE;
-		goto exit;
+	} else {
+		printf("Key handle is %u\n", (unsigned int)*key_handle);
+		ret = CMD_RET_SUCCESS;
 	}
 
-exit:
-	if (key_handle)
-		free(key_handle);
-	if (req_ptr)
-		free(req_ptr);
+	free(key_handle);
+	free(req_ptr);
 
 	return ret;
 }
@@ -1962,7 +1889,7 @@ static int do_derive_aes_256_max_ctxt_key(struct cmd_tbl *cmdtp, int flag,
 	uint8_t *context_buf = NULL;
 	int context_len = 0;
 	int i = 0, j = 0;
-	struct scm_param param;
+	struct aes_derive_key_max_ctxt_params key_params;
 
 	if (argc != 5)
 		return ret;
@@ -1988,8 +1915,8 @@ static int do_derive_aes_256_max_ctxt_key(struct cmd_tbl *cmdtp, int flag,
 					sizeof(uint64_t));
 	if (!key_handle) {
 		printf("Error allocating memory for key handle");
-		ret = -ENOMEM;
-		goto exit;
+		free(req_ptr);
+		return -ENOMEM;
 	}
 
 	req_ptr->key = (uintptr_t) key_handle;
@@ -1998,34 +1925,22 @@ static int do_derive_aes_256_max_ctxt_key(struct cmd_tbl *cmdtp, int flag,
 	while (i < context_len)
 		req_ptr->hw_key_bindings.context[j++] = context_buf[i++];
 
-	do {
-		ret = -ENOTSUPP;
-		IPQ_SCM_GENERATE_AES_256_KEY_128B_CNTX(param,
-				(uintptr_t)req_ptr,
-				sizeof(struct crypto_aes_derive_key_cmd_t_v2));
-		invalidate_dcache_all();
-		ret = ipq_scm_call(&param);
+	/* Populate params and call comm_handler */
+	key_params.req_ptr = req_ptr;
+	key_params.req_size = sizeof(struct crypto_aes_derive_key_cmd_t_v2);
+	key_params.key_handle = key_handle;
 
-		if (ret) {
-			printf("\nipq_scm_call: SCM_AES_256_MAX_CTXT_GEN_KEY" \
-					" failed, ret : %d\n", ret);
-			ret = CMD_RET_FAILURE;
-		} else
-			printf("Key handle is %u\n",
-					(unsigned int)*key_handle);
-	} while (0);
-
-	if (ret == -ENOTSUPP) {
-		printf("Unsupported SCM call\n");
+	ret = ipq_comm_handler(FUNC_AES_DERIVE_KEY_MAX_CTXT, &key_params);
+	if (ret) {
+		printf("Error (%d) failed to derive key\n", ret);
 		ret = CMD_RET_FAILURE;
-		goto exit;
+	} else {
+		printf("Key handle is %u\n", (unsigned int)*key_handle);
+		ret = CMD_RET_SUCCESS;
 	}
 
-exit:
-	if (key_handle)
-		free(key_handle);
-	if (req_ptr)
-		free(req_ptr);
+	free(key_handle);
+	free(req_ptr);
 
 	return ret;
 }
@@ -2056,7 +1971,7 @@ static int do_aes_256(struct cmd_tbl *cmdtp, int flag, int argc,
 	uint64_t src_addr, dst_addr, ivdata;
 	uint64_t req_len, iv_len, resp_len, type, mode;
 	struct crypto_aes_req_data_t *req_ptr = NULL;
-	struct scm_param param = {0};
+	struct aes_256_params aes_params;
 	int ret = CMD_RET_USAGE;
 
 #ifndef CONFIG_AES_256_DERIVE_KEY
@@ -2125,31 +2040,24 @@ static int do_aes_256(struct cmd_tbl *cmdtp, int flag, int argc,
 	req_ptr->resp_buf = (uint64_t)dst_addr;
 	req_ptr->resp_len = resp_len;
 
-	do {
-		ret = -ENOTSUPP;
-		if (!strncmp(argv[1], "enc", 3))
-			IPQ_SCM_ENCRYPT_AES_256(param, (uintptr_t)req_ptr,
-					sizeof(struct crypto_aes_req_data_t));
-		else if (!strncmp(argv[1], "dec", 3))
-			IPQ_SCM_DECRYPT_AES_256(param, (uintptr_t)req_ptr,
-					sizeof(struct crypto_aes_req_data_t));
+	/* Populate params and call comm_handler */
+	aes_params.req_ptr = req_ptr;
+	aes_params.req_size = sizeof(struct crypto_aes_req_data_t);
 
-		invalidate_dcache_all();
-		ret = ipq_scm_call(&param);
+	/* Call comm_handler */
+	if (!strncmp(argv[1], "enc", 3))
+		ret = ipq_comm_handler(FUNC_AES_ENCRYPT, &aes_params);
+	else if (!strncmp(argv[1], "dec", 3))
+		ret = ipq_comm_handler(FUNC_AES_DECRYPT, &aes_params);
 
-		if (ret) {
-			printf("\nipq_scm_call: %s failed, ret : %d\n", \
-				(param.type == SCM_AES_256_ENC) ? \
-				"SCM_AES_256_ENC" : "SCM_AES_256_DEC", ret);
-			ret = CMD_RET_FAILURE;
-		} else
-			printf("Encryption/Decryption successful\n");
-	} while (0);
-
-	if (ret == -ENOTSUPP) {
-		printf("Unsupported SCM call\n");
-		return CMD_RET_FAILURE;
+	if (ret) {
+		printf("Error (%d) failed in encryption/decryption\n", ret);
+		ret = CMD_RET_FAILURE;
+	} else {
+		printf("Encryption/Decryption successful\n");
+		ret = CMD_RET_SUCCESS;
 	}
+
 	if (req_ptr) {
 		free(req_ptr);
 		req_ptr = NULL;
@@ -2190,35 +2098,16 @@ static int do_clear_aes_key(struct cmd_tbl *cmdtp, int flag, int argc,
 				char *const argv[])
 {
 	int ret;
-	uint32_t key_handle;
-	struct scm_param param = {0};
+	struct aes_clear_key_params clear_params;
 
 	if (argc != 2)
 		return CMD_RET_USAGE;
 
-	key_handle = simple_strtoul(argv[1], NULL, 10);
+	clear_params.key_handle = simple_strtoul(argv[1], NULL, 10);
 
-	do {
-		ret = -ENOTSUPP;
-		IPQ_SCM_CLEAR_AES_KEY(param, key_handle);
-		ret = ipq_scm_call(&param);
-		param.get_ret = true;
+	ret = ipq_comm_handler(FUNC_AES_CLEAR_KEY, &clear_params);
 
-		if (!ret && !le32_to_cpu(param.res.result[0]))
-			printf("AES key = %u cleared successfully\n",
-					key_handle);
-		else
-			printf("AES key clear failed with err %d\n", ret);
-
-
-	} while (0);
-
-	if (ret == -ENOTSUPP) {
-		printf("Unsupported SCM call\n");
-		return CMD_RET_FAILURE;
-	}
-
-	return ret ? CMD_RET_FAILURE:CMD_RET_SUCCESS;
+	return ret ? CMD_RET_FAILURE : CMD_RET_SUCCESS;
 }
 
 /***************************************************/

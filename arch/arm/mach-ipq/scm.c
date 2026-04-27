@@ -576,3 +576,102 @@ int ipq_ice_key_configure_scm_impl(void *params)
 	return ret;
 }
 #endif
+
+#ifdef CONFIG_CMD_AES_256
+/* AES 256 encryption SCM implementation */
+int ipq_aes_256_enc_scm_impl(void *params)
+{
+	struct aes_256_params *aes_params = (struct aes_256_params *)params;
+	struct scm_param param = {0};
+	int ret;
+
+	IPQ_SCM_ENCRYPT_AES_256(param, (uintptr_t)aes_params->req_ptr,
+				aes_params->req_size);
+
+	invalidate_dcache_all();
+	ret = ipq_scm_call(&param);
+
+	if (ret)
+		printf("ipq_scm_call: SCM_AES_256_ENC failed, ret : %d\n", ret);
+
+	return ret;
+}
+
+/* AES 256 decryption SCM implementation */
+int ipq_aes_256_dec_scm_impl(void *params)
+{
+	struct aes_256_params *aes_params = (struct aes_256_params *)params;
+	struct scm_param param = {0};
+	int ret;
+
+	IPQ_SCM_DECRYPT_AES_256(param, (uintptr_t)aes_params->req_ptr,
+				aes_params->req_size);
+
+	invalidate_dcache_all();
+	ret = ipq_scm_call(&param);
+
+	if (ret)
+		printf("ipq_scm_call: SCM_AES_256_DEC failed, ret : %d\n", ret);
+
+	return ret;
+}
+
+/* AES 256 derive key SCM implementation */
+int ipq_aes_derive_key_scm_impl(void *params)
+{
+	struct aes_derive_key_params *key_params = (struct aes_derive_key_params *)params;
+	struct scm_param param;
+	int ret;
+
+	IPQ_SCM_GENERATE_AES_256_KEY(param, (uintptr_t)key_params->req_ptr,
+				     key_params->req_size);
+	invalidate_dcache_all();
+	ret = ipq_scm_call(&param);
+
+	if (ret)
+		printf("ipq_scm_call: SCM_AES_256_GEN_KEY failed, ret : %d\n", ret);
+
+	return ret;
+}
+
+/* AES clear key SCM implementation */
+int ipq_aes_clear_key_scm_impl(void *params)
+{
+	struct aes_clear_key_params *clear_params = (struct aes_clear_key_params *)params;
+	struct scm_param param = {0};
+	int ret;
+
+	IPQ_SCM_CLEAR_AES_KEY(param, clear_params->key_handle);
+	ret = ipq_scm_call(&param);
+	param.get_ret = true;
+
+	if (!ret && !le32_to_cpu(param.res.result[0]))
+		printf("AES key = %u cleared successfully\n",
+		       clear_params->key_handle);
+	else
+		printf("AES key clear failed with err %d\n", ret);
+
+	return ret;
+}
+
+#ifdef CONFIG_AES_256_DERIVE_KEY
+/* AES derive key with max context (128 bytes) SCM implementation */
+int ipq_aes_derive_key_max_ctxt_scm_impl(void *params)
+{
+	struct aes_derive_key_max_ctxt_params *key_params = (struct aes_derive_key_max_ctxt_params *)params;
+	struct scm_param param;
+	int ret;
+
+	IPQ_SCM_GENERATE_AES_256_KEY_128B_CNTX(param,
+			(uintptr_t)key_params->req_ptr,
+			key_params->req_size);
+	invalidate_dcache_all();
+	ret = ipq_scm_call(&param);
+
+	if (ret)
+		printf("ipq_scm_call: SCM_AES_256_MAX_CTXT_GEN_KEY failed, ret : %d\n", ret);
+
+	return ret;
+}
+#endif /* CONFIG_AES_256_DERIVE_KEY */
+#endif /* CONFIG_CMD_AES_256 */
