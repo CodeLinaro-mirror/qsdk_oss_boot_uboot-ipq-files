@@ -812,7 +812,9 @@ static void ppe_uniphy_uxgmii_mode_set(struct port_info *port)
 
 	/* Step 14: Configure auto-neg control for all 4 channels */
 	reg_value = csr_read(index, CSR1_ADDR(VR_MII_AN_CTRL_ADDRESS));
-	reg_value |= MII_AN_INTR_EN | MII_CTRL;
+	reg_value |= MII_AN_INTR_EN;
+	if (port->gmac_type == XGMAC)
+		reg_value |= MII_CTRL;
 	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_ADDRESS), reg_value);
 	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_CHANNEL1_ADDRESS), reg_value);
 	csr_write(index, CSR1_ADDR(VR_MII_AN_CTRL_CHANNEL2_ADDRESS), reg_value);
