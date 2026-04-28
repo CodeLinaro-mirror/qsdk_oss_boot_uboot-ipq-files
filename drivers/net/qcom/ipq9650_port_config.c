@@ -1500,7 +1500,7 @@ static struct ipq_tdm_addr_config ipq9650_tdm_addr_config = {
 	.tdm_addr = {
 		.base_addr		= 0x0,		/* Relative to PPE base */
 		.offset			= 0xc000,	/* TDM offset from PPE base */
-		.increment		= 0x4,		/* 4 bytes per TDM entry */
+		.increment		= 0x10,		/* 16 bytes per TDM entry */
 	},
 	.tdm_ctrl_offset		= 0xb000,	/* TDM control register offset */
 };
