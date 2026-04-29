@@ -1624,7 +1624,7 @@ void ipq_port_mac_clock_reset(struct udevice *dev, struct port_info *port)
  * @rule_id: Rule ID
  */
 static void ppe_ipo_rule_reg_set(phys_addr_t reg_base,
-				 union ipo_rule_reg_u *hw_reg,
+				 union ipo_rule_reg_v2_u *hw_reg,
 				 u32 rule_id)
 {
 	phys_addr_t reg_addr;
@@ -1659,7 +1659,7 @@ static void ppe_ipo_mask_reg_set(phys_addr_t reg_base,
  * @ipo_cnt: Number of action words to write
  */
 static void ppe_ipo_action_set(phys_addr_t reg_base,
-			       union ipo_action_u *hw_act,
+			       union ipo_action_v2_u *hw_act,
 			       u32 rule_id,
 			       u32 ipo_cnt)
 {
@@ -1684,9 +1684,9 @@ static void ppe_ipo_action_set(phys_addr_t reg_base,
  */
 static int ppe_acl_rule_add(struct ppe_acl_rule *acl_rule)
 {
-	union ipo_rule_reg_u hw_reg = {0};
+	union ipo_rule_reg_v2_u hw_reg = {0};
 	union ipo_mask_reg_u hw_mask = {0};
-	union ipo_action_u hw_act = {0};
+	union ipo_action_v2_u hw_act = {0};
 
 	if (acl_rule->rule_id >= MAX_RULE) {
 		printf("Error: Invalid ACL rule ID %u (max %u)\n",
