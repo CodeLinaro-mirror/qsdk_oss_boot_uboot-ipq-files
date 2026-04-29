@@ -1645,6 +1645,7 @@ struct ppe_info {
 	u8 no_ports;
 	u8 nos_iports;
 	u8 tdm_mode;
+	u8 tm_tick_mode;	/* Scheduler config index from DTS (default 0) */
 	u8 no_reg;
 	u8 nbport; /* non bridge port*/
 	u8 ipo_action;
