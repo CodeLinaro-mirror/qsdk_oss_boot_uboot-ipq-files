@@ -885,30 +885,40 @@ U_BOOT_CMD(list_fuse, 1, 0, do_list_fuse,
 static int do_dump_fuse(struct cmd_tbl *cmdtp, int flag, int argc,
 			char *const argv[])
 {
-	size_t size = sizeof(struct fuse_payload);
+	size_t size;
 	struct fuse_payload *fuse = NULL;
 	u32 addr;
-	int ret;
+	int ret, index;
+	uint8_t addr_count;
 	struct dump_fuse_params fuse_params;
 
-	size = roundup(size, CONFIG_SYS_CACHELINE_SIZE);
-
-	if (argc != 2)
+	/* Validate: At least 1 address, max 16 addresses */
+	if (argc < 2 || argc > 17)
 		return CMD_RET_USAGE;
 
-	addr = simple_strtoul(argv[1], NULL, 16);
+	addr_count = argc - 1;
+
+	/* Allocate memory for multiple fuse_payload structures */
+	size = sizeof(struct fuse_payload) * addr_count;
+	size = roundup(size, CONFIG_SYS_CACHELINE_SIZE);
 
 	fuse = malloc_cache_aligned(size);
 	if (fuse == NULL)
 		return CMD_RET_FAILURE;
 
 	memset(fuse, 0, size);
-	fuse->fuse_addr = addr;
+
+	/* Parse and populate all addresses from command line */
+	for (index = 0; index < addr_count; index++) {
+		addr = simple_strtoul(argv[index + 1], NULL, 16);
+		fuse[index].fuse_addr = addr;
+	}
 
 	do {
 		ret = -ENOTSUPP;
 
 		fuse_params.fuse = fuse;
+		fuse_params.fuse_read_cnt = addr_count;
 		fuse_params.size = size;
 		fuse_params.fuse_payload_size = sizeof(struct fuse_payload);
 
@@ -921,14 +931,17 @@ static int do_dump_fuse(struct cmd_tbl *cmdtp, int flag, int argc,
 			ret = CMD_RET_SUCCESS;
 		}
 
+		/* Display all results */
+		for (index = 0; index < addr_count; index++) {
 #ifdef CONFIG_LIST_FUSE_V1
-		printf("TME_FUSE_ADDR: 0x%08X\tVALUE: 0x%08X\n",
-		       fuse->fuse_addr, fuse->val);
+			printf("TME_FUSE_ADDR: 0x%08X\tVALUE: 0x%08X\n",
+			       fuse[index].fuse_addr, fuse[index].val);
 #elif CONFIG_LIST_FUSE_V2
-		printf("TME_FUSE_ADDR: 0x%08X\tVALUE: 0x%llX\n",
-		       fuse->fuse_addr,
-		       ((u64)fuse->msb_val << 32 | fuse->lsb_val));
+			printf("TME_FUSE_ADDR: 0x%08X\tVALUE: 0x%llX\n",
+			       fuse[index].fuse_addr,
+			       ((u64)fuse[index].msb_val << 32 | fuse[index].lsb_val));
 #endif
+		}
 	} while (0);
 
 	if (ret == -ENOTSUPP) {
@@ -941,9 +954,9 @@ exit:
 	return ret;
 }
 
-U_BOOT_CMD(dump_fuse, 2, 0, do_dump_fuse,
-		"dump given QFPROM register from memory\n",
-		"<0xaddress>");
+U_BOOT_CMD(dump_fuse, 17, 0, do_dump_fuse,
+		"dump given QFPROM register(s) from memory\n",
+		"<0xaddress1> [0xaddress2] ... [0xaddress16]");
 #endif
 
 #ifdef CONFIG_IPQ_QCN9224_FUSING

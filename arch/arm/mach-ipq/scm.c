@@ -401,7 +401,7 @@ int ipq_dump_fuse_scm_impl(void *params)
 	int ret;
 
 	IPQ_SCM_READ_FUSE(param, (unsigned long)fuse_params->fuse,
-			  fuse_params->fuse_payload_size);
+			  (fuse_params->fuse_payload_size * fuse_params->fuse_read_cnt));
 
 	flush_cache((unsigned long)fuse_params->fuse, fuse_params->size);
 	ret = ipq_scm_call(&param);

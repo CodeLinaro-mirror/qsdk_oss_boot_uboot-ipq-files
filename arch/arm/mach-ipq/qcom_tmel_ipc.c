@@ -75,7 +75,7 @@ int ipq_dump_fuse_tme_impl(void *params)
 	memset(&tmsg, 0, sizeof(struct tmel_qmp_msg));
 	tmsg.msg_id = TMEL_MSG_UID_FUSE_READ_MULTIPLE_ROW;
 	tmsg.msg = (void *)fuse_params->fuse;
-	tmsg.size = fuse_params->fuse_payload_size;
+	tmsg.size = fuse_params->fuse_payload_size * fuse_params->fuse_read_cnt;
 	flush_cache((unsigned long)fuse_params->fuse, fuse_params->size);
 	ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
 	invalidate_dcache_range((unsigned long)fuse_params->fuse,

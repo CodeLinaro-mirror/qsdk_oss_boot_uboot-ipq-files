@@ -517,6 +517,7 @@ struct list_fuse_params {
 
 struct dump_fuse_params {
 	struct fuse_payload *fuse;
+	u8 fuse_read_cnt;
 	size_t size;
 	size_t fuse_payload_size;
 };
