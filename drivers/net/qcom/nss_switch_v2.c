@@ -1416,7 +1416,8 @@ void ipq_ppe_schedular_config(struct ppe_info *ppe)
 {
 	u32 *sch_config_values = &sch_config[ppe->tdm_mode].val[0];
 
-	reg_write(ppe->base + ppe_table_addrs->psch_tdm_cfg_tbl.offset,
+	reg_write(ppe->base + ppe_table_addrs->psch_tdm_cfg_tbl.base_addr +
+		  ppe_table_addrs->psch_tdm_cfg_tbl.offset,
 		  sch_config[ppe->tdm_mode].depth,
 		  ppe_table_addrs->psch_tdm_cfg_tbl.increment,
 		  sch_config_values);
