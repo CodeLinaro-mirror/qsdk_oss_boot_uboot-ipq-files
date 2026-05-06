@@ -19,6 +19,7 @@
 #include "clock-qcom.h"
 
 #define	GCC_QUPV3_UART1_CMD_RCGR		0x5004
+#define	GCC_QUPV3_UART2_CMD_RCGR		0x3018
 #define GCC_SDCC1_APPS_CMD_RCGR			0x33004
 #define GCC_QUPV3_SPI0_CMD_RCGR			0x3018
 
@@ -358,6 +359,10 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 		break;
 	case GCC_QUPV3_UART1_CLK:
 		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_UART1_CMD_RCGR,
+				     0x19, 0, 0, CFG_CLK_SRC_CXO, 16);
+		break;
+	case GCC_QUPV3_UART2_CLK:
+		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_UART2_CMD_RCGR,
 				     0x19, 0, 0, CFG_CLK_SRC_CXO, 16);
 		break;
 	case GCC_SDCC1_APPS_CLK:
@@ -763,6 +768,7 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 
 static const struct gate_clk ipq5210_clks[] = {
 	GATE_CLK(GCC_QUPV3_UART1_CLK,		0x05020, 0x00000001),
+	GATE_CLK(GCC_QUPV3_UART2_CLK,		0x0302C, 0x00000001),
 	GATE_CLK(GCC_SDCC1_AHB_CLK,		0x3303C, 0x00000001),
 	GATE_CLK(GCC_SDCC1_APPS_CLK,		0x3302C, 0x00000001),
 	GATE_CLK(GCC_QUPV3_SPI0_CLK,		0x0302C, 0x00000001),

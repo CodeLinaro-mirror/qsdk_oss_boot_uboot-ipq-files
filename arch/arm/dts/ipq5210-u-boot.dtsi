@@ -13,6 +13,10 @@
 	#size-cells = <2>;
 	interrupt-parent = <&intc>;
 
+	aliases {
+		uart2 = &uart2;
+	};
+
 	clocks {
 		sleep_clk: sleep-clk {
 			compatible = "fixed-clock";
@@ -95,6 +99,24 @@
 					bootph-all;
 				};
 			};
+
+			uart2_pins: uart2-state {
+				tx-pins {
+					pins = "gpio40";
+					function = "qup_se4_l2";
+					drive-strength = <6>;
+					bias-pull-down;
+					bootph-all;
+				};
+
+				rx-pins {
+					pins = "gpio41";
+					function = "qup_se4_l3";
+					drive-strength = <6>;
+					bias-pull-down;
+					bootph-all;
+				};
+			};
 		};
 
 		intc: interrupt-controller@b000000 {
@@ -165,6 +187,14 @@
 				compatible = "qcom,geni-debug-uart";
 				reg = <0 0x1a84000 0 0x4000>;
 				clocks = <&gcc GCC_QUPV3_UART1_CLK>;
+				clock-names = "se";
+				status = "disabled";
+			};
+
+			uart2: serial@1a90000 {
+				compatible = "qcom,geni-debug-uart";
+				reg = <0 0x1a90000 0 0x4000>;
+				clocks = <&gcc GCC_QUPV3_UART2_CLK>;
 				clock-names = "se";
 				status = "disabled";
 			};
@@ -1205,6 +1235,19 @@
 	uart1_fw: uart_firmware@0 {
 		compatible = "qcom,ipq5210-geni-uart-fw-v1", "qcom,geni-uart-fw-v1";
 		reg = <0 0x01a84000 0 0x4000>;
+		status = "okay";
+	};
+
+	uart2: serial@1a90000 {
+		pinctrl-0 = <&uart2_pins>;
+		pinctrl-names = "default";
+		qup-se-fw-load = <&uart2_fw>;
+		status = "okay";
+	};
+
+	uart2_fw: uart_firmware@1 {
+		compatible = "qcom,ipq5210-geni-uart-fw-v1", "qcom,geni-uart-fw-v1";
+		reg = <0 0x01a90000 0 0x4000>;
 		status = "okay";
 	};
 
