@@ -494,13 +494,22 @@ struct cal_dt_config {
 #endif
 
 struct load_seg_info {
+#ifdef CONFIG_OPTEE
+	uint64_t startAddr;       /**< Region start address (SoC view) */
+	uint64_t endAddr;	 /**< Region end address (SoC view) */
+#else
 	uint32_t startAddr;       /**< Region start address (SoC view) */
 	uint32_t endAddr;	 /**< Region end address (SoC view) */
+#endif
 };
 
 /* All CMD-related parameters should be declared below*/
 struct fuseipq_params {
+#ifdef CONFIG_OPTEE
+	u64 addr;
+#else
 	u32 addr;
+#endif
 #if defined (CONFIG_FUSEIPQ_V1) || (CONFIG_FUSEIPQ_V3)
 	u32 size;
 #endif
