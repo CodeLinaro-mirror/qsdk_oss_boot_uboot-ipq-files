@@ -270,7 +270,14 @@
 				 <&gcc GCC_PCNOC_TS_CLK>,
 				 <&gcc GCC_CNOC_QOSGEN_EXTREF_CLK>,
 				 <&gcc GCC_AGGRNOC_ATB_CLK>,
-				 <&gcc GCC_AGGRNOC_TS_CLK>;
+				 <&gcc GCC_AGGRNOC_TS_CLK>,
+				 <&gcc GCC_ANOC1_AXI_CLK>,
+				 <&gcc GCC_ANOC_QOSGEN_EXTREF_CLK>,
+				 <&gcc GCC_ANOC_XO_DCD_CLK>,
+				 <&gcc GCC_PCNOC_CE_EDPD_CLK>,
+				 <&gcc GCC_CMN_LDO_CLK>,
+				 <&gcc GCC_SPDM_PCNOC_CY_CLK>;
+
 
 			assigned-clocks = <&gcc GCC_PCNOC_BFDCD_CLK>,
 					  <&gcc GCC_SYSTEM_NOC_BFDCD_CLK>,
