@@ -71,6 +71,8 @@ enum smem_mem_type {
 	SMEM_TRY_MODE_INPROGRESS = 507,
 	SMEM_ATF_ENABLE = 509,
 	SMEM_EDL_MODE = 510,
+	SMEM_BOOT_SET_INFO = 511,
+	SMEM_FAILSAFE_BOOT_MODE = 512,
 	SMEM_FIRST_VALID_TYPE = SMEM_SPINLOCK_ARRAY,
 	SMEM_LAST_VALID_TYPE = SMEM_EDL_MODE,
 	SMEM_MAX_SIZE = SMEM_EDL_MODE + 1,
@@ -238,6 +240,10 @@ struct ipq_smem_flash_info {
 #ifdef CONFIG_BOOTCONFIG_V3
 	uint32_t		edl_mode;
 	uint32_t		try_mode_inprogress;
+#endif
+#ifdef CONFIG_FAILSAFE_V2
+	uint32_t		smembootset;
+	uint32_t		smembootmode;
 #endif
 	struct ipq_part_entry	hlos;
 	struct ipq_part_entry	hlos_1;

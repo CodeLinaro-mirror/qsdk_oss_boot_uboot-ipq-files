@@ -339,6 +339,18 @@ config BOOTCONFIG_V3
 	   This configuration option enables Boot Configuration
 	   Version 3 (BOOTCONFIG_V3).
 
+config FAILSAFE_V2
+	bool "Enable Failsafe Version 2 with boot counter and force inactive support"
+	default n
+	help
+	  This configuration enables Failsafe Version 2 which adds:
+	  - Boot counter tracking in IMEM
+	  - try_mode_inprogress support from SMEM
+	  - Force boot from inactive partition capability (value 2)
+	  - Automatic boot counter reset on cold reset
+	  This provides enhanced failsafe mechanisms for reliable boot
+	  recovery and partition management.
+
 config CRC32_BE
 	bool "Enable CRC32 calculation in big-endian format"
 	default y if FAILSAFE
@@ -730,6 +742,16 @@ config BOOT_BANK_FIXUP
 	  Enable this config to fixup u-boot and kernel device tree with
 	  booted bank information.
 
+config BOOT_BANK_IMEM_READ
+	bool "Read booted bank information from IMEM"
+	depends on BOOT_BANK_FIXUP
+	default n
+
+config BOOT_BANK_SMEM_READ
+	bool "Read booted bank information from SMEM"
+	depends on BOOT_BANK_FIXUP
+	default n
+
 choice
 	prompt "IPQ board select"
 
@@ -824,6 +846,7 @@ config TARGET_IPQ9574
 	imply SDX_ATTACH_SUPPORT
 	imply CB_CALIB
 	imply BOOT_BANK_FIXUP
+	select BOOT_BANK_IMEM_READ
 	help
 	  Support for IPQ95xx SoC.
 	  - Board Open Platform Specifications.
@@ -925,6 +948,9 @@ config TARGET_IPQ5210
 	select OPTEE
 	imply FUSE_IPQ
 	imply FUSEIPQ_V3 if IPQ_SECURE && SCM_V2
+	imply FAILSAFE_V2
+	imply BOOT_BANK_FIXUP
+	select BOOT_BANK_SMEM_READ
 
 	help
 	  Support for IPQ5210 SoC.
@@ -973,6 +999,9 @@ config TARGET_IPQ9650
         select OPTEE
         imply FUSE_IPQ
         imply FUSEIPQ_V3 if IPQ_SECURE && SCM_V2
+	imply FAILSAFE_V2
+	imply BOOT_BANK_FIXUP
+	select BOOT_BANK_SMEM_READ
 
 	help
 	  Support for IPQ9650 SoC.

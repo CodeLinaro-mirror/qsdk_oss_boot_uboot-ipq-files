@@ -165,7 +165,7 @@ static int do_smeminfo(struct cmd_tbl *cmdtp, int flag, int argc,
 		       i, p->name, p->attr, ((loff_t)p->start) * bsize, psize);
 #ifdef CONFIG_CMD_UBI
 		if ((!strncmp(p->name,
-#ifdef CONFIG_BOOTCONFIG_V3
+#if defined(CONFIG_BOOTCONFIG_V3) || defined(CONFIG_FAILSAFE_V2)
 			ipq_get_valid_bank() ? ROOT_FS_ATL_PART_NAME : ROOT_FS_PART_NAME,
 #else
 			ROOT_FS_PART_NAME,
