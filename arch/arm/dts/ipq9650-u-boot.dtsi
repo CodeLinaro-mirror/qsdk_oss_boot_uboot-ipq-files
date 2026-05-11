@@ -859,17 +859,6 @@
 			clocks = <&gcc GCC_MDIO_AHB_CLK>;
 			clk_div = /bits/ 8 <31>;
 			status = "okay";
-
-			phy@8 {
-				qcom,force-speed;
-				max-speed = <1000>;
-			};
-
-			phy@12 {
-				qcom,force-speed;
-				max-speed = <1000>;
-			};
-
 		};
 
 		cmn_pll: clock-controller@9b000 {
