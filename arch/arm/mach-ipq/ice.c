@@ -449,6 +449,7 @@ static bool qcom_ice_enable_clock(struct udevice *dev, struct clk *ice_clk)
 static const struct udevice_id sdhci_msm_v5_ids[] = {
 	{ .compatible = "qcom,ipq9574-sdhci" },
 	{ .compatible = "qcom,ipq5424-sdhci" },
+	{ .compatible = "qcom,ipq9650-sdhci" },
 	{ }
 };
 
