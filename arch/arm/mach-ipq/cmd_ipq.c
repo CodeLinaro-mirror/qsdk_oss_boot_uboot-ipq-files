@@ -892,8 +892,8 @@ static int do_dump_fuse(struct cmd_tbl *cmdtp, int flag, int argc,
 	uint8_t addr_count;
 	struct dump_fuse_params fuse_params;
 
-	/* Validate: At least 1 address, max 16 addresses */
-	if (argc < 2 || argc > 17)
+	/* Validate: At least 1 address, max 14 addresses */
+	if (argc < 2 || argc > 15)
 		return CMD_RET_USAGE;
 
 	addr_count = argc - 1;
@@ -954,9 +954,9 @@ exit:
 	return ret;
 }
 
-U_BOOT_CMD(dump_fuse, 17, 0, do_dump_fuse,
+U_BOOT_CMD(dump_fuse, 15, 0, do_dump_fuse,
 		"dump given QFPROM register(s) from memory\n",
-		"<0xaddress1> [0xaddress2] ... [0xaddress16]");
+		"<0xaddress1> [0xaddress2] ... [0xaddress14]");
 #endif
 
 #ifdef CONFIG_IPQ_QCN9224_FUSING
