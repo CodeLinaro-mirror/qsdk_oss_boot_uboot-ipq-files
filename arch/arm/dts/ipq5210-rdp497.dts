@@ -69,8 +69,6 @@
 				uniphy_id = <0>;
 				uniphy_type = <0>;
 				xgmac;
-				qcom,force-speed;
-				max-speed = <1000>;
 			};
 		};
 
@@ -122,6 +120,22 @@
 			function = "qup_se0_l1";
 			drive-strength = <6>;
 			bias-pull-down;
+		};
+	};
+
+	mdio_pins: mdio-state {
+		mux_0 {
+			pins = "gpio26";
+			function = "mdc_mst";
+			drive-strength = <4>;
+			bias-pull-up;
+		};
+
+		mux_1 {
+			pins = "gpio27";
+			function = "mdio_mst";
+			drive-strength = <4>;
+			bias-pull-up;
 		};
 	};
 };
