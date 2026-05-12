@@ -1718,7 +1718,8 @@ static inline void reg_write(phys_addr_t base_addr, size_t size,
 #endif
 
 /* TDM Tick Conversion Macro */
-#define TDM(valid, dir, port, port1, port2)  (((dir) << 4) | ((port) & 0xF))
+#define TDM(valid, dir, port, sec_valid, sec_port) \
+	(((dir) << 4) | ((port) & 0xF) | ((sec_valid) << 6) | (((sec_port) & 0xF) << 8))
 
 /* Port Scheduler Configuration Macros */
 #define PSCH(ens_bmp, ens_port, des_port, des_sec_en, des_sec_port) \
