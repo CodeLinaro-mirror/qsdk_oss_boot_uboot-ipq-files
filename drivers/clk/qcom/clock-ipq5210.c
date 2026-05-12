@@ -300,8 +300,6 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 			break;
 		case CLK_78_125_MHZ:
 			*div = 7;
-			/* 2.5G mode: DIV4 = 3 for divide-by-4 XGMII2GMII bridge (3+1=4) */
-			*div4 = 3;
 			break;
 		case CLK_125_MHZ:
 			*div = 4;
@@ -340,10 +338,48 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 	return 0;
 }
 
+/*
+ * clk->data encoding set by the network driver before calling clk_set_rate():
+ *
+ *   bits [7:0]  = mac_speed  (0=10M, 1=100M, 2=1G, 3=10G, 4=2.5G, 5=5G)
+ *   bits [15:8] = gmac_type  (0=GMAC, 1=XGMAC)
+ *
+ * Both values are packed as: data = (gmac_type << 8) | mac_speed
+ *
+ * DIV4 (XGMII2GMII bridge) is supported for: 10M, 100M, 1G, 2.5G
+ * DIV4 is NOT used for: 5G, 10G
+ */
+#define MAC_SPEED_10M		0
+#define MAC_SPEED_100M		1
+#define MAC_SPEED_1G		2
+#define MAC_SPEED_10G		3
+#define MAC_SPEED_2_5G		4
+#define MAC_SPEED_5G		5
+
+#define GMAC_TYPE_GMAC		0
+#define GMAC_TYPE_XGMAC		1
+
+/* Extract mac_speed and gmac_type from packed clk->data */
+#define CLK_DATA_MAC_SPEED(data)	((int)((data) & 0xFF))
+#define CLK_DATA_GMAC_TYPE(data)	((int)(((data) >> 8) & 0xFF))
+
+/*
+ * Returns true if the port needs the DIV4 XGMII2GMII bridge divider.
+ *
+ * Ports 1-4 operate in two modes:
+ *   GMAC  (gmac_type=0): uses GMII interface -> DIV4 bridge IS required
+ *   XGMAC (gmac_type=1): uses XGMII interface directly -> DIV4 NOT required
+ */
+static inline bool nss_port_clk_needs_div4(int gmac_type)
+{
+	return gmac_type == GMAC_TYPE_GMAC;
+}
+
 static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 {
 	struct msm_clk_priv *priv = dev_get_priv(clk->dev);
-	int ret, src, div = 0, cdiv = 0, div4 = 1;
+	int ret, src, div = 0, cdiv = 0, div4 = 0;
+	int gmac_type = CLK_DATA_GMAC_TYPE(clk->data); /* MAC type: 0=GMAC, 1=XGMAC */
 
 	switch (clk->id) {
 	case GCC_QUPV3_I2C0_CLK:
@@ -501,9 +537,10 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
-		/* Configure DIV4 for XGMII2GMII bridge */
+		/* DIV4 (XGMII2GMII bridge): GMAC mode needs it, XGMAC mode does not */
+		if (!nss_port_clk_needs_div4(gmac_type))
+			div4 = 0;
 		writel(div4, priv->base + NSS_CC_UNIPHY_PORT1_RX_DIV4_DIV_CDIVR);
-		/* Enable DIV4 clock */
 		writel(0x1, priv->base + NSS_CC_UNIPHY_PORT1_RX_DIV4_CBCR);
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT1_RX_CMD_RCGR,
 				    NSS_CC_PORT1_RX_CMD_RCGR + 0x8, div, cdiv,
@@ -513,9 +550,10 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
-		/* Configure DIV4 for XGMII2GMII bridge */
+		/* DIV4 (XGMII2GMII bridge): GMAC mode needs it, XGMAC mode does not */
+		if (!nss_port_clk_needs_div4(gmac_type))
+			div4 = 0;
 		writel(div4, priv->base + NSS_CC_UNIPHY_PORT1_TX_DIV4_DIV_CDIVR);
-		/* Enable DIV4 clock */
 		writel(0x1, priv->base + NSS_CC_UNIPHY_PORT1_TX_DIV4_CBCR);
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT1_TX_CMD_RCGR,
 				    NSS_CC_PORT1_TX_CMD_RCGR + 0x8, div, cdiv,
@@ -525,9 +563,10 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
-		/* Configure DIV4 for XGMII2GMII bridge */
+		/* DIV4 (XGMII2GMII bridge): GMAC mode needs it, XGMAC mode does not */
+		if (!nss_port_clk_needs_div4(gmac_type))
+			div4 = 0;
 		writel(div4, priv->base + NSS_CC_UNIPHY_PORT2_RX_DIV4_DIV_CDIVR);
-		/* Enable DIV4 clock */
 		writel(0x1, priv->base + NSS_CC_UNIPHY_PORT2_RX_DIV4_CBCR);
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT2_RX_CMD_RCGR,
 				    NSS_CC_PORT2_RX_CMD_RCGR + 0x8, div, cdiv,
@@ -537,9 +576,10 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
-		/* Configure DIV4 for XGMII2GMII bridge */
+		/* DIV4 (XGMII2GMII bridge): GMAC mode needs it, XGMAC mode does not */
+		if (!nss_port_clk_needs_div4(gmac_type))
+			div4 = 0;
 		writel(div4, priv->base + NSS_CC_UNIPHY_PORT2_TX_DIV4_DIV_CDIVR);
-		/* Enable DIV4 clock */
 		writel(0x1, priv->base + NSS_CC_UNIPHY_PORT2_TX_DIV4_CBCR);
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT2_TX_CMD_RCGR,
 				    NSS_CC_PORT2_TX_CMD_RCGR + 0x8, div, cdiv,
@@ -549,9 +589,10 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
-		/* Configure DIV4 for XGMII2GMII bridge */
+		/* DIV4 (XGMII2GMII bridge): GMAC mode needs it, XGMAC mode does not */
+		if (!nss_port_clk_needs_div4(gmac_type))
+			div4 = 0;
 		writel(div4, priv->base + NSS_CC_UNIPHY_PORT3_RX_DIV4_DIV_CDIVR);
-		/* Enable DIV4 clock */
 		writel(0x1, priv->base + NSS_CC_UNIPHY_PORT3_RX_DIV4_CBCR);
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT3_RX_CMD_RCGR,
 				    NSS_CC_PORT3_RX_CMD_RCGR + 0x8, div, cdiv,
@@ -561,9 +602,10 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
-		/* Configure DIV4 for XGMII2GMII bridge */
+		/* DIV4 (XGMII2GMII bridge): GMAC mode needs it, XGMAC mode does not */
+		if (!nss_port_clk_needs_div4(gmac_type))
+			div4 = 0;
 		writel(div4, priv->base + NSS_CC_UNIPHY_PORT3_TX_DIV4_DIV_CDIVR);
-		/* Enable DIV4 clock */
 		writel(0x1, priv->base + NSS_CC_UNIPHY_PORT3_TX_DIV4_CBCR);
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT3_TX_CMD_RCGR,
 				    NSS_CC_PORT3_TX_CMD_RCGR + 0x8, div, cdiv,
@@ -575,6 +617,7 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
+
 		if (parent_rate > 0) {
 			clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_RX_CMD_RCGR,
 					    NSS_CC_PORT4_RX_CMD_RCGR + 0x8, div, cdiv,
@@ -616,9 +659,10 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
-		/* Configure DIV4 for XGMII2GMII bridge */
+		/* DIV4 (XGMII2GMII bridge): GMAC mode needs it, XGMAC mode does not */
+		if (!nss_port_clk_needs_div4(gmac_type))
+			div4 = 0;
 		writel(div4, priv->base + NSS_CC_UNIPHY_PORT4_RX_DIV4_DIV_CDIVR);
-		/* Enable DIV4 clock */
 		writel(0x1, priv->base + NSS_CC_UNIPHY_PORT4_RX_DIV4_CBCR);
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_RX_CMD_RCGR,
 				    NSS_CC_PORT4_RX_CMD_RCGR + 0x8, div, cdiv,
@@ -628,9 +672,10 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
-		/* Configure DIV4 for XGMII2GMII bridge */
+		/* DIV4 (XGMII2GMII bridge): GMAC mode needs it, XGMAC mode does not */
+		if (!nss_port_clk_needs_div4(gmac_type))
+			div4 = 0;
 		writel(div4, priv->base + NSS_CC_UNIPHY_PORT4_TX_DIV4_DIV_CDIVR);
-		/* Enable DIV4 clock */
 		writel(0x1, priv->base + NSS_CC_UNIPHY_PORT4_TX_DIV4_CBCR);
 		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT4_TX_CMD_RCGR,
 				    NSS_CC_PORT4_TX_CMD_RCGR + 0x8, div, cdiv,
