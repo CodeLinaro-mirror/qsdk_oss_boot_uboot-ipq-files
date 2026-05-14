@@ -1411,14 +1411,17 @@ int ipq_vsi_setup(phys_addr_t reg_base, u32 vsi, uint32_t port_bitmap)
 
 /*
  * Configure PPE scheduler tables
+ *
+ * The sch_config array index is based on tm_tick_mode read from DTS
+ * (property "tm_tick_mode", default 0 if not specified).
  */
 void ipq_ppe_schedular_config(struct ppe_info *ppe)
 {
-	u32 *sch_config_values = &sch_config[ppe->tdm_mode].val[0];
+	u32 *sch_config_values = &sch_config[ppe->tm_tick_mode].val[0];
 
 	reg_write(ppe->base + ppe_table_addrs->psch_tdm_cfg_tbl.base_addr +
 		  ppe_table_addrs->psch_tdm_cfg_tbl.offset,
-		  sch_config[ppe->tdm_mode].depth,
+		  sch_config[ppe->tm_tick_mode].depth,
 		  ppe_table_addrs->psch_tdm_cfg_tbl.increment,
 		  sch_config_values);
 }
@@ -5781,6 +5784,7 @@ static int ipq_eth_ofdata_to_platdata(struct udevice *dev)
 	priv->uniphy_50mhz = dev_read_u32_default(dev, "50mhz", 0);
 
 	ppe->tdm_mode = dev_read_u32_default(dev, "tdm_mode", 0);
+	ppe->tm_tick_mode = dev_read_u32_default(dev, "tm_tick_mode", 0);
 	ppe->no_reg = dev_read_u32_default(dev, "no_tdm_reg", 0);
 	ppe->tm = dev_read_bool(dev, "tdm_tm_support");
 	ppe->bridge_mode = dev_read_bool(dev, "bridge_mode");
