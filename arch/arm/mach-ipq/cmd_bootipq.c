@@ -390,7 +390,7 @@ int set_bootargs(void)
 
 #elif CONFIG_IPQ_NAND
 	if (env_get("fsbootargs") == NULL)
-#ifdef CONFIG_BOOTCONFIG_V3
+#if defined(CONFIG_BOOTCONFIG_V3) || defined(CONFIG_FAILSAFE_V2)
 		ret = env_set("fsbootargs", boot_info.active_bank == 1 ?
 				IPQ_NAND_BOOTARGS_ALT :
 				IPQ_NAND_BOOTARGS_PRI);
@@ -1648,13 +1648,18 @@ static int do_bootipq(struct cmd_tbl *cmdtp, int flag, int argc,
 		}
 	}
 
-#ifndef CONFIG_FAILSAFE
+#if !defined(CONFIG_FAILSAFE) && !defined(CONFIG_FAILSAFE_V2)
 	if (ret == ROOTFS_AUTH_FAILED || ret == KERNEL_AUTH_FAILED)
 		BUG();
 #endif
 
 #ifdef CONFIG_WDT
 	if (ret) {
+#ifdef CONFIG_FAILSAFE_V2
+		struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
+		if (sfi && sfi->smembootmode == BOOT_MODE_FORCE_INACTIVE)
+			printf("force inactive failed\n");
+#endif
 		printf("Invoking watchdog!!!\n");
 		ipq_wdt_expire();
 	}

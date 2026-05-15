@@ -295,6 +295,15 @@ void reset_cpu(void)
 #else
 void reset_cpu(void)
 {
+#ifdef CONFIG_FAILSAFE_V2
+	if (!ipq_iscrashed()) {
+		u32 val = readl(IMEM_ADDR_BOOTCNT);
+		u16 cnt = val & 0xFFFF;
+
+		if (cnt)
+			writel((val & 0xFFFF0000) | (cnt - 1), IMEM_ADDR_BOOTCNT);
+	}
+#endif
 #ifdef CONFIG_IPQ_CRASHDUMP
 	reset_crashdump(RESET_V2);
 #endif

@@ -609,6 +609,18 @@ void ipq_board_read_smem_info(struct ipq_board_info *pbdinfo)
 				0,
 				sizeof(pbdinfo->ipq_socinfo));
 
+#ifdef CONFIG_FAILSAFE_V2
+	ipq_smem_get_item((void *)&smem_info->smembootset,
+				SMEM_BOOT_SET_INFO,
+				0,
+				sizeof(uint32_t));
+
+	ipq_smem_get_item((void *)&smem_info->smembootmode,
+				SMEM_FAILSAFE_BOOT_MODE,
+				0,
+				sizeof(uint32_t));
+#endif
+
 	switch (smem_info->flash_type) {
 	case SMEM_BOOT_MMC_FLASH:
 	case SMEM_BOOT_NORGPT_FLASH:
@@ -1291,12 +1303,13 @@ __weak int ipq_read_bootconfig(struct ipq_smem_flash_info *sfi)
 
 static int ipq_get_rootfs_active_partition(struct ipq_smem_flash_info *sfi)
 {
-	struct ipq_smem_bootconfig_info *binfo = NULL;
 	/*
 	 * set primary 0 as initial
 	 */
 	int ret = 0;
 
+#ifndef CONFIG_FAILSAFE_V2
+	struct ipq_smem_bootconfig_info *binfo = NULL;
 	if (sfi != NULL)
 		binfo = sfi->binfo;
 
@@ -1305,6 +1318,7 @@ static int ipq_get_rootfs_active_partition(struct ipq_smem_flash_info *sfi)
 	 */
 	if (binfo == NULL)
 		return ret;
+#endif
 
 #if defined(CONFIG_BOOTCONFIG_V2)
 	for (int i = 0; i < binfo->numaltpart; i++) {
@@ -1337,6 +1351,11 @@ static int ipq_get_rootfs_active_partition(struct ipq_smem_flash_info *sfi)
 		ret = !ret;
 
 	printf("Booting [SET %s]\n", ret ? "B" : "A");
+#endif
+
+#ifdef CONFIG_FAILSAFE_V2
+	ret = sfi->smembootset;
+	printf("Booting from [%s]\n", ret ? "inactive" : "active" );
 #endif
 
 	return ret;
@@ -2118,7 +2137,9 @@ int write_tcsr_boot_misc_reg(uint32_t mask, uint32_t value)
 
 	return ret;
 }
+
 #ifdef CONFIG_BOOT_BANK_FIXUP
+#ifdef CONFIG_BOOT_BANK_IMEM_READ
 /* ipq_get_booted_bank_info() - Get booted bank string from IMEM
  * @bank_str: Output pointer for bank string
  *
@@ -2155,6 +2176,67 @@ int ipq_get_booted_bank_info(const char **booted_bank_str)
 
 	return 0;
 }
+#elif CONFIG_BOOT_BANK_SMEM_READ
+/* ipq_get_booted_bank_info() - Get booted bank string from SMEM
+ * @bank_str: Output pointer for bank string
+ *
+ * Reads booted bank enum from SMEM and converts to string:
+ * - 0 -> "active"
+ * - 1 -> "inactive"
+ * - 2 -> "inactive,forced"
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+int ipq_get_booted_bank_info(const char **booted_bank_str)
+{
+	static const char *booted_bank[] = {
+		[BOOT_MODE_NORMAL] = "active",
+		[BOOT_MODE_SPL_INACTIVE] = "inactive",
+		[BOOT_MODE_FORCE_INACTIVE] = "inactive,forced",
+	};
+	uint32_t booted_bank_value;
+
+	size_t size;
+	struct udevice *dev;
+	uint32_t smembootset, smembootmode;
+	uint32_t *readsmemval = NULL;
+
+	uclass_get_device(UCLASS_SMEM, 0, &dev);
+	readsmemval = smem_get(dev, -1, SMEM_FAILSAFE_BOOT_MODE, &size);
+	if (IS_ERR_OR_NULL(readsmemval)) {
+		debug("Failed to get SMEM item: SMEM_FAILSAFE_BOOT_MODE\n");
+		return -ENODEV;
+	}
+	smembootmode = *readsmemval;
+
+	readsmemval = smem_get(dev, -1, SMEM_BOOT_SET_INFO, &size);
+	if (IS_ERR_OR_NULL(readsmemval)) {
+		debug("Failed to get SMEM item: SMEM_BOOT_SET_INFO\n");
+		return -ENODEV;
+	}
+	smembootset = *readsmemval;
+
+	if (!booted_bank_str)
+		return -EINVAL;
+
+	booted_bank_value = smembootset;
+
+	if (smembootmode == BOOT_MODE_FORCE_INACTIVE)
+		booted_bank_value = BOOT_MODE_FORCE_INACTIVE;
+
+	/* Validate enum value */
+	if (booted_bank_value < BOOT_MODE_NORMAL ||
+		booted_bank_value > BOOT_MODE_FORCE_INACTIVE) {
+		debug("Invalid booted bank value: %u\n", booted_bank_value);
+		return -EINVAL;
+	}
+
+	*booted_bank_str = booted_bank[booted_bank_value];
+	debug("Booted bank: %s (enum=%u)\n", *booted_bank_str, booted_bank_value);
+
+	return 0;
+}
+#endif
 
 /* append_partlabel_bootargs() - Append bootargs with partlabel information
  * @bootargs: bootargs to append the partlabel information
@@ -2592,7 +2674,7 @@ int ipq_init_ubi_part(void)
 	}
 
 	if(ubi == NULL) {
-#ifdef CONFIG_BOOTCONFIG_V3
+#if defined(CONFIG_BOOTCONFIG_V3) || defined(CONFIG_FAILSAFE_V2)
 		if (gd->board_type & ACTIVE_BOOT_SET) {
 			offset = sfi->rootfs_1.offset;
 			part_size = sfi->rootfs_1.size;

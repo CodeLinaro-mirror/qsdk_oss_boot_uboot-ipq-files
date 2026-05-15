@@ -1112,10 +1112,12 @@ uint32_t get_nand_block_size(uint8_t dev_id);
 #endif
 
 #ifdef CONFIG_BOOT_BANK_FIXUP
+#ifdef CONFIG_BOOT_BANK_IMEM_READ
 /* Booted bank enum values from SBL */
 #define BOOTED_BANK_ACTIVE          1
 #define BOOTED_BANK_INACTIVE        2
 #define BOOTED_BANK_INACTIVE_FORCED 3
+#endif
 #endif
 
 #ifdef CONFIG_CB_CALIB
