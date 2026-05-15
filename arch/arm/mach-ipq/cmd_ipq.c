@@ -656,7 +656,11 @@ static int do_fuseipq(struct cmd_tbl *cmdtp, int flag, int argc,
 {
 	int ret = CMD_RET_FAILURE;
 	uint32_t fuse_status = 0;
+#ifdef CONFIG_OPTEE
+	uint64_t fuse_bin_addr = 0;
+#else
 	uint32_t fuse_bin_addr = 0;
+#endif
 #if defined (CONFIG_FUSEIPQ_V1) || (CONFIG_FUSEIPQ_V3)
 	uint64_t fuse_bin_size = 0;
 #endif
