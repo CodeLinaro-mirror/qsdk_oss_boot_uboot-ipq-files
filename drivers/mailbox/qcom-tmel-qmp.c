@@ -658,6 +658,10 @@ static void tmel_check_for_irq(struct tmel *tdev)
 		timeout--;
 	} while (timeout);
 
+	if (timeout == 0) {
+		printf("IRQ check timeout reached, no interrupt received\n");
+	}
+
 	tmel_qmp_rx(tdev);
 }
 
@@ -1055,6 +1059,15 @@ static int tmel_qmp_send(struct mbox_chan *chan, const void *data)
 			struct tmel_get_prng *prng_msg = (struct tmel_get_prng *)tmsg->msg;
 
 			ret = tmelcom_prng_get(tdev, prng_msg);
+		}
+		break;
+#endif
+#ifdef CONFIG_IPQ_SOFTSKU_SUPPORT
+	case TMEL_MSG_UID_LICENSE_INSTALL:
+	case TMEL_MSG_UID_LICENSE_ENFORCE_HW:
+		{
+			/* License messages are handled via generic IPC mechanism */
+			ret = tmel_process_request(tdev, tmsg->msg_id, tmsg->msg, tmsg->size);
 		}
 		break;
 #endif

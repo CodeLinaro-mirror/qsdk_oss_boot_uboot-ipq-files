@@ -173,6 +173,30 @@ struct fuse_payload {
 #define IPQ_SPL_DDR2_MEM_SIZE          0x380000000UL
 #endif
 
-#endif
+#endif /* CONFIG_SPL */
 
-#endif
+#ifdef CONFIG_IPQ_SOFTSKU_SUPPORT
+/*
+ * IPQ_HW_FEATURES - SoftSKU HW feature IDs enforced on IPQ9650.
+ * Only list the features actually supported by this SoC.
+ * Consumed by arch/arm/mach-ipq/ipq_license.c to build the features[] array.
+ */
+#define IPQ_HW_FEATURES \
+	{SOFTSKU_USB3_INTERFACE_FEATURE_ID,          false}, \
+	{SOFTSKU_APPS_CPU_FREQUENCY_FEATURE_ID,      false}, \
+	{SOFTSKU_AUDIO_INTERFACE_FEATURE_ID,         false}, \
+	{SOFTSKU_NSS_CRYPTO_ENGINE_FEATURE_ID,       false}, \
+	{SOFTSKU_PCIE_RC0_FEATURE_ID,                false}, \
+	{SOFTSKU_PCIE_RC1_FEATURE_ID,                false}, \
+	{SOFTSKU_PCIE_RC2_FEATURE_ID,                false}, \
+	{SOFTSKU_PCIE_RC3_FEATURE_ID,                false}, \
+	{SOFTSKU_UNIPHY0_FEATURE_ID,                 false}, \
+	{SOFTSKU_APSS_PERF_CPU_FREQ_FEATURE_ID,      false}, \
+	{SOFTSKU_NSP_FEATURE_ID,                     false}, \
+	{SOFTSKU_PCIE_RC4_FEATURE_ID,                false}, \
+	{SOFTSKU_PRIME_SUBSYSTEM_FEATURE_ID,         false}, \
+	{SOFTSKU_UNIPHY1_SPEED_CONFIG_FEATURE_ID,    false}, \
+	{SOFTSKU_UNIPHY2_SPEED_CONFIG_FEATURE_ID,    false},
+#endif /* CONFIG_IPQ_SOFTSKU_SUPPORT */
+
+#endif /* __IPQ9650_H__ */

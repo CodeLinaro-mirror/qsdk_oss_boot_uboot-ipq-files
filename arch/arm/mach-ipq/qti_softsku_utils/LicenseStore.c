@@ -4,6 +4,7 @@
  */
 
 #include <stdlib.h>
+#include <stdio.h>
 #include "include/LicenseStore.h"
 #include "include/MDTable.h"
 #include "include/object.h"
@@ -120,7 +121,7 @@ static int readMetaFromBuffer(UsefulInputBuf* in, LicenseMeta* meta) {
     temp.identifier.len = UsefulInputBuf_GetUint32(in);
     const uint8_t* ident =
         (const uint8_t*)(UsefulInputBuf_GetBytes(in, temp.identifier.len));
-    if (!ident) {
+    if (!ident || !temp.identifier.len) {
         return -1;
     }
     temp.identifier.ptr = ident;
@@ -216,8 +217,8 @@ int32_t install_license (void* visitor,
     UsefulInputBuf_Init(&in, meta);
     readMetaFromBuffer(&in, &lic_meta);
 
-    // If attach_len is present, only install licenses with attach_num == 1
-    if (lic_meta.attach_len && lic_meta.attach_num != 1) {
+    // If attach_len is present, only install licenses with attach_num == 0
+    if (lic_meta.attach_len && lic_meta.attach_num != 0) {
         return LICENSE_STORE_SUCCESS;
     }
 
