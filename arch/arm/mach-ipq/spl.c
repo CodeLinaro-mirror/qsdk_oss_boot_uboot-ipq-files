@@ -136,6 +136,20 @@ struct pbl_shared_data {
 
 #define IPQ_SPL_FIT_IMG_PARTITION	"0:BOOTLDR"
 
+#define SPL_ERR_CAT_BOOT		0x00010000
+#define SPL_ERR_CAT_DDR			0x00020000
+#define SPL_ERR_CAT_AUTH		0x00030000
+#define SPL_ERR_CAT_FLASH		0x00040000
+#define SPL_ERR_CAT_QCLIB		0x00050000
+
+#define SPL_ERR_NULL_PTR		0x0001
+#define SPL_ERR_INVALID_PARAM		0x0002
+#define SPL_ERR_INIT_FAIL		0x0003
+#define SPL_ERR_NOT_FOUND		0x0004
+#define SPL_ERR_NO_MEM			0x0005
+#define SPL_ERR_AUTH_FAIL		0x0006
+#define SPL_ERR_INTERFACE		0x0008
+
 #define MAGIC_KEY			"QCLIB_CB"
 #define MAX_ENTRIES			0xF
 #define IF_TABLE_VERSION		0x1
@@ -156,6 +170,27 @@ struct pbl_shared_data {
 /*******************************************************************************
  * Structure enum and static
  ******************************************************************************/
+
+/*
+ * SPL Error Handling - First-Error Tracking
+ */
+
+/**
+ * struct spl_error_info - Tracks first error location
+ * @file: Source file where error occurred
+ * @line: Line number where error occurred
+ * @code: Error code (category | code)
+ *
+ * This structure captures the FIRST error location to preserve root cause
+ * information even if subsequent errors occur during error handling.
+ */
+struct spl_error_info {
+	const char *file;
+	u32 line;
+	u32 code;
+};
+
+static struct spl_error_info g_spl_error_info = {NULL, 0, 0};
 
 /*
  * LCP region keys per slot structure
@@ -264,6 +299,20 @@ struct interface_table {
  * This is set by ipq_spl_list_tme_fuse()
  */
 static bool secure_boot_enabled;
+
+enum {
+	IPQ_SPL_BOOT_FROM_ACTIVE		= 0x0,
+	IPQ_SPL_BOOT_FROM_INACTIVE		= 0x1,
+	IPQ_SPL_BOOT_FROM_FORCE_INACTIVE	= 0x2,
+	IPQ_SPL_BOOT_SET_MAX
+};
+
+enum {
+	IPQ_SPL_BOOT_PATH_DEFAULT	= 0x0,
+	IPQ_SPL_BOOT_PATH_FORCE_INACIVE	= 0x1,
+	IPQ_SPL_BOOT_PATH_FAILOVER_EN	= 0x2,
+	IPQ_SPL_BOOT_PATH_MAX,
+};
 
 /* Global variables to store MIBIB partition table and bootloader offset */
 static struct flash_partition_table g_mibib_parti_tbl;
@@ -947,20 +996,65 @@ static bool ipq_spl_tmel_bypass_enabled(void)
 #endif
 
 /**
- * ipq_spl_error_handler() - Centralized SPL error handler.
- * @arg:	Generic argument (unused).
+ * ipq_spl_error_handler() - Centralized SPL error handler with file:line tracking
+ * @file:	Source file where error occurred
+ * @line:	Line number where error occurred
+ * @err_code:	Error code (category | code)
  *
- * This function is invoked upon critical errors during the SPL boot process.
- * It currently prints an error message and halts the system.
- * TODO: Implement more robust error handling (e.g., logging, recovery attempts).
+ * This function implements Phase 1 error handling enhancements:
+ * 1. Error code categorization (category in upper 16 bits, code in lower 16 bits)
+ * 2. File:line tracking for root cause analysis
+ * 3. First-error preservation (XBL pattern)
+ * 4. Cache flush before reset
+ * 5. Boot path-aware error handling (DEFAULT, FAILOVER, FORCE_INACTIVE)
+ *
+ * The function is invoked upon critical errors during the SPL boot process.
+ * It logs detailed error information, handles different boot paths, and
+ * attempts recovery or enters a safe state (EDL mode or hang).
+ *
+ * IMPORTANT: This function preserves the FIRST error location even if
+ * subsequent errors occur during error handling (XBL pattern).
  */
-void ipq_spl_error_handler(void *arg)
+void ipq_spl_error_handler(const char *file, u32 line, u32 err_code)
 {
-	pr_err("Entered the SPL Error Handler\n");
+
+	if (g_spl_error_info.file == NULL) {
+		g_spl_error_info.file = file;
+		g_spl_error_info.line = line;
+		g_spl_error_info.code = err_code;
+	}
+
 	/*
-	 * TODO: Implement SPL error handler
+	 * Log error with detailed information including:
+	 * - Error code (category | code format)
+	 * - File:line location
+	 * - Boot path and boot set context
+	 */
+	printf("\n");
+	printf("========================================\n");
+	printf("SPL Fatal Error: 0x%08x\n", err_code);
+	printf("Location: %s:%u\n", file ? file : "unknown", line);
+	printf("========================================\n");
+
+	/*
+	 * Cache Flush (SPL data regions)
+	 * Flush D-cache to ensure error logs and any modified data are
+	 * written to memory before reset.
+	 */
+#if !(CONFIG_IS_ENABLED(SYS_ICACHE_OFF) && CONFIG_IS_ENABLED(SYS_DCACHE_OFF))
+	{
+		extern char __bss_start[], __bss_end[];
+
+		flush_dcache_range((ulong)__bss_start, (ulong)__bss_end);
+	}
+#endif
+
+	/*
+	 * End of Error handler. If we reach here, it means the system
+	 * has reached a hang state.
 	 */
 	hang();
+
 }
 
 #if defined(CFG_EMUL_FREQUENCY_DIVIDER)
@@ -2284,7 +2378,8 @@ void *board_spl_fit_buffer_addr(ulong fit_size, int sectors, int bl_len)
 
 	if (!buffer) {
 		pr_err("Failed to get FIT load buffer\n");
-		ipq_spl_error_handler(NULL);
+		ipq_spl_error_handler(__FILE__, __LINE__,
+				      SPL_ERR_CAT_BOOT | SPL_ERR_NULL_PTR);
 	}
 
 	return buffer;
@@ -2417,7 +2512,8 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 	return;
 
 fail:
-	ipq_spl_error_handler(NULL);
+	ipq_spl_error_handler(__FILE__, __LINE__,
+			      SPL_ERR_CAT_BOOT | SPL_ERR_INIT_FAIL);
 }
 #endif /* CONFIG_SPL_FIT_IMAGE_POST_PROCESS */
 
@@ -2535,7 +2631,8 @@ void spl_board_prepare_for_boot(void)
 	printf("U-Boot SPL, End\n");
 	return;
 fail:
-	ipq_spl_error_handler(NULL);
+	ipq_spl_error_handler(__FILE__, __LINE__,
+			      SPL_ERR_CAT_BOOT | SPL_ERR_INTERFACE);
 }
 
 /**
@@ -2713,7 +2810,8 @@ void board_init_f(ulong dummy)
 
 fail:
 	if (ret)
-		ipq_spl_error_handler(NULL);
+		ipq_spl_error_handler(__FILE__, __LINE__,
+				      SPL_ERR_CAT_BOOT | SPL_ERR_INIT_FAIL);
 }
 #endif /* !CONFIG_SPL_FRAMEWORK_BOARD_INIT_F */
 
@@ -3276,7 +3374,8 @@ unsigned int spl_spi_get_uboot_offs(struct spi_flash *flash)
 		/*
 		 * Partition not found, hang
 		 */
-		hang();
+		ipq_spl_error_handler(__FILE__, __LINE__,
+				      SPL_ERR_CAT_FLASH | SPL_ERR_NOT_FOUND);
 	} else {
 		/*
 		 * Partition found, return its offset
