@@ -326,6 +326,8 @@ static int qce2204_port_gmac_link_up(struct phy_device *phydev, int port,
 	u32 reg, val;
 	int ret;
 
+	if (port == 5)
+		return 0;
 	reg = QCE2204_PPE_GMAC_ADDR(port);
 
 	/* Set GMAC speed */
@@ -428,7 +430,8 @@ static int qce2204_port_xgmac_link_up(struct phy_device *phydev, int port,
 		return -EINVAL;
 	}
 
-	val = QCE2204_PPE_XGMAC_SPEED_10000;
+	if (interface == PHY_INTERFACE_MODE_10GBASER || port == 0)
+		val = QCE2204_PPE_XGMAC_SPEED_10000;
 	val |= QCE2204_PPE_XGMAC_TXEN;
 	ret = qce2204_ppe_update_bits(phydev, reg + QCE2204_PPE_XGMAC_TX_CONFIG_ADDR,
 				      QCE2204_PPE_XGMAC_SPEED_M | QCE2204_PPE_XGMAC_TXEN,
@@ -462,8 +465,6 @@ static int qce2204_port_xgmac_link_up(struct phy_device *phydev, int port,
 	debug("QCE2204: Port %d XGMAC link up: speed=%d, duplex=%s, tx_pause=%d, rx_pause=%d\n",
 	      port, speed, duplex == DUPLEX_FULL ? "full" : "half", tx_pause, rx_pause);
 
-	/* PORT5 CST_STATE set as 0 */
-	ret = qce2204_ppe_update_bits(phydev, 0x07540114, 0x3, 0);
 	return 0;
 }
 
@@ -507,11 +508,28 @@ int qce2204_phylink_mac_link_up(struct phy_device *phydev, int port,
 	if (mac_type == QCE2204_PORT_MAC_TYPE_GMAC) {
 		ret = qce2204_port_gmac_link_up(phydev, port, speed, duplex,
 						tx_pause, rx_pause);
+
 	} else {
 		ret = qce2204_port_gmac_link_up(phydev, port, speed, duplex,
 						tx_pause, rx_pause);
-		ret = qce2204_port_xgmac_link_up(phydev, 0, interface, speed,
+		if (ret) {
+			debug("QCE2204: Failed to configure GMAC"
+				" port %d link up: %d\n", port, ret);
+			return ret;
+		}
+
+		ret = qce2204_port_xgmac_link_up(phydev,
+						 0,
+						 interface, speed,
 						 duplex, tx_pause, rx_pause);
+
+		if (port == 5) {
+			ret = qce2204_port_xgmac_link_up(phydev,
+							 5,
+							 interface, speed,
+							 duplex, tx_pause, rx_pause);
+		}
+
 	}
 
 	if (ret) {

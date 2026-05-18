@@ -69,7 +69,9 @@
 #define GCC_MAC4_RX_DIV_CDIVR			0x1EC
 #define GCC_MAC4_SRDS1_CH3_XGMII_TX_DIV_CDIVR	0x1F4
 #define GCC_MAC5_TX_DIV_CDIVR			0x218
+/* MAC5 SRDS0 XGMII uses the same divider as the main TX clock (no separate CDIVR) */
 #define GCC_MAC5_RX_DIV_CDIVR			0x238
+/* MAC5 SRDS0 XGMII uses the same divider as the main RX clock (no separate CDIVR) */
 #define GCC_SLEEP_DIV_CDIVR			0x2C4
 #define GCC_DEBUG_DIV_CDIVR			0x2D8
 
@@ -314,11 +316,22 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 		*cdiv = 9;
 		*xgmii_dev = 9;
 		break;
+	case CLK_12_5_MHZ:
+		*cdiv = 3;
+		break;
 	case CLK_25_MHZ:
 		*div = 0x18;
 		break;
+	case CLK_78_125_MHZ:
+		*div = 1;
+		*cdiv = 3;
+		break;
 	case CLK_125_MHZ:
 		*div = 4;
+		break;
+	case CLK_156_25_MHZ:
+		*div = 1;
+		*cdiv = 1;
 		break;
 	case CLK_312_5_MHZ:
 		*div = 1;
@@ -455,6 +468,46 @@ static ulong qce2204_set_rate(struct clk *clk, ulong rate)
 	case QCE2204_NSSCC_SRDS1_SYS_CLK:
 		qce2204_clk_rcg_set_rate_v2(priv, GCC_SYS_CMD_RCGR, 0, 3, 0, 0);
 		break;
+
+	/*
+	 * MAC5 TX/RX clock rate — used for port 5 USXGMII (external QCA81xx PHY).
+	 * Source 7 (TX) / 6 (RX) selects the SRDS path; the SRDS0/SRDS1 MUX_SEL
+	 * bits in register 0x300 (set by qce1204_set_srds_mux) determine which
+	 * SerDes is actually routed to MAC5.
+	 */
+	/*
+	 * MAC5 TX/RX clock rate — port 5 USXGMII (external QCA81xx PHY).
+	 *
+	 * Linux kernel reference (nsscc-qce2204.c):
+	 *   nsscc_mac5_tx_clk_src: cmd_rcgr=0x210
+	 *   nsscc_mac5_tx_div_clk_src: reg=0x218  ← single divider for both GMII and XGMII
+	 *   nsscc_mac5_tx_srds0_ch0_xgmii_clk: gate=0x228 (parent = srds0_xgmii_tx_mux_sel
+	 *     which selects nsscc_mac5_tx_div_clk_src — NO separate XGMII CDIVR)
+	 *
+	 * Source 7 (TX) / 6 (RX) selects the SRDS path in the RCG.
+	 * The SRDS0/SRDS1 MUX_SEL bits in register 0x300 (set by qce1204_set_srds_mux)
+	 * determine which SerDes is actually routed to MAC5.
+	 */
+	case QCE2204_NSSCC_MAC5_TX_CLK:
+	case QCE2204_NSSCC_MAC5_TX_SRDS0_CLK:
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv,
+						&xgmii_dev);
+		qce2204_clk_rcg_set_rate_v2(priv, GCC_MAC5_TX_CMD_RCGR,
+					    GCC_MAC5_TX_DIV_CDIVR, div, cdiv,
+					    rate == CLK_12_5_MHZ ? 0 : 2 << 8);
+		/* No separate XGMII CDIVR for MAC5 SRDS0 — XGMII uses same DIV (0x218) */
+		break;
+
+	case QCE2204_NSSCC_MAC5_RX_CLK:
+	case QCE2204_NSSCC_MAC5_RX_SRDS0_CLK:
+		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv,
+						&xgmii_dev);
+		qce2204_clk_rcg_set_rate_v2(priv, GCC_MAC5_RX_CMD_RCGR,
+					    GCC_MAC5_RX_DIV_CDIVR, div, cdiv,
+					    rate == CLK_12_5_MHZ ? 0 : 1 << 8);
+		/* No separate XGMII CDIVR for MAC5 SRDS0 — XGMII uses same DIV (0x238) */
+		break;
+
 	default:
 		return rate;
 	}

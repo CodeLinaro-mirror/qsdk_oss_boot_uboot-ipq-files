@@ -231,10 +231,12 @@ enum {
 
 /* Valid clock rates for QCE1204 */
 #define QCE1204_CLK_RATE_2P5M			2500000
+#define QCE1204_CLK_RATE_12P5M			12500000
 #define QCE1204_CLK_RATE_25M			25000000
 #define QCE1204_CLK_RATE_78P125M		78125000
 #define QCE1204_CLK_RATE_104M			104170000
 #define QCE1204_CLK_RATE_125M			125000000
+#define QCE1204_CLK_RATE_156P25M		156250000
 #define QCE1204_CLK_RATE_312P5M			312500000
 
 #define NSS_CC_EPHY_RX_MUX_SEL			0x39B00610
@@ -256,7 +258,7 @@ enum qce1204_clk_type {
 };
 
 #ifdef CONFIG_PHY_QCE_2204
-#define QCE1204_MAX_SWITCH_PORTS		4
+#define QCE1204_MAX_SWITCH_PORTS		5
 
 struct qce1204_switch_port {
 	int		 port_id;
@@ -265,12 +267,14 @@ struct qce1204_switch_port {
 	struct clk	 rx_clk;
 	struct reset_ctl tx_reset;
 	struct reset_ctl rx_reset;
+	struct phy_device *ext_phydev;
 	/* Cached link state — updated after each successful configuration */
 	int		 last_link;
 	int		 last_speed;
 	int		 last_duplex;
 	bool		 configured;
 	bool		 valid;
+	bool		 is_external;
 };
 
 static bool g_switch_ppe_initialized;
@@ -303,6 +307,17 @@ struct qce1204_shared_clk_data {
 	struct clk mac3_rx_clk;
 	struct clk mac4_tx_clk;
 	struct clk mac4_rx_clk;
+	/* MAC5 gate clocks for port 5 USXGMII (SRDS0) */
+	struct clk mac5_tx_clk;          /* QCE2204_NSSCC_MAC5_TX_CLK       0x220 */
+	struct clk mac5_rx_clk;          /* QCE2204_NSSCC_MAC5_RX_CLK       0x23c */
+	struct clk mac5_tx_xgmii_clk;    /* QCE2204_NSSCC_MAC5_TX_SRDS0_CH0_XGMII_CLK 0x228 */
+	struct clk mac5_rx_xgmii_clk;    /* QCE2204_NSSCC_MAC5_RX_SRDS0_CH0_XGMII_CLK 0x248 */
+	/* MAC5 SRDS0 channel resets for port 5 USXGMII (PCS_FUNC_TX/RX in Linux) */
+	struct reset_ctl mac5_tx_srds0_reset; /* QCE2204_NSSCC_MAC5_TX_SRDS0_ARES 0x224 bit2 */
+	struct reset_ctl mac5_rx_srds0_reset; /* QCE2204_NSSCC_MAC5_RX_SRDS0_ARES 0x244 bit2 */
+	/* MAC5 XGMII resets for port 5 USXGMII (XPCS_FUNC_XGMII_TX/RX in Linux) */
+	struct reset_ctl mac5_tx_xgmii_reset; /* QCE2204_NSSCC_MAC5_TX_SRDS0_CH0_XGMII_ARES 0x228 bit2 */
+	struct reset_ctl mac5_rx_xgmii_reset; /* QCE2204_NSSCC_MAC5_RX_SRDS0_CH0_XGMII_ARES 0x248 bit2 */
 	struct reset_ctl switch_btq_reset;
 	struct reset_ctl switch_cfg_reset;
 	struct reset_ctl switch_core_reset;
@@ -327,6 +342,10 @@ struct qce1204_shared_clk_data {
 	struct reset_ctl mac4_rx_reset;
 	struct reset_ctl mac5_tx_reset;
 	struct reset_ctl mac5_rx_reset;
+	/* SRDS0 (PCS0) clocks and resets for port 5 USXGMII */
+	struct clk srds0_sys_clk;
+	struct reset_ctl srds0_sys_reset;
+	struct reset_ctl srds0_xpcs_reset;
 };
 
 struct qce1204_clk_data {
@@ -498,6 +517,51 @@ static int qce1204_pcs_modify_mmd(struct phy_device *phydev, int devad,
 
 	return ret;
 }
+
+#ifdef CONFIG_PHY_QCE_2204
+/* PCS0 (SRDS0) MMD accessors — mirror of PCS1 wrappers, using PCS0_ADDR_OFFSET */
+static int qce1204_pcs0_read_mmd(struct phy_device *phydev, int devad, int regnum)
+{
+	struct qce1204_priv *priv = phydev->priv;
+	u32 saved_addr = phydev->addr;
+	int ret;
+
+	phydev->addr = priv->base_phy_addr + PCS0_ADDR_OFFSET;
+	ret = phy_read(phydev, devad, regnum);
+	phydev->addr = saved_addr;
+	return ret;
+}
+
+static int qce1204_pcs0_write_mmd(struct phy_device *phydev, int devad, int regnum, u16 val)
+{
+	struct qce1204_priv *priv = phydev->priv;
+	u32 saved_addr = phydev->addr;
+	int ret;
+
+	phydev->addr = priv->base_phy_addr + PCS0_ADDR_OFFSET;
+	ret = phy_write(phydev, devad, regnum, val);
+	phydev->addr = saved_addr;
+	return ret;
+}
+
+static int qce1204_pcs0_modify_mmd(struct phy_device *phydev, int devad,
+				   int regnum, u16 mask, u16 set)
+{
+	struct qce1204_priv *priv = phydev->priv;
+	u32 saved_addr = phydev->addr;
+	int new, ret;
+
+	phydev->addr = priv->base_phy_addr + PCS0_ADDR_OFFSET;
+	ret = phy_read(phydev, devad, regnum);
+	if (ret >= 0) {
+		new = (ret & ~mask) | set;
+		ret = phy_write(phydev, devad, regnum, new);
+	}
+	phydev->addr = saved_addr;
+	return ret;
+
+}
+#endif
 
 static int qce1204_pcs_mmd_get(struct phy_device *phydev, int channel)
 {
@@ -1149,6 +1213,20 @@ static int qce1204_phy_shared_clk_init(struct phy_device *phydev,
 	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
 		return ret;
 
+	/* SRDS0 (PCS0) clocks and resets for port 5 USXGMII — optional */
+	ret = qce1204_clk_get_from_node(phydev, phy_node,
+					&clk_data->srds0_sys_clk, "srds0_sys_clk");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+	ret = qce1204_reset_get_from_node(phydev, phy_node,
+					  &clk_data->srds0_sys_reset, "srds0_sys_reset");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+	ret = qce1204_reset_get_from_node(phydev, phy_node,
+					  &clk_data->srds0_xpcs_reset, "srds0_xpcs_reset");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
 	/*
 	 * Switch-level gate clocks (switch mode only).
 	 * These are optional - absent in PHY mode DTS, present in switch mode DTS.
@@ -1234,6 +1312,53 @@ static int qce1204_phy_shared_clk_init(struct phy_device *phydev,
 	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
 		return ret;
 
+	/* MAC5 gate clocks for port 5 USXGMII (SRDS0) */
+	ret = qce1204_clk_get_from_node(phydev, phy_node,
+					&clk_data->mac5_tx_clk, "mac5_tx_clk");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	ret = qce1204_clk_get_from_node(phydev, phy_node,
+					&clk_data->mac5_rx_clk, "mac5_rx_clk");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	ret = qce1204_clk_get_from_node(phydev, phy_node,
+					&clk_data->mac5_tx_xgmii_clk, "mac5_tx_xgmii_clk");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	ret = qce1204_clk_get_from_node(phydev, phy_node,
+					&clk_data->mac5_rx_xgmii_clk, "mac5_rx_xgmii_clk");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	/* MAC5 SRDS0 channel resets (PCS_FUNC_TX/RX in Linux pcs-qce2204) */
+	ret = qce1204_reset_get_from_node(phydev, phy_node,
+					  &clk_data->mac5_tx_srds0_reset,
+					  "mac5_tx_srds0_reset");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	ret = qce1204_reset_get_from_node(phydev, phy_node,
+					  &clk_data->mac5_rx_srds0_reset,
+					  "mac5_rx_srds0_reset");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	/* MAC5 XGMII resets for port 5 USXGMII (XPCS_FUNC_XGMII_TX/RX in Linux) */
+	ret = qce1204_reset_get_from_node(phydev, phy_node,
+					  &clk_data->mac5_tx_xgmii_reset,
+					  "mac5_tx_xgmii_reset");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
+	ret = qce1204_reset_get_from_node(phydev, phy_node,
+					  &clk_data->mac5_rx_xgmii_reset,
+					  "mac5_rx_xgmii_reset");
+	if (ret < 0 && ret != -ENODATA && ret != -ENODEV)
+		return ret;
+
 	return 0;
 }
 
@@ -1310,6 +1435,18 @@ static int qce1204_switch_clks_enable(struct phy_device *phydev)
 	if (ret < 0)
 		return ret;
 	ret = qce1204_clk_enable(phydev, &clk_data->mac4_rx_clk, true);
+	if (ret < 0)
+		return ret;
+	ret = qce1204_clk_enable(phydev, &clk_data->mac5_tx_clk, true);
+	if (ret < 0)
+		return ret;
+	ret = qce1204_clk_enable(phydev, &clk_data->mac5_rx_clk, true);
+	if (ret < 0)
+		return ret;
+	ret = qce1204_clk_enable(phydev, &clk_data->mac5_tx_xgmii_clk, true);
+	if (ret < 0)
+		return ret;
+	ret = qce1204_clk_enable(phydev, &clk_data->mac5_rx_xgmii_clk, true);
 	if (ret < 0)
 		return ret;
 
@@ -1665,9 +1802,11 @@ static int qce1204_switch_ports_parse(struct phy_device *phydev,
 			continue;
 		}
 
-		priv->sw_ports[port_id - 1].port_id  = (int)port_id;
-		priv->sw_ports[port_id - 1].phy_addr = (int)phy_addr;
-		priv->sw_ports[port_id - 1].valid    = true;
+		priv->sw_ports[port_id - 1].port_id     = (int)port_id;
+		priv->sw_ports[port_id - 1].phy_addr    = (int)phy_addr;
+		priv->sw_ports[port_id - 1].valid       = true;
+		priv->sw_ports[port_id - 1].is_external =
+			ofnode_read_bool(port_node, "is_external");
 
 		ret = qce1204_clk_get_from_node(phydev, port_node,
 						&priv->sw_ports[port_id - 1].tx_clk,
@@ -1805,6 +1944,146 @@ static int qce1204_switch_port_speed_fixup(struct phy_device *phydev,
 	bool clk_en = (link != 0);
 	int ret;
 
+	/*
+	 * Port 5 (external QCA81xx PHY via USXGMII/PCS0):
+	 *   DTS clocks: tx_clk = MAC5_TX_SRDS0_CLK (0x224)
+	 *               rx_clk = MAC5_RX_SRDS0_CLK (0x244)
+	 *               sys_clk = SRDS0_SYS_CLK (0x280, already enabled at probe)
+	 *
+	 * The QUSGMII PCS1 channel clocks (channels 1-4) are NOT used.
+	 * Instead: set rate on MAC5 SRDS0 TX/RX clocks, enable them, then
+	 * reset them.  The SRDS0 SerDes was already initialised by
+	 * qce1204_pcs0_usxgmii_mode_set() during probe.
+	 */
+	if (port->is_external) {
+		unsigned long clk_rate, uxsgmii_speed_cfg = 0;
+
+		/* Determine MAC5 SRDS0 clock rate from link speed */
+		switch (speed) {
+		case SPEED_10000:
+			uxsgmii_speed_cfg = (BIT(13) | BIT(6));
+			clk_rate = QCE1204_CLK_RATE_312P5M;
+			break;
+		case SPEED_5000:
+			uxsgmii_speed_cfg = (BIT(13) | BIT(5));
+			clk_rate = QCE1204_CLK_RATE_156P25M;
+			break;
+		case SPEED_2500:
+			uxsgmii_speed_cfg = BIT(5);
+			clk_rate = QCE1204_CLK_RATE_78P125M;
+			break;
+		case SPEED_1000:
+			uxsgmii_speed_cfg = BIT(6);
+			clk_rate = QCE1204_CLK_RATE_125M;
+			break;
+		case SPEED_100:
+			uxsgmii_speed_cfg = BIT(13);
+			clk_rate = QCE1204_CLK_RATE_12P5M;
+			break;
+		case SPEED_10:
+			uxsgmii_speed_cfg = 0;
+			clk_rate = QCE1204_CLK_RATE_2P5M;
+			break;
+		default:
+			clk_rate = QCE1204_CLK_RATE_125M;
+			break;
+		}
+
+		/* Set MAC5 TX/RX SRDS0 clock rates when link is up */
+		if (link) {
+			if (port->tx_clk.dev) {
+				ret = clk_set_rate(&port->tx_clk, clk_rate);
+				if (ret < 0)
+					debug("QCE1204: Port %d: MAC5 TX SRDS0 set_rate failed: %d\n",
+					      port->port_id, ret);
+			}
+			if (port->rx_clk.dev) {
+				ret = clk_set_rate(&port->rx_clk, clk_rate);
+				if (ret < 0)
+					debug("QCE1204: Port %d: MAC5 RX SRDS0 set_rate failed: %d\n",
+					      port->port_id, ret);
+			}
+			mdelay(10);
+		}
+
+		/*
+		 * Enable/disable MAC5 parent gate clocks and XGMII gate clocks.
+		 * Clock hierarchy:
+		 *   MAC5_TX_CLK (0x220) → MAC5_TX_SRDS0_CLK (0x224) → port->tx_clk
+		 *   MAC5_TX_SRDS0_CH0_XGMII_CLK (0x228) — XGMII path
+		 *   MAC5_RX_CLK (0x23c) → MAC5_RX_SRDS0_CLK (0x244) → port->rx_clk
+		 *   MAC5_RX_SRDS0_CH0_XGMII_CLK (0x248) — XGMII path
+		 * All parent gates must be enabled before the child gates.
+		 */
+		{
+			struct qce1204_shared_clk_data *sclk =
+				qce1204_get_shared_clk_data(phydev);
+
+			if (sclk) {
+				qce1204_clk_enable(phydev, &sclk->mac5_tx_clk, clk_en);
+				qce1204_clk_enable(phydev, &sclk->mac5_tx_xgmii_clk, clk_en);
+				qce1204_clk_enable(phydev, &sclk->mac5_rx_clk, clk_en);
+				qce1204_clk_enable(phydev, &sclk->mac5_rx_xgmii_clk, clk_en);
+			}
+		}
+
+		/* Enable or disable MAC5 TX/RX SRDS0 clocks */
+		ret = qce1204_switch_port_clk_set(phydev, port, clk_en);
+		if (ret < 0)
+			return ret;
+
+		mdelay(10);
+
+		/* Reset MAC5 TX/RX SRDS0 clocks */
+		ret = qce1204_switch_port_clk_reset(phydev, port);
+		if (ret < 0)
+			return ret;
+
+		{
+			struct qce1204_shared_clk_data *sclk2 =
+				qce1204_get_shared_clk_data(phydev);
+
+			if (sclk2) {
+				qce1204_reset_assert(phydev,
+						     &sclk2->mac5_tx_xgmii_reset, true);
+				qce1204_reset_assert(phydev,
+						     &sclk2->mac5_rx_xgmii_reset, true);
+				mdelay(1);
+				qce1204_reset_assert(phydev,
+						     &sclk2->mac5_tx_xgmii_reset, false);
+				qce1204_reset_assert(phydev,
+						     &sclk2->mac5_rx_xgmii_reset, false);
+			}
+		}
+
+		debug("QCE1204: Port %d (external): MAC5 SRDS0 clk fixup done (speed=%d link=%d rate=%lu)\n",
+		      port->port_id, speed, link, clk_rate);
+
+		ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_VEND2,
+					      QCE1204_PCS_MMD_MII_CTRL,
+					      (BIT(13) | BIT(6) | BIT(5) | BIT(8)),
+					      (uxsgmii_speed_cfg | BIT(8)));
+		if (ret < 0)
+			return ret;
+		ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PCS,
+					      QCE1204_PCS_MMD3_DIG_CTRL1,
+					      BIT(10), BIT(10));
+		if (ret < 0)
+			return ret;
+
+		/* Enable or disable PCS channel clocks (GMII + XGMII TX/RX) */
+		ret = qce1204_pcs_clk_set(phydev, 1, clk_en);
+		if (ret < 0)
+			return ret;
+
+		/* Reset PCS channel clocks (assert then deassert) */
+		ret = qce1204_pcs_clk_reset(phydev, 1);
+		if (ret < 0)
+			return ret;
+
+		return 0;
+	}
+
 	/* Set PCS clock rate for this channel when link is up */
 	if (link) {
 		ret = qce1204_pcs_speed_clock_set(phydev, channel, speed);
@@ -1887,12 +2166,30 @@ static int qce1204_switch_configure_ports(struct phy_device *phydev)
 		if (!port->valid)
 			continue;
 
-		ret = qce1204_switch_port_read_link(phydev, port->phy_addr,
-						    &link, &speed, &duplex);
-		if (ret < 0) {
-			debug("QCE1204: Port %d: failed to read link: %d\n",
-			      port->port_id, ret);
-			continue;
+		/*
+		 * For external PHY ports (QCA81xx on port 5): use the standard
+		 * PHY framework (phy_startup) if the PHY was successfully
+		 * connected via phy_connect().  Fall back to direct register
+		 * read if phy_connect() was not called or failed.
+		 */
+		if (port->is_external && port->ext_phydev) {
+			ret = phy_startup(port->ext_phydev);
+			if (ret < 0) {
+				debug("QCE1204: Port %d: phy_startup failed: %d\n",
+				      port->port_id, ret);
+				continue;
+			}
+			link   = port->ext_phydev->link;
+			speed  = port->ext_phydev->speed;
+			duplex = port->ext_phydev->duplex;
+		} else {
+			ret = qce1204_switch_port_read_link(phydev, port->phy_addr,
+							    &link, &speed, &duplex);
+			if (ret < 0) {
+				debug("QCE1204: Port %d: failed to read link: %d\n",
+				      port->port_id, ret);
+				continue;
+			}
 		}
 
 		printf("PORT%d %s Speed :%d %s duplex\n",
@@ -1930,7 +2227,8 @@ static int qce1204_switch_configure_ports(struct phy_device *phydev)
 
 		ret = qce2204_port_link_up(phydev, port->port_id,
 					   speed, duplex,
-					   phydev->interface,
+					   port->is_external ? PHY_INTERFACE_MODE_USXGMII
+							     : phydev->interface,
 					   true, true);
 		if (ret < 0) {
 			debug("QCE1204: Port %d: qce2204_port_link_up failed: %d\n",
@@ -2317,6 +2615,243 @@ static int qce1204_pcs_8023az_enable(struct phy_device *phydev)
 
 	return 0;
 }
+
+#ifdef CONFIG_PHY_QCE_2204
+/**
+ * qce1204_pcs0_usxgmii_mode_set - Initialize PCS0 (SRDS0) for USXGMII
+ * @phydev: QCE1204 master PHY device
+ *
+ * Initializes the PCS0 SerDes for USXGMII to connect port 5 to an external
+ * QCA81xx PHY. Follows the same sequence as PCS1 QUSGMII init but targets
+ * PCS0 (MDIO addr = base + 4) and enables USXGMII AN in MMD31.
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+static int qce1204_pcs0_usxgmii_mode_set(struct phy_device *phydev)
+{
+	struct qce1204_shared_clk_data *clk_data;
+	u16 pcs_data;
+	u32 retries = 100;
+	int eee_cap, ret;
+
+	debug("QCE1204: PCS0 USXGMII init starting (port 5 external PHY)\n");
+
+	clk_data = qce1204_get_shared_clk_data(phydev);
+
+	/* Enable SRDS0 sys clock if available */
+	if (clk_data && clk_data->srds0_sys_clk.dev) {
+		clk_set_rate(&clk_data->srds0_sys_clk, 25000000);
+		ret = clk_enable(&clk_data->srds0_sys_clk);
+		if (ret < 0)
+			debug("QCE1204: PCS0 srds0_sys_clk enable failed: %d\n", ret);
+	}
+
+	/* Assert then deassert SRDS0 sys reset */
+	if (clk_data && clk_data->srds0_sys_reset.dev) {
+		reset_assert(&clk_data->srds0_sys_reset);
+		mdelay(20);
+		reset_deassert(&clk_data->srds0_sys_reset);
+	}
+
+	/* Uniphy MSLDO settings */
+	ret = qce1204_pcs0_write_mmd(phydev, MDIO_MMD_PMAPMD, QCE1204_PCS_MMD1_MS_LDO0, 0xcd);
+	if (ret < 0) {
+		debug("QCE1204: PCS0 LDO0 write failed: %d\n", ret);
+		return ret;
+	}
+	ret = qce1204_pcs0_write_mmd(phydev, MDIO_MMD_PMAPMD, QCE1204_PCS_MMD1_MS_LDO1, 0x7f6d);
+	if (ret < 0) {
+		debug("QCE1204: PCS0 LDO1 write failed: %d\n", ret);
+		return ret;
+	}
+
+	/* Assert SRDS0 XPCS reset */
+	if (clk_data && clk_data->srds0_xpcs_reset.dev)
+		reset_assert(&clk_data->srds0_xpcs_reset);
+
+	/* Select XPCS mode */
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PMAPMD,
+				      QCE1204_PCS_MMD1_MODE_CTRL,
+				      0x1f00, QCE1204_PCS_MMD1_XPCS_MODE);
+	if (ret < 0) {
+		debug("QCE1204: PCS0 XPCS mode select failed: %d\n", ret);
+		return ret;
+	}
+
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PMAPMD,
+				      0x182 /* QP_USXG_OPTION3 */,
+				      GENMASK(4, 1), GENMASK(4, 1));
+	if (ret < 0)
+		return ret;
+
+	if (clk_data) {
+		qce1204_reset_assert(phydev, &clk_data->mac5_rx_srds0_reset, true);
+		qce1204_reset_assert(phydev, &clk_data->mac5_tx_srds0_reset, true);
+		qce1204_reset_assert(phydev, &clk_data->mac5_rx_xgmii_reset, true);
+		qce1204_reset_assert(phydev, &clk_data->mac5_tx_xgmii_reset, true);
+	}
+	mdelay(1);
+	if (clk_data) {
+		qce1204_reset_assert(phydev, &clk_data->mac5_rx_srds0_reset, false);
+		qce1204_reset_assert(phydev, &clk_data->mac5_tx_srds0_reset, false);
+		qce1204_reset_assert(phydev, &clk_data->mac5_rx_xgmii_reset, false);
+		qce1204_reset_assert(phydev, &clk_data->mac5_tx_xgmii_reset, false);
+	}
+
+	/* Wait for PCS0 calibration */
+	retries = 100;
+	while (retries--) {
+		mdelay(1);
+		pcs_data = qce1204_pcs0_read_mmd(phydev, MDIO_MMD_PMAPMD,
+						 QCE1204_PCS_MMD1_CALIBRATION4);
+		if (pcs_data & QCE1204_PCS_MMD1_CALIBRATION_DONE) {
+			debug("QCE1204: PCS0 calibration done (reg=0x%x)\n", pcs_data);
+			break;
+		}
+	}
+	if (!retries)
+		debug("QCE1204: PCS0 calibration timeout (non-fatal)\n");
+
+	/* Enable SSC clock */
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PMAPMD,
+				      QCE1204_PCS_MMD1_SSC_CLK,
+				      QCE1204_PCS_MMD1_SSC_CLK_EN,
+				      QCE1204_PCS_MMD1_SSC_CLK_EN);
+	if (ret < 0)
+		return ret;
+
+	/* Enable SSCG */
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PMAPMD,
+				      QCE1204_PCS_MMD1_CDA_CONTROL1,
+				      0x8, QCE1204_PCS_MMD1_SSCG_ENABLE);
+	if (ret < 0)
+		return ret;
+
+	/* De-assert SRDS0 XPCS reset */
+	if (clk_data && clk_data->srds0_xpcs_reset.dev)
+		reset_deassert(&clk_data->srds0_xpcs_reset);
+
+	/* Set 10GBASE-R mode */
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PCS,
+				      QCE1204_PCS_MMD3_PCS_CTRL2,
+				      0xf, QCE1204_PCS_MMD3_PCS_TYPE_10GBASE_R);
+	if (ret < 0)
+		return ret;
+
+	/* Wait for 10G Base-R link up on PCS0 */
+	retries = 100;
+	while (retries--) {
+		mdelay(1);
+		pcs_data = qce1204_pcs0_read_mmd(phydev, MDIO_MMD_PCS,
+						 QCE1204_PCS_MMD3_10GBASE_PCS_STATUS1);
+		if (pcs_data & QCE1204_PCS_MMD3_10GBASE_UP) {
+			debug("QCE1204: PCS0 10G Base-R link up\n");
+			break;
+		}
+	}
+	if (!retries)
+		debug("QCE1204: PCS0 10G Base-R link up timeout (non-fatal)\n");
+
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PCS,
+				      QCE1204_PCS_MMD3_DIG_CTRL1,
+				      BIT(9), BIT(9));
+	if (ret < 0)
+		return ret;
+
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_VEND2,
+				      QCE1204_PCS_MMD_MII_CTRL,
+				      (BIT(13) | BIT(6) | BIT(5) | BIT(8)),
+				      (BIT(13) | BIT(6) | BIT(8)));
+	if (ret < 0)
+		return ret;
+
+	/* XPCS soft reset on PCS0 */
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PCS,
+				      QCE1204_PCS_MMD3_DIG_CTRL1,
+				      0x8000, QCE1204_PCS_MMD3_XPCS_SOFT_RESET);
+	if (ret < 0)
+		return ret;
+
+	/* Wait for soft reset to clear */
+	retries = 100;
+	while (retries--) {
+		mdelay(1);
+		pcs_data = qce1204_pcs0_read_mmd(phydev, MDIO_MMD_PCS,
+						 QCE1204_PCS_MMD3_DIG_CTRL1);
+		if (!(pcs_data & QCE1204_PCS_MMD3_XPCS_SOFT_RESET))
+			break;
+	}
+
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_VEND2,
+				      QCE1204_PCS_MMD_MII_AN_INT_MSK, /* 0x8001 */
+				      (BIT(8) | BIT(3)), BIT(8));
+	if (ret < 0)
+		return ret;
+
+	ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_VEND2,
+				      QCE1204_PCS_MMD_MII_CTRL,
+				      QCE1204_PCS_MMD_MII_AN_ENABLE,
+				      QCE1204_PCS_MMD_MII_AN_ENABLE);
+	if (ret < 0) {
+		debug("QCE1204: PCS0 USXGMII AN enable failed: %d\n", ret);
+		return ret;
+	}
+
+	eee_cap = qce1204_pcs0_read_mmd(phydev, MDIO_MMD_PCS,
+					QCE1204_PCS_MMD3_AN_LP_BASE_ABL2);
+
+	if (eee_cap >= 0 && (eee_cap & QCE1204_PCS_MMD3_XPCS_EEE_CAP)) {
+		debug("QCE1204: PCS0 XPCS EEE capability detected, enabling\n");
+
+		/* LCT_RES[11:8] = 0x2, clear SIGN[6] */
+		ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PCS,
+					      QCE1204_PCS_MMD3_EEE_MODE_CTRL,
+					      GENMASK(11, 8) | BIT(6),
+					      FIELD_PREP(GENMASK(11, 8), 0x2));
+		if (ret < 0)
+			return ret;
+
+		/* TSL_RES[5:0] = 0x7 */
+		ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PCS,
+					      QCE1204_PCS_MMD3_EEE_TX_TIMER,
+					      GENMASK(5, 0),
+					      FIELD_PREP(GENMASK(5, 0), 0x7));
+		if (ret < 0)
+			return ret;
+
+		/* 100US_RES[7:0] = 0xa6 */
+		ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PCS,
+					      QCE1204_PCS_MMD3_EEE_RX_TIMER,
+					      GENMASK(7, 0),
+					      FIELD_PREP(GENMASK(7, 0), 0xa6));
+		if (ret < 0)
+			return ret;
+
+		/* Enable EEE LPI: TRANS_RX_LPI_EN[8] + TRANS_LPI_EN[0] */
+		ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PCS,
+					      QCE1204_PCS_MMD3_EEE_MODE_CTRL1,
+					      QCE1204_PCS_MMD3_EEE_TRANS_LPI_MODE |
+					      QCE1204_PCS_MMD3_EEE_TRANS_RX_LPI_MODE,
+					      QCE1204_PCS_MMD3_EEE_TRANS_LPI_MODE |
+					      QCE1204_PCS_MMD3_EEE_TRANS_RX_LPI_MODE);
+		if (ret < 0)
+			return ret;
+
+		/* Enable TX/RX LPI pattern: LRX_EN[1] + LTX_EN[0] */
+		ret = qce1204_pcs0_modify_mmd(phydev, MDIO_MMD_PCS,
+					      QCE1204_PCS_MMD3_EEE_MODE_CTRL,
+					      QCE1204_PCS_MMD3_EEE_EN,
+					      QCE1204_PCS_MMD3_EEE_EN);
+		if (ret < 0)
+			return ret;
+
+		debug("QCE1204: PCS0 XPCS EEE enabled\n");
+	}
+
+	debug("QCE1204: PCS0 USXGMII init completed for port 5\n");
+	return 0;
+}
+#endif /* CONFIG_PHY_QCE_2204 */
 
 static int qce1204_pcs_qusgmii_mode_set_internal(struct phy_device *phydev)
 {
@@ -2820,6 +3355,10 @@ static int qce1204_config(struct phy_device *phydev)
 			if (ret < 0)
 				return ret;
 
+			ret = qce1204_set_srds_mux(phydev);
+			if (ret < 0)
+				return ret;
+
 			ret = qce1204_pcs_sys_reset(phydev);
 			if (ret < 0)
 				return ret;
@@ -2829,6 +3368,10 @@ static int qce1204_config(struct phy_device *phydev)
 				return ret;
 
 			ret = qce1204_ahb_clk_set_rate(phydev, QCE1204_CLK_RATE_104M);
+			if (ret < 0)
+				return ret;
+
+			ret = qce1204_pcs_qusgmii_mode_set_internal(phydev);
 			if (ret < 0)
 				return ret;
 
@@ -2855,9 +3398,48 @@ static int qce1204_config(struct phy_device *phydev)
 			if (ret < 0)
 				return ret;
 
-			ret = qce1204_pcs_qusgmii_mode_set_internal(phydev);
-			if (ret < 0)
-				return ret;
+			/*
+			 * Connect the external QCA81xx PHY on port 5 via the
+			 * standard U-Boot PHY framework so its probe()/config()
+			 * hooks run (USXGMII SerDes init on the PHY side).
+			 * Must happen after PCS0 is up so the PHY can train.
+			 */
+			{
+				struct qce1204_switch_port *p5 =
+					&priv->sw_ports[QCE1204_MAX_SWITCH_PORTS - 1];
+
+				if (p5 && p5->valid && p5->is_external && !p5->ext_phydev) {
+					/* Initialize PCS0 (SRDS0) for port 5 USXGMII */
+					ret = qce1204_pcs0_usxgmii_mode_set(phydev);
+					if (ret < 0) {
+						dev_warn(phydev->dev,
+							 "QCE1204: PCS0 USXGMII init failed: %d (port 5 may not work)\n",
+							 ret);
+						/* Non-fatal: continue without port 5 */
+					}
+
+					p5->ext_phydev = phy_connect(
+						phydev->bus,
+						p5->phy_addr,
+						phydev->dev,
+						PHY_INTERFACE_MODE_USXGMII);
+					if (p5->ext_phydev) {
+						ret = phy_config(p5->ext_phydev);
+						if (ret < 0)
+							dev_warn(phydev->dev,
+								 "QCE1204: Port 5 phy_config failed: %d\n",
+								 ret);
+						else
+							dev_dbg(phydev->dev,
+								"QCE1204: Port 5 QCA81xx probed OK (addr=%d)\n",
+								p5->phy_addr);
+					} else {
+						dev_warn(phydev->dev,
+							 "QCE1204: Port 5 phy_connect failed (addr=%d)\n",
+							 p5->phy_addr);
+					}
+				}
+			}
 
 			ret = qce2204_phy_stats_enable(phydev);
 			if (ret < 0)
@@ -2921,6 +3503,9 @@ static int qce1204_config(struct phy_device *phydev)
 		memcpy(&local_phydev, phydev, sizeof(struct phy_device));
 		for (i = 0; i < QCE1204_MAX_SWITCH_PORTS; i++) {
 			if (!priv->sw_ports[i].valid)
+				continue;
+			/* External PHY ports (QCA81xx) are handled via phy_config() */
+			if (priv->sw_ports[i].is_external)
 				continue;
 			local_phydev.addr = priv->sw_ports[i].phy_addr;
 			ret = phy_modify(&local_phydev, MDIO_MMD_VEND2,

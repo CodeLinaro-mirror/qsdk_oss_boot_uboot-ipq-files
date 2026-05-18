@@ -31,6 +31,10 @@
 #define QCE2204_PPE_SWITCH_ID_GET_REV_ID(x)             FIELD_GET(QCE2204_PPE_SWITCH_ID_REV_ID, x)
 #define QCE2204_PPE_SWITCH_ID_GET_DEVICE_ID(x)          FIELD_GET(QCE2204_PPE_SWITCH_ID_DEV_ID, x)
 
+#define QCE2204_PPE_SWITCH_NSS_SWITCH_PORT_MUX_CTRL	0x10
+#define	QCE2204_SWITCH_PORT0_MAC_SEL			BIT(8)
+#define	QCE2204_SWITCH_PORT5_MAC_SEL			BIT(12)
+
 /* PPE scheduler configurations for buffer manager block */
 #define QCE2204_PPE_BM_SCH_CTRL_ADDR                    0x0000B000
 #define QCE2204_PPE_BM_SCH_CTRL_INC                     4
@@ -111,6 +115,7 @@
 
 /* PPE queue counters enable/disable control */
 #define QCE2204_PPE_EG_BRIDGE_CONFIG_ADDR               0x00600084
+#define QCE2204_PPE_EG_BRIDGE_CONFIG_PKT_L2_EDIT_EN     BIT(1)
 #define QCE2204_PPE_EG_BRIDGE_CONFIG_QUEUE_CNT_EN       BIT(2)
 
 /* PPE service code configuration on egress */
@@ -359,6 +364,8 @@
 #define QCE2204_PPE_BM_SHARED_GROUP_CFG_ENTRIES         4
 #define QCE2204_PPE_BM_SHARED_GROUP_CFG_INC             0x4
 #define QCE2204_PPE_BM_SHARED_GROUP_CFG_SHARED_LIMIT    GENMASK(12, 0)
+
+#define QCE2204_PPE_SWITCH_NSS_SWITCH_BM_PORT_FC_MODE	0x800100
 
 #define QCE2204_PPE_BM_PORT_FC_CFG_TBL_ADDR             0x00801000
 #define QCE2204_PPE_BM_PORT_FC_CFG_TBL_ENTRIES          6
@@ -1566,6 +1573,15 @@ static int qce2204_ppe_config_bm(struct phy_device *phydev)
 		}
 	}
 
+	for(int port = 0; port <= 5; port++ ) {
+		ret = qce2204_ppe_update_bits(phydev,
+					QCE2204_PPE_SWITCH_NSS_SWITCH_BM_PORT_FC_MODE  +
+					(4 * port ),
+					BIT(0),
+					BIT(0));
+		if (ret)
+			goto bm_config_fail;
+	}
 	return 0;
 
 bm_config_fail:
@@ -1578,7 +1594,7 @@ static int qce2204_ppe_config_qm(struct phy_device *phydev)
 {
 	const struct qce2204_ppe_qm_queue_config *queue_cfg;
 	int ret, i, queue_id, queue_cfg_count;
-	u32 reg, multicast_queue_cfg[4]; /* 16 bytes */
+	u32 reg, multicast_queue_cfg[3]; /* 12 bytes */
 	u32 unicast_queue_cfg[8];        /* 32 bytes */
 	u32 group_cfg[4];                /* 16 bytes */
 
@@ -1973,22 +1989,26 @@ static int qce2204_ppe_rss_hash_init(struct phy_device *phydev)
 /* Initialize bridge (from Linux) */
 static int qce2204_ppe_bridge_init(struct phy_device *phydev)
 {
-	u32 reg, mask, port_cfg[4], vsi_cfg[2];
+	const u8 user_ports_mask = 0x3e; /* BIT(1..5) */
+	const u8 cpu_ports_mask  = 0x01; /* BIT(0)    */
+	u32 reg, mask, bridge_cfg, port_cfg[4], vsi_cfg[2];
 	int ret, i;
 
 	for (i = 0; i < QCE2204_NUM_PORTS; i++) {
-		/* Configure CPU port0: Enable Bridge TX, Disable FDB learning */
-		if (i == 0) {
-			mask = QCE2204_PPE_PORT_BRIDGE_TXMAC_EN;
-			ret = qce2204_ppe_update_bits(phydev,
-						      QCE2204_PPE_PORT_BRIDGE_CTRL_ADDR + (i * 4),
-						      mask,
-						      QCE2204_PPE_PORT_BRIDGE_TXMAC_EN);
-			if (ret)
-				return ret;
-			continue;
-		}
+		reg = QCE2204_PPE_PORT_BRIDGE_CTRL_ADDR + QCE2204_PPE_PORT_BRIDGE_CTRL_INC * i;
+		bridge_cfg = (i == 0) ?
+			FIELD_PREP(QCE2204_PPE_PORT_BRIDGE_ISOL_BITMAP, user_ports_mask) :
+			FIELD_PREP(QCE2204_PPE_PORT_BRIDGE_ISOL_BITMAP,
+				   (user_ports_mask & ~BIT(i)) | cpu_ports_mask);
+		bridge_cfg |= QCE2204_PPE_PORT_BRIDGE_TXMAC_EN;
+		mask = QCE2204_PPE_PORT_BRIDGE_ISOL_BITMAP | QCE2204_PPE_PORT_BRIDGE_TXMAC_EN;
+		ret = qce2204_ppe_update_bits(phydev, reg, mask, bridge_cfg);
+		if (ret)
+			return ret;
+
 		/* Enable invalid VSI forwarding for physical ports to CPU */
+		if (i == 0)
+			continue;
 
 		reg = QCE2204_PPE_L2_VP_PORT_TBL_ADDR + QCE2204_PPE_L2_VP_PORT_TBL_INC * i;
 		ret = qce2204_ppe_bulk_read(phydev, reg,
@@ -1996,6 +2016,7 @@ static int qce2204_ppe_bridge_init(struct phy_device *phydev)
 		if (ret)
 			return ret;
 
+		QCE2204_PPE_L2_PORT_SET_INVALID_VSI_FWD_EN(port_cfg, true);
 		QCE2204_PPE_L2_PORT_SET_DST_INFO(port_cfg, 0);
 
 		ret = qce2204_ppe_bulk_write(phydev, reg,
@@ -2027,7 +2048,8 @@ static int qce2204_ppe_bridge_init(struct phy_device *phydev)
 			return ret;
 	}
 
-	return 0;
+	return qce2204_ppe_set_bits(phydev, QCE2204_PPE_EG_BRIDGE_CONFIG_ADDR,
+				    QCE2204_PPE_EG_BRIDGE_CONFIG_PKT_L2_EDIT_EN);
 }
 
 /**
@@ -2107,7 +2129,7 @@ int qce2204_setup_none_tag_vsi(struct phy_device *phydev)
 	struct qce2204_ppe_port_vsi_cfg port_vsi_cfg = {};
 	struct qce2204_ppe_vsi_member_cfg vsi_member_cfg = {};
 	u32 cpu_ports_mask = BIT(QCE2204_CPU_PORT_ID);
-	u32 user_ports_mask = 0x1f; /* Ports 1-5 */
+	u32 user_ports_mask = 0x3e; /* Ports 1-5 */
 	int port, ret;
 
 	debug("QCE2204: Setting up none tag VSI\n");
@@ -2204,7 +2226,10 @@ int qce2204_ppe_hw_init(struct phy_device *phydev)
 	      (unsigned long)QCE2204_PPE_SWITCH_ID_GET_DEVICE_ID(switch_id),
 	      (unsigned long)QCE2204_PPE_SWITCH_ID_GET_REV_ID(switch_id));
 
-	ret = qce2204_ppe_write(phydev, 0x10, 0x100);
+	ret = qce2204_ppe_write(phydev,
+				QCE2204_PPE_SWITCH_NSS_SWITCH_PORT_MUX_CTRL,
+				QCE2204_SWITCH_PORT0_MAC_SEL |
+				QCE2204_SWITCH_PORT5_MAC_SEL);
 
 	if (ret)
 		return ret;
