@@ -720,6 +720,45 @@ void lowlevel_init(void)
 	 */
 }
 
+static void enable_sec_wdog(u32 timeout_ms)
+{
+	u32 bark_cnt;
+	u32 bite_cnt;
+
+	bark_cnt = ((timeout_ms - 1) * WDT_SLEEP_CLK_HZ) / 1000;
+	bite_cnt = (timeout_ms * WDT_SLEEP_CLK_HZ) / 1000;
+
+	/* Configure watchdog in secure mode */
+	writel(0x0, WDT2_BASE_ADDR + WDT_SECURE);
+
+	/* Disable watchdog before configuration */
+	writel(0x0, WDT2_BASE_ADDR + WDT_EN);
+
+	/* Reset/pet watchdog */
+	writel(WDT_RESET_BIT, WDT2_BASE_ADDR + WDT_RST);
+
+	/* Program bark and bite time */
+	writel(bark_cnt, WDT2_BASE_ADDR + WDT_BARK_TIME);
+	writel(bite_cnt, WDT2_BASE_ADDR + WDT_BITE_TIME);
+
+	/* Enable watchdog */
+	writel(WDT_ENABLE_BIT, WDT2_BASE_ADDR + WDT_EN);
+}
+
+/*
+ * disable_sec_wdog() - Disable secure watchdog timer
+ */
+static void disable_sec_wdog(void)
+{
+	writel(0x0, WDT2_BASE_ADDR + WDT_SECURE);
+
+	/* Disable watchdog */
+	writel(0x0, WDT2_BASE_ADDR + WDT_EN);
+
+	/* Clear/reset watchdog state */
+	writel(WDT_RESET_BIT, WDT2_BASE_ADDR + WDT_RST);
+}
+
 /**
  * save_boot_params() - Save PBL shared data and logs
  * @r0: First argument from PBL (shared data pointer)
@@ -2737,6 +2776,9 @@ void board_init_f(ulong dummy)
 	 * board/qualcomm/<ipqxxxx/ipqxxxx.c
 	 */
 	ipq_spl_board_early_init_f();
+
+	/* Initialize secure watchdog*/
+	enable_sec_wdog(WDT_DEFAULT_TIMEOUT_MS);
 
 #if CONFIG_IS_ENABLED(SYS_MALLOC_F)
 	ipq_spl_malloc_init_f();
