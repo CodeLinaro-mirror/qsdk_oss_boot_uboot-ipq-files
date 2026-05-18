@@ -119,7 +119,16 @@
 					<&qce2204_cc QCE2204_NSSCC_MAC4_TX_CLK>,
 					<&qce2204_cc QCE2204_NSSCC_MAC4_RX_CLK>,
 					<&qce2204_cc QCE2204_NSSCC_MAC5_TX_CLK>,
-					<&qce2204_cc QCE2204_NSSCC_MAC5_RX_CLK>;
+					<&qce2204_cc QCE2204_NSSCC_MAC5_RX_CLK>,
+					/* MAC5 SRDS0 XGMII gate clocks for port 5 */
+					<&qce2204_cc QCE2204_NSSCC_MAC5_TX_SRDS0_CH0_XGMII_CLK>,
+					<&qce2204_cc QCE2204_NSSCC_MAC5_RX_SRDS0_CH0_XGMII_CLK>,
+					/* SRDS0 (PCS0) clocks for port 5 USXGMII */
+					<&qce2204_cc QCE2204_NSSCC_SRDS0_SYS_CLK>,
+					<&qce2204_cc QCE2204_NSSCC_SRDS0_RX_MUX_SEL>,
+					<&qce2204_cc QCE2204_NSSCC_SRDS0_TX_MUX_SEL>,
+					<&qce2204_cc QCE2204_NSSCC_SRDS0_XGMII_RX_MUX_SEL>,
+					<&qce2204_cc QCE2204_NSSCC_SRDS0_XGMII_TX_MUX_SEL>;
 				clock-names = "pcs_sys_clk", "tx_clk", "rx_clk", "sys_clk",
 					"ch0_gmii_tx_clk",
 					"ch0_gmii_rx_clk",
@@ -154,7 +163,14 @@
 					"mac4_tx_clk",
 					"mac4_rx_clk",
 					"mac5_tx_clk",
-					"mac5_rx_clk";
+					"mac5_rx_clk",
+					"mac5_tx_xgmii_clk",
+					"mac5_rx_xgmii_clk",
+					"srds0_sys_clk",
+					"srds0_rx_mux",
+					"srds0_tx_mux",
+					"srds0_xgmii_rx_mux",
+					"srds0_xgmii_tx_mux";
 
 				/* Per-PHY resets */
 				resets = <&qce2204_cc QCE2204_NSSCC_SRDS1_SYS_ARES>,
@@ -202,7 +218,16 @@
 					<&qce2204_cc QCE2204_NSSCC_MAC4_TX_ARES>,
 					<&qce2204_cc QCE2204_NSSCC_MAC4_RX_ARES>,
 					<&qce2204_cc QCE2204_NSSCC_MAC5_TX_ARES>,
-					<&qce2204_cc QCE2204_NSSCC_MAC5_RX_ARES>;
+					<&qce2204_cc QCE2204_NSSCC_MAC5_RX_ARES>,
+					/* MAC5 SRDS0 channel resets (PCS_FUNC_TX/RX in Linux) */
+					<&qce2204_cc QCE2204_NSSCC_MAC5_TX_SRDS0_ARES>,
+					<&qce2204_cc QCE2204_NSSCC_MAC5_RX_SRDS0_ARES>,
+					/* MAC5 SRDS0 XGMII resets (XPCS_FUNC_XGMII_TX/RX in Linux) */
+					<&qce2204_cc QCE2204_NSSCC_MAC5_TX_SRDS0_CH0_XGMII_ARES>,
+					<&qce2204_cc QCE2204_NSSCC_MAC5_RX_SRDS0_CH0_XGMII_ARES>,
+					/* SRDS0 (PCS0) resets for port 5 USXGMII */
+					<&qce2204_cc QCE2204_NSSCC_SRDS0_SYS_ARES>,
+					<&qce2204_cc QCE2204_NSSCC_SRDS0_XPCS_ARES>;
 				reset-names = "pcs_sys_reset", "tx_reset", "rx_reset", "sys_reset",
 					"ch0_gmii_tx_reset",
 					"ch0_gmii_rx_reset",
@@ -244,7 +269,13 @@
 					"mac4_tx_reset",
 					"mac4_rx_reset",
 					"mac5_tx_reset",
-					"mac5_rx_reset";
+					"mac5_rx_reset",
+					"mac5_tx_srds0_reset",
+					"mac5_rx_srds0_reset",
+					"mac5_tx_xgmii_reset",
+					"mac5_rx_xgmii_reset",
+					"srds0_sys_reset",
+					"srds0_xpcs_reset";
 				ports {
 					#address-cells = <1>;
 					#size-cells = <0>;
@@ -257,7 +288,6 @@
 							<&qce2204_cc QCE2204_NSSCC_MAC1_GEPHY0_RX_CLK>,
 							<&qce2204_cc QCE2204_NSSCC_GEPHY1_SYS_CLK>;
 						clock-names = "tx_clk", "rx_clk", "sys_clk";
-
 
 						resets = <&qce2204_cc QCE2204_NSSCC_MAC1_GEPHY0_TX_ARES>,
 							<&qce2204_cc QCE2204_NSSCC_MAC1_GEPHY0_RX_ARES>,
@@ -273,7 +303,6 @@
 							<&qce2204_cc QCE2204_NSSCC_MAC2_GEPHY1_RX_CLK>,
 							<&qce2204_cc QCE2204_NSSCC_GEPHY1_SYS_CLK>;
 						clock-names = "tx_clk", "rx_clk", "sys_clk";
-
 
 						resets = <&qce2204_cc QCE2204_NSSCC_MAC2_GEPHY1_TX_ARES>,
 							<&qce2204_cc QCE2204_NSSCC_MAC2_GEPHY1_RX_ARES>,
@@ -308,6 +337,23 @@
 						resets = <&qce2204_cc QCE2204_NSSCC_MAC4_GEPHY3_TX_ARES>,
 							<&qce2204_cc QCE2204_NSSCC_MAC4_GEPHY3_RX_ARES>,
 							<&qce2204_cc QCE2204_NSSCC_GEPHY3_SYS_ARES>;
+						reset-names = "tx_reset", "rx_reset", "sys_reset";
+					};
+
+					/* Port 5: external QCA81xx PHY via USXGMII over SRDS0/PCS0 */
+					port5: port@5 {
+						port-id = <5>;
+						phy_addr = <12>;
+						label = "lan";
+						is_external;
+						clocks = <&qce2204_cc QCE2204_NSSCC_MAC5_TX_SRDS0_CLK>,
+							<&qce2204_cc QCE2204_NSSCC_MAC5_RX_SRDS0_CLK>,
+							<&qce2204_cc QCE2204_NSSCC_SRDS0_SYS_CLK>;
+						clock-names = "tx_clk", "rx_clk", "sys_clk";
+
+						resets = <&qce2204_cc QCE2204_NSSCC_MAC5_TX_SRDS0_ARES>,
+							<&qce2204_cc QCE2204_NSSCC_MAC5_RX_SRDS0_ARES>,
+							<&qce2204_cc QCE2204_NSSCC_SRDS0_SYS_ARES>;
 						reset-names = "tx_reset", "rx_reset", "sys_reset";
 					};
 				};
