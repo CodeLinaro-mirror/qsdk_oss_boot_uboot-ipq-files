@@ -99,6 +99,37 @@
 
 #define TMEL_MAX_FUSE_ADDR_SIZE 8
 
+/*
+ * All definitions for TME_MSG_QWES (QWES services)
+ */
+#define TME_MSG_QWES				0x0C
+
+#define TME_ACTION_QWES_INIT_ATTESTATION	0x00
+#define TME_ACTION_QWES_DEVICE_ATTESTATION	0x01
+#define TME_ACTION_QWES_DEVICE_PROVISIONING	0x02
+#define TME_ACTION_QWES_LICENSING_INSTALL	0x03
+#define TME_ACTION_QWES_LICENSING_CHECK		0x04
+#define TME_ACTION_QWES_LICENSING_ENFORCEHWFEATURES	0x05
+#define TME_ACTION_QWES_LICENSING_CHECKLICBUFFER	0x06
+
+/*
+ * UIDs for TME_MSG_QWES (following reference implementation)
+ */
+#define TME_MSG_UID_QWES_LICENSING_INSTALL \
+	TMEL_MSG_UID_CREATE(TME_MSG_QWES, TME_ACTION_QWES_LICENSING_INSTALL)
+
+#define TME_MSG_UID_QWES_LICENSING_ENFORCEHWFEATURES \
+	TMEL_MSG_UID_CREATE(TME_MSG_QWES, TME_ACTION_QWES_LICENSING_ENFORCEHWFEATURES)
+
+#define TME_MSG_UID_QWES_LICENSING_CHECK \
+	TMEL_MSG_UID_CREATE(TME_MSG_QWES, TME_ACTION_QWES_LICENSING_CHECK)
+
+/* Legacy aliases for backward compatibility */
+#define TMEL_MSG_UID_LICENSE_INSTALL		TME_MSG_UID_QWES_LICENSING_INSTALL
+#define TMEL_MSG_UID_LICENSE_ENFORCE_HW		TME_MSG_UID_QWES_LICENSING_ENFORCEHWFEATURES
+#define TMEL_MSG_UID_LICENSE_CHECK_FID		TME_MSG_UID_QWES_LICENSING_CHECK
+//#define TMEL_MSG_UID_LICENSE_LIMIT_DDR		TMEL_MSG_UID_CREATE(TME_MSG_QWES, 0x07)  /* Custom DDR limit action */
+
 struct tmel_qmp_msg {
 	void *msg;
 	u32 msg_id;
@@ -264,6 +295,31 @@ struct tmel_get_prng {
 	u32 length;
 	u32 pdata;
 } __packed;
+/* License install request structure (matches QwesLicensingInstallMsg_t) */
+struct tmel_license_install_req {
+	u32 status;
+	struct tmel_msg_param_type_buf_in license_buf;
+	u32 flags;  /* Changed from u64 to u32 to match reference */
+	struct tmel_msg_param_type_buf_out identifier_buf;
+} __packed;
+
+/* License install response structure */
+struct tmel_license_install_resp {
+	u32 status;
+	u64 flags;
+	u32 identifier_len;
+} __packed;
+
+/* HW feature enforcement request (matches QwesLicensingEnfHWFeaturesMsg_t) */
+struct tmel_license_enforce_hw_req {
+	u32 status;
+	struct tmel_msg_param_type_buf_in_out features_buf;
+	u32 hw_reg_version;
+} __packed;
+
+/* Forward declarations for license types - actual definitions in mach/ipq_license.h */
+struct sec_enforceHWFeatureId;
+struct sec_fid_info;
 
 void tmel_secboot_sec_free(void *ptr);
 int ipq_get_tmelcom_device(struct tmelcom **tmelcom_priv);
@@ -273,5 +329,14 @@ int ipq_check_secure_boot_tme_impl(void *params);
 int ipq_secure_auth_tme_impl(void *params);
 int ipq_get_tme_version_impl(void *params);
 int ipq_prng_get_tme_impl(void *params);
+
+#ifdef CONFIG_IPQ_SOFTSKU_SUPPORT
+int ipq_license_install_tme(void *license, size_t licenseLen,
+			     u64 *flags, u8 *identifier,
+			     size_t identifierLen, size_t *identifierLenOut);
+int ipq_license_enforce_hw_features_tme(struct sec_enforceHWFeatureId *fidBuff,
+					size_t fidBuffLen, size_t *fidBuffLenOut,
+					u32 *HWRegisterInterfaceVersion);
+#endif
 
 #endif  /* _LINUX_TMELCOM_QMP_H */

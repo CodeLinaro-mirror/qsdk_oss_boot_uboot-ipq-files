@@ -39,6 +39,7 @@
 #include <spl.h>
 #include <spl_load.h>
 #include <mach/ipq.h>
+#include <mach/ipq_license.h>
 #include <spi_flash.h>
 #include <mach/smem_info.h>
 #include <asm/io.h>
@@ -2749,6 +2750,29 @@ static int ipq_spl_loader_pre_ddr(u8 boot_device)
 	return ret;
 }
 
+/**
+ * spl_board_init() - Board-specific initialization for SPL.
+ *
+ * This function is called by the SPL framework to perform board-specific
+ * initialization. It initializes the license system if CONFIG_IPQ_SOFTSKU_SUPPORT
+ * is enabled.
+ */
+void spl_board_init(void)
+{
+#ifdef CONFIG_IPQ_SOFTSKU_SUPPORT
+	int ret;
+
+	/* Initialize license after qclib_entry call */
+	ret = ipq_spl_license_init(NULL);
+	if (ret) {
+		pr_err("Failed to initialize license (ret=%d)\n", ret);
+		return;
+	}
+
+	printf("License initialization completed successfully\n");
+#endif /* CONFIG_IPQ_SOFTSKU_SUPPORT */
+}
+
 #if !defined(CONFIG_SPL_FRAMEWORK_BOARD_INIT_F)
 /**
  * board_init_f() - Main entry point for SPL.
@@ -3134,28 +3158,46 @@ static struct flash_partition_table *nand_retrieve_mibib(void)
 }
 
 /**
- * find_bootldr_partition() - Find the BOOTLDR partition in the partition table
- * @parti_ptr:	Pointer to the partition table
+ * ipq_spl_mibib_getpart() - Find partition info by name from MIBIB table
+ * @part_name: Name of the partition to find
+ * @start_blk: Pointer to store the start block offset
+ * @blk_cnt:   Pointer to store the block count (length)
  *
- * This function searches for the 0:BOOTLDR partition in the partition table
- * and returns its offset.
+ * This function searches the global MIBIB partition table (g_mibib_parti_ptr)
+ * for a partition matching the given name and returns its offset and length
+ * in blocks. It replaces the former find_bootldr_partition() helper and can
+ * be used by any caller (including ipq_license.c) as an alternative to
+ * ipq_smem_getpart().
  *
- * Return: Offset of the BOOTLDR partition, or 0 if not found
+ * Return: 0 on success, -ENOENT if not found, -EINVAL on invalid params
  */
-static u32 find_bootldr_partition(struct flash_partition_table *parti_ptr)
+int ipq_spl_mibib_getpart(const char *part_name, uint32_t *start_blk,
+			   uint32_t *blk_cnt)
 {
 	int i;
 
-	if (!parti_ptr)
-		return 0;
-
-	for (i = 0; i < parti_ptr->numparts; i++) {
-		if (strncmp(parti_ptr->part_entry[i].name, "0:BOOTLDR", 9) == 0 ||
-			strncmp(parti_ptr->part_entry[i].name, "BOOTLDR", 7) == 0)
-			return parti_ptr->part_entry[i].offset;
+	if (!part_name || !start_blk || !blk_cnt) {
+		pr_err("Invalid parameters for MIBIB partition lookup\n");
+		return -EINVAL;
 	}
 
-	return 0;
+	if (g_mibib_parti_tbl.magic1 != FLASH_PART_MAGIC1) {
+		pr_err("MIBIB partition table not available\n");
+		return -ENOENT;
+	}
+
+	for (i = 0; i < g_mibib_parti_tbl.numparts; i++) {
+		if (strncmp(g_mibib_parti_tbl.part_entry[i].name,
+			    part_name,
+			    sizeof(g_mibib_parti_tbl.part_entry[i].name)) == 0) {
+			*start_blk = g_mibib_parti_tbl.part_entry[i].offset;
+			*blk_cnt = g_mibib_parti_tbl.part_entry[i].length;
+			return 0;
+		}
+	}
+
+	pr_err("Partition '%s' not found in MIBIB table\n", part_name);
+	return -ENOENT;
 }
 
 /**
@@ -3170,6 +3212,7 @@ int spl_nand_get_uboot_raw_page(void)
 {
 	struct mtd_info *mtd;
 	struct flash_partition_table *mibib_parti_ptr;
+	uint32_t start_blk = 0, blk_cnt = 0;
 
 	/*
 	 * If bootloader offset is already calculated, return it directly
@@ -3181,8 +3224,8 @@ int spl_nand_get_uboot_raw_page(void)
 	 * Retrieve MIBIB if invalid magic
 	 */
 	if ((g_mibib_parti_tbl.magic1 != FLASH_PART_MAGIC1) ||
-	    (g_mibib_parti_tbl.magic2 != FLASH_PART_MAGIC2) ||
-	    (g_mibib_parti_tbl.version != FLASH_PARTITION_VERSION)) {
+			(g_mibib_parti_tbl.magic2 != FLASH_PART_MAGIC2) ||
+			(g_mibib_parti_tbl.version != FLASH_PARTITION_VERSION)) {
 
 		/*
 		 * Retrieve MIBIB
@@ -3198,7 +3241,7 @@ int spl_nand_get_uboot_raw_page(void)
 			g_bootldr_offset = 0;
 #endif
 			printf("MIBIB not found, using default offset: 0x%X\n",
-				g_bootldr_offset);
+					g_bootldr_offset);
 
 			return g_bootldr_offset;
 		}
@@ -3207,26 +3250,24 @@ int spl_nand_get_uboot_raw_page(void)
 		 * Store the MIBIB struct
 		 */
 		memcpy(&g_mibib_parti_tbl,
-			mibib_parti_ptr,
-			sizeof(struct flash_partition_table));
-
+				mibib_parti_ptr,
+				sizeof(struct flash_partition_table));
 		free(mibib_parti_ptr);
 	}
 
-	/*
-	 * Find BOOTLDR partition
-	 */
-	g_bootldr_offset = find_bootldr_partition(&g_mibib_parti_tbl);
+	/* Find BOOTLDR partition using generic MIBIB lookup */
+	if (ipq_spl_mibib_getpart("0:BOOTLDR", &start_blk, &blk_cnt) != 0)
+		ipq_spl_mibib_getpart("BOOTLDR", &start_blk, &blk_cnt);
 
-	/*
-	 * Convert block offset to page offset
-	 */
+	g_bootldr_offset = start_blk;
+
+	/* Convert block offset to byte offset */
 	mtd = get_nand_dev_by_index(0);
 	if (mtd)
-		g_bootldr_offset *= (mtd->erasesize);
+		g_bootldr_offset = g_bootldr_offset * (mtd->erasesize);
 
 	printf("BOOTLDR partition found at page offset: 0x%X\n",
-		g_bootldr_offset);
+			g_bootldr_offset);
 
 	return g_bootldr_offset;
 }

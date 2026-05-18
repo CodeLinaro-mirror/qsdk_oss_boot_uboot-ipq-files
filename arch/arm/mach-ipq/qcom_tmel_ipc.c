@@ -333,3 +333,155 @@ int ipq_prng_get_tme_impl(void *params)
 	return ret;
 }
 #endif /* CONFIG_IPQ_TMEL_PRNG_IPC_SUPPORT */
+#ifdef CONFIG_IPQ_SOFTSKU_SUPPORT
+/**
+ * ipq_license_install_tme() - Install license via TME IPC
+ * @license: Pointer to license blob
+ * @licenseLen: Length of license blob
+ * @flags: Pointer to flags (output)
+ * @identifier: Pointer to identifier buffer (output)
+ * @identifierLen: Size of identifier buffer
+ * @identifierLenOut: Actual identifier length (output)
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+int ipq_license_install_tme(void *license, size_t licenseLen,
+			     u64 *flags, u8 *identifier,
+			     size_t identifierLen, size_t *identifierLenOut)
+{
+	int ret;
+	struct tmelcom *tmelcom_priv;
+	struct tmel_qmp_msg tmsg;
+	struct tmel_license_install_req licenseinstall_req;
+
+	if (!license || !flags || !identifier || !identifierLenOut) {
+		printf("Invalid parameters for license install\n");
+		return -EINVAL;
+	}
+
+	/* Get TMELCOM device */
+	ret = ipq_get_tmelcom_device(&tmelcom_priv);
+	if (ret || !tmelcom_priv) {
+		printf("Failed to get TMELCOM device: %d\n", ret);
+		return ret;
+	}
+
+	/* Prepare request following reference implementation pattern */
+	memset(&licenseinstall_req, 0, sizeof(licenseinstall_req));
+	licenseinstall_req.status = 1; /* TME_ERROR_GENERIC */
+	licenseinstall_req.license_buf.buf = (u32)(uintptr_t)license;
+	licenseinstall_req.license_buf.buf_len = licenseLen;
+	licenseinstall_req.flags = 0;
+	licenseinstall_req.identifier_buf.buf = (u32)(uintptr_t)identifier;
+	licenseinstall_req.identifier_buf.buf_len = identifierLen;
+	licenseinstall_req.identifier_buf.out_buf_len = 0;
+
+	/* Flush cache for input buffers */
+	flush_cache((unsigned long)license, licenseLen);
+	flush_cache((unsigned long)identifier, identifierLen);
+	flush_cache((unsigned long)&licenseinstall_req, sizeof(licenseinstall_req));
+
+	/* Prepare TME message */
+	tmsg.msg = &licenseinstall_req;
+	tmsg.msg_id = TME_MSG_UID_QWES_LICENSING_INSTALL;
+	tmsg.size = sizeof(licenseinstall_req);
+
+	/* Send message via mailbox */
+	ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
+	if (ret) {
+		printf("Failed to send license install message: %d\n", ret);
+		return ret;
+	}
+
+	/* Invalidate cache to read response */
+	invalidate_dcache_range((unsigned long)&licenseinstall_req,
+				(unsigned long)&licenseinstall_req + sizeof(licenseinstall_req));
+	invalidate_dcache_range((unsigned long)identifier,
+				(unsigned long)identifier + identifierLen);
+
+	/* Check status */
+	if (licenseinstall_req.status != 0) {
+		printf("License install failed with status: %d\n", licenseinstall_req.status);
+		return -EIO;
+	}
+
+	/* Copy output parameters */
+	*identifierLenOut = licenseinstall_req.identifier_buf.out_buf_len;
+	*flags = licenseinstall_req.flags;
+
+	return 0;
+}
+
+/**
+ * ipq_license_enforce_hw_features_tme() - Enforce HW features via TME IPC
+ * @fidBuff: Pointer to feature ID buffer
+ * @fidBuffLen: Length of feature ID buffer
+ * @fidBuffLenOut: Actual length (output)
+ * @HWRegisterInterfaceVersion: HW register interface version (output)
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+int ipq_license_enforce_hw_features_tme(struct sec_enforceHWFeatureId *fidBuff,
+					size_t fidBuffLen, size_t *fidBuffLenOut,
+					u32 *HWRegisterInterfaceVersion)
+{
+	int ret;
+	struct tmelcom *tmelcom_priv;
+	struct tmel_qmp_msg tmsg;
+	struct tmel_license_enforce_hw_req enforceFID_req;
+
+	if (!fidBuff || !fidBuffLenOut || !HWRegisterInterfaceVersion) {
+		printf("Invalid parameters for HW feature enforcement\n");
+		return -EINVAL;
+	}
+
+	/* Get TMELCOM device */
+	ret = ipq_get_tmelcom_device(&tmelcom_priv);
+	if (ret || !tmelcom_priv) {
+		printf("Failed to get TMELCOM device: %d\n", ret);
+		return ret;
+	}
+
+	/* Prepare request following reference implementation pattern */
+	memset(&enforceFID_req, 0, sizeof(enforceFID_req));
+	enforceFID_req.status = 1; /* TME_ERROR_GENERIC */
+	enforceFID_req.features_buf.buf = (u32)(uintptr_t)fidBuff;
+	enforceFID_req.features_buf.buf_len = fidBuffLen;
+	enforceFID_req.features_buf.out_buf_len = 0;
+	enforceFID_req.hw_reg_version = 0;
+
+	/* Flush cache for feature buffer */
+	flush_cache((unsigned long)fidBuff, fidBuffLen);
+	flush_cache((unsigned long)&enforceFID_req, sizeof(enforceFID_req));
+
+	/* Prepare TME message */
+	tmsg.msg = &enforceFID_req;
+	tmsg.msg_id = TME_MSG_UID_QWES_LICENSING_ENFORCEHWFEATURES;
+	tmsg.size = sizeof(enforceFID_req);
+
+	/* Send message via mailbox */
+	ret = mbox_send(&tmelcom_priv->mbox, &tmsg);
+	if (ret) {
+		printf("Failed to send HW feature enforcement message: %d\n", ret);
+		return ret;
+	}
+
+	/* Invalidate cache to read response */
+	invalidate_dcache_range((unsigned long)fidBuff,
+				(unsigned long)fidBuff + fidBuffLen);
+	invalidate_dcache_range((unsigned long)&enforceFID_req,
+				(unsigned long)&enforceFID_req + sizeof(enforceFID_req));
+
+	/* Check status */
+	if (enforceFID_req.status != 0) {
+		printf("HW feature enforcement failed with status: %d\n", enforceFID_req.status);
+		return -EIO;
+	}
+
+	/* Copy output parameters */
+	*fidBuffLenOut = enforceFID_req.features_buf.out_buf_len;
+	*HWRegisterInterfaceVersion = enforceFID_req.hw_reg_version;
+
+	return 0;
+}
+#endif /* CONFIG_IPQ_SOFTSKU_SUPPORT */

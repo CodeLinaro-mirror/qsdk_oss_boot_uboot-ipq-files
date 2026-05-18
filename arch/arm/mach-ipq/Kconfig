@@ -685,6 +685,16 @@ config IPQ_LCP_DARE
          This feature allows the bootloader to obtain encryption keys for
          LCP DARE operations during the boot process. The keys are stored
          in the QCLib interface table for use by subsequent boot stages.
+config IPQ_SOFTSKU_SUPPORT
+	bool "Enable SoftSKU License Support"
+	depends on IPQ_TMEL_IPC_SUPPORT
+	depends on SPL
+	default n
+	help
+	  Enable support for SoftSKU license management via TME-L IPC.
+	  This allows dynamic feature enablement based on installed licenses,
+	  including hardware feature enforcement and DDR limitation for
+	  entry-level SKUs.
 
 config IPQ_BOARD_DEFAULT
 	bool "Enable default config for all SoC"
