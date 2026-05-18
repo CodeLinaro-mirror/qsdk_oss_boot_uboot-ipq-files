@@ -4473,6 +4473,15 @@ static int ipq_eth_port_set_up(struct ipq_eth_dev *priv,
 					goto fail;
 			}
 
+			/*
+			 * Pack mac_speed (bits 7:0) and gmac_type (bit 8) into
+			 * clk->data so the clock driver can identify both the
+			 * speed index and MAC type for correct divider selection.
+			 *   mac_speed: 0=10M, 1=100M, 2=1G, 3=10G, 4=2.5G, 5=5G
+			 *   gmac_type: 0=GMAC, 1=XGMAC
+			 */
+			port->rx_clk_rate.data =
+				(unsigned long)((port->gmac_type << 8) | mac_speed);
 			clk_set_rate(&port->rx_clk_rate, rate);
 		}
 
@@ -4499,6 +4508,15 @@ static int ipq_eth_port_set_up(struct ipq_eth_dev *priv,
 					goto fail;
 			}
 
+			/*
+			 * Pack mac_speed (bits 7:0) and gmac_type (bit 8) into
+			 * clk->data so the clock driver can identify both the
+			 * speed index and MAC type for correct divider selection.
+			 *   mac_speed: 0=10M, 1=100M, 2=1G, 3=10G, 4=2.5G, 5=5G
+			 *   gmac_type: 0=GMAC, 1=XGMAC
+			 */
+			port->tx_clk_rate.data =
+				(unsigned long)((port->gmac_type << 8) | mac_speed);
 			clk_set_rate(&port->tx_clk_rate, rate);
 		}
 
