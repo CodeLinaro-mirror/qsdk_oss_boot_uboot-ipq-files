@@ -2978,7 +2978,32 @@ __weak int ipq_read_tcsr_boot_misc(void)
 	return *dmagic;
 }
 
-__weak void reset_cpu(void) {}
+#if IS_ENABLED(CONFIG_SPL)
+__weak void ipq_spl_pre_reset_seq(void) {}
+
+void reset_cpu(void)
+{
+	ipq_spl_pre_reset_seq();
+
+	/**
+	 * Trigger PSHOLD reset by writing 0 to PSHOLD register
+	 */
+	writel(0, PSHOLD_CTL_BASE);
+
+	/**
+	 * Wait for reset to take effect
+	 */
+	mdelay(10000);
+
+	/**
+	 * Should never reach here - fallback to infinite loop
+	 */
+	printf("SPL: ERROR - Reset failed! System hanging...\n");
+
+	while (1)
+		asm volatile("wfi");
+}
+#endif /* CONFIG_SPL */
 
 #ifdef CONFIG_IPQ_PCIE
 void pci_select_window(uintptr_t bar0_base, u32 offset)
