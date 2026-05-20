@@ -411,6 +411,8 @@ void ipq_smem_part_to_mtdparts(char *mtdid, int len)
 	loff_t psize;
 	int isnand =  0;
 #if defined(CONFIG_NOR_BLK)
+#define GPT_REGION_BLOCKS 48
+	u32 flash_size;
 	struct smem_ptn sp;
 	struct blk_desc *dev = NULL;
 #if defined(CONFIG_EFI_PARTITION)
@@ -445,7 +447,8 @@ void ipq_smem_part_to_mtdparts(char *mtdid, int len)
 				return;
 			}
 
-			ncount = bdinfo->nor_gpt_pte.ncount;
+			/* Add space for primary and backup GPT regions */
+			ncount = bdinfo->nor_gpt_pte.ncount + 2;
 		}
 #endif
 		bsize = dev->blksz;
@@ -465,11 +468,26 @@ void ipq_smem_part_to_mtdparts(char *mtdid, int len)
 	for (i = 0; i < ncount && len > 0; i++) {
 #if defined(CONFIG_NOR_BLK)
 		if (sfi->flash_type == SMEM_BOOT_NORGPT_FLASH) {
+			if (i == 0) {
+				/* Primary GPT region */
+				sp.start = 0;
+				sp.size = GPT_REGION_BLOCKS;
+				snprintf(sp.name, SMEM_PTN_NAME_MAX, "0:NORGPT");
+			} else if (i == 1) {
+				/* Backup GPT region */
+				flash_size = ipq_smem_get_flash_size(0);
+				sp.start = (flash_size - (GPT_REGION_BLOCKS * bsize)) / bsize;
+				sp.size = GPT_REGION_BLOCKS;
+				snprintf(sp.name, SMEM_PTN_NAME_MAX, "0:NORGPTBACKUP");
+			} else {
+				int gpt_idx = i - 2;
 #if defined(CONFIG_EFI_PARTITION)
-			if (validate_and_copy(&gpt_pte[i], &sp))
-				continue;
-			isnand = gpt_find_which_flash(&gpt_pte[i]);
+				if (validate_and_copy(&gpt_pte[gpt_idx], &sp))
+					continue;
+				isnand = gpt_find_which_flash(&gpt_pte[gpt_idx]);
 #endif
+			}
+
 			p = &sp;
 		} else
 #endif
