@@ -557,13 +557,21 @@
 				 <&gcc GCC_PCIE3_AXI_S_CLK>,
 				 <&gcc GCC_PCIE3_AHB_CLK>,
 				 <&gcc GCC_PCIE3_AUX_CLK>,
-				 <&gcc GCC_PCIE3_AXI_S_BRIDGE_CLK>;
+				 <&gcc GCC_PCIE3_AXI_S_BRIDGE_CLK>,
+				 <&gcc GCC_PCIE_CMN_HCLK>,
+				 <&gcc GCC_PCIE_CMN_LDO_CLK>,
+				 <&gcc GCC_REFGEN_PCIE_CORE_CLK>,
+				 <&gcc GCC_REFGEN_PCIE_HCLK>;
 
 			clock-names = "axi_m",
 				      "axi_s",
 				      "ahb",
 				      "aux",
-				      "axi_bridge";
+				      "axi_bridge",
+				      "cmn_hclk",
+				      "cmn_ldo",
+				      "refgen_core",
+				      "refgen_hclk";
 
 			assigned-clocks = <&gcc GCC_PCIE3_AUX_CLK>,
 					<&gcc GCC_PCIE3_AXI_M_CLK>,
@@ -626,13 +634,21 @@
 				 <&gcc GCC_PCIE2_AXI_S_CLK>,
 				 <&gcc GCC_PCIE2_AHB_CLK>,
 				 <&gcc GCC_PCIE2_AUX_CLK>,
-				 <&gcc GCC_PCIE2_AXI_S_BRIDGE_CLK>;
+				 <&gcc GCC_PCIE2_AXI_S_BRIDGE_CLK>,
+				 <&gcc GCC_PCIE_CMN_HCLK>,
+				 <&gcc GCC_PCIE_CMN_LDO_CLK>,
+				 <&gcc GCC_REFGEN_PCIE_CORE_CLK>,
+				 <&gcc GCC_REFGEN_PCIE_HCLK>;
 
 			clock-names = "axi_m",
 				      "axi_s",
 				      "ahb",
 				      "aux",
-				      "axi_bridge";
+				      "axi_bridge",
+				      "cmn_hclk",
+				      "cmn_ldo",
+				      "refgen_core",
+				      "refgen_hclk";
 
 			assigned-clocks = <&gcc GCC_PCIE2_AUX_CLK>,
 					<&gcc GCC_PCIE2_AXI_M_CLK>,
@@ -694,13 +710,21 @@
 				 <&gcc GCC_PCIE1_AXI_S_CLK>,
 				 <&gcc GCC_PCIE1_AHB_CLK>,
 				 <&gcc GCC_PCIE1_AUX_CLK>,
-				 <&gcc GCC_PCIE1_AXI_S_BRIDGE_CLK>;
+				 <&gcc GCC_PCIE1_AXI_S_BRIDGE_CLK>,
+				 <&gcc GCC_PCIE_CMN_HCLK>,
+				 <&gcc GCC_PCIE_CMN_LDO_CLK>,
+				 <&gcc GCC_REFGEN_PCIE_CORE_CLK>,
+				 <&gcc GCC_REFGEN_PCIE_HCLK>;
 
 			clock-names = "axi_m",
 				      "axi_s",
 				      "ahb",
 				      "aux",
-				      "axi_bridge";
+				      "axi_bridge",
+				      "cmn_hclk",
+				      "cmn_ldo",
+				      "refgen_core",
+				      "refgen_hclk";
 
 			assigned-clocks = <&gcc GCC_PCIE1_AUX_CLK>,
 					<&gcc GCC_PCIE1_AXI_M_CLK>,
@@ -763,13 +787,21 @@
 				 <&gcc GCC_PCIE4_AXI_S_CLK>,
 				 <&gcc GCC_PCIE4_AHB_CLK>,
 				 <&gcc GCC_PCIE4_AUX_CLK>,
-				 <&gcc GCC_PCIE4_AXI_S_BRIDGE_CLK>;
+				 <&gcc GCC_PCIE4_AXI_S_BRIDGE_CLK>,
+				 <&gcc GCC_PCIE_CMN_HCLK>,
+				 <&gcc GCC_PCIE_CMN_LDO_CLK>,
+				 <&gcc GCC_REFGEN_PCIE_CORE_CLK>,
+				 <&gcc GCC_REFGEN_PCIE_HCLK>;
 
 			clock-names = "axi_m",
 				      "axi_s",
 				      "ahb",
 				      "aux",
-				      "axi_bridge";
+				      "axi_bridge",
+				      "cmn_hclk",
+				      "cmn_ldo",
+				      "refgen_core",
+				      "refgen_hclk";
 
 			assigned-clocks = <&gcc GCC_PCIE4_AUX_CLK>,
 					<&gcc GCC_PCIE4_AXI_M_CLK>,
@@ -832,13 +864,21 @@
 				 <&gcc GCC_PCIE0_AXI_S_CLK>,
 				 <&gcc GCC_PCIE0_AHB_CLK>,
 				 <&gcc GCC_PCIE0_AUX_CLK>,
-				 <&gcc GCC_PCIE0_AXI_S_BRIDGE_CLK>;
+				 <&gcc GCC_PCIE0_AXI_S_BRIDGE_CLK>,
+				 <&gcc GCC_PCIE_CMN_HCLK>,
+				 <&gcc GCC_PCIE_CMN_LDO_CLK>,
+				 <&gcc GCC_REFGEN_PCIE_CORE_CLK>,
+				 <&gcc GCC_REFGEN_PCIE_HCLK>;
 
 			clock-names = "axi_m",
 				      "axi_s",
 				      "ahb",
 				      "aux",
-				      "axi_bridge";
+				      "axi_bridge",
+				      "cmn_hclk",
+				      "cmn_ldo",
+				      "refgen_core",
+				      "refgen_hclk";
 
 			assigned-clocks = <&gcc GCC_PCIE0_AUX_CLK>,
 					<&gcc GCC_PCIE0_AXI_M_CLK>,
