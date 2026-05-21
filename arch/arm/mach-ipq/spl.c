@@ -4041,6 +4041,54 @@ int ipq_spl_mibib_getpart(const char *part_name, uint32_t *start_blk,
 }
 
 /**
+ * nand_spl_adjust_offset() - Adjust NAND offset to account for bad blocks
+ * @sector: Partition start offset (absolute address)
+ * @offs: Target offset relative to partition start
+ *
+ * This function adjusts the target offset to account for any bad blocks
+ * between the partition start and the target offset. For each bad block
+ * found, the target offset is incremented by one block size.
+ *
+ * This is a weak function override from U-Boot's spl_nand.c that enables
+ * proper bad block handling when loading FIT images component-by-component.
+ *
+ * The function receives a relative offset and must return a relative offset.
+ * Internally, it converts to absolute addresses for bad block checking.
+ *
+ * Return: Adjusted relative offset that accounts for bad blocks
+ */
+u32 nand_spl_adjust_offset(u32 sector, u32 offs)
+{
+	struct mtd_info *mtd = get_nand_dev_by_index(0);
+	loff_t block_start = sector;
+	loff_t target = sector + offs;  /* Convert relative to absolute */
+	u32 bad_blocks = 0;
+
+	if (!mtd)
+		return offs;
+
+	/*
+	 * Scan for bad blocks between partition start (sector) and
+	 * target offset. For each bad block found, adjust target forward.
+	 */
+	while (block_start < target) {
+		if (mtd_block_isbad(mtd, block_start)) {
+			bad_blocks++;
+			target += mtd->erasesize;
+		}
+		block_start += mtd->erasesize;
+	}
+
+	if (bad_blocks > 0) {
+		debug("nand_spl_adjust_offset: sector=0x%x, offs=0x%x -> "
+		      "adjusted=0x%x (skipped %u bad blocks)\n",
+		      sector, offs, (u32)(target - sector), bad_blocks);
+	}
+
+	return (u32)(target - sector);  /* Return adjusted relative offset */
+}
+
+/**
  * spl_nand_get_uboot_raw_page() - Get the page offset of the BOOTLDR partition
  *
  * This function retrieves the MIBIB from flash, finds the BOOTLDR partition,
@@ -4086,7 +4134,7 @@ int spl_nand_get_uboot_raw_page(void)
 	if (mtd)
 		g_bootldr_offset *= mtd->erasesize;
 
-	printf("BOOTLDR partition found at page offset: 0x%X\n",
+	printf("BOOTLDR partition: reading from first good block at 0x%X\n",
 		g_bootldr_offset);
 
 	return g_bootldr_offset;
