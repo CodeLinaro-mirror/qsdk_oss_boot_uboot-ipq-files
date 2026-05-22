@@ -281,18 +281,7 @@ void ipq_board_early_init_f(void)
     ipq_enable_im_sleep_clk();
 }
 
-#if defined(CONFIG_SPL)
-void reset_cpu(void) __attribute__((noreturn));
-void reset_cpu(void)
-{
-    printf("SPL reset: not implemented, hanging...\n");
-    /* SPL reset: ToDo */
-    while(1) {
-        /* Add delay to prevent CPU spinning at 100% */
-        udelay(1000000); /* 1 second delay */
-    }
-}
-#else
+#if !defined(CONFIG_SPL)
 void reset_cpu(void)
 {
 #ifdef CONFIG_FAILSAFE_V2
@@ -309,7 +298,7 @@ void reset_cpu(void)
 #endif
 	psci_sys_reset(SYSRESET_COLD);
 }
-#endif
+#endif /* !CONFIG_SPL */
 
 uint32_t is_board_support_image_auth(void)
 {
