@@ -126,6 +126,7 @@
 #define GCC_QUPV3_I2C0_CMD_RCGR			(0x3034)
 #define GCC_QUPV3_I2C1_CMD_RCGR			(0x3050)
 #define GCC_QUPV3_I2C2_CMD_RCGR			(0x3018)
+#define GCC_QUPV3_I2C3_CMD_RCGR			(0x0306C)
 
 /* Clock rate constants */
 #define CLK_1_25_MHZ				(1250000UL)
@@ -403,6 +404,11 @@ static ulong ipq9650_set_rate(struct clk *clk, ulong rate)
 	case GCC_QUPV3_I2C_SE3_CLK:
 		/* Default: 64MHz */
 		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_I2C1_CMD_RCGR,
+					0x18, 0, 0, CFG_CLK_SRC_GPLL0, 16);
+		break;
+	case GCC_QUPV3_I2C_SE4_CLK:
+		/* Default: 64MHz */
+		clk_rcg_set_rate_mnd(priv->base, GCC_QUPV3_I2C3_CMD_RCGR,
 					0x18, 0, 0, CFG_CLK_SRC_GPLL0, 16);
 		break;
 	case GCC_QPIC_CLK:
@@ -790,6 +796,7 @@ static const struct gate_clk ipq9650_clks[] = {
 	GATE_CLK(GCC_QUPV3_I2C_SE1_CLK,		0x0302C, 0x00000001),
 	GATE_CLK(GCC_QUPV3_I2C_SE2_CLK,		0x03048, 0x00000001),
 	GATE_CLK(GCC_QUPV3_I2C_SE3_CLK,		0x03064, 0x00000001),
+	GATE_CLK(GCC_QUPV3_I2C_SE4_CLK,		0x03080, 0x00000001),
 	GATE_CLK(GCC_QPIC_CLK,			0x32028, 0x00000001),
 	GATE_CLK(GCC_QPIC_AHB_CLK,		0x32010, 0x00000001),
 	GATE_CLK(GCC_QPIC_IO_MACRO_CLK,		0x3200C, 0x00000001),

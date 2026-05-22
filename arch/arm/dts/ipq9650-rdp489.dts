@@ -343,6 +343,22 @@
 		};
         };
 
+	i2c3_pinmux: i2c3 {
+		i2c3_scl {
+			pins = "gpio14";
+			function = "qup_se4_l1";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+
+		i2c3_sda {
+			pins = "gpio15";
+			function = "qup_se4_l0";
+			drive-strength = <8>;
+			bias-pull-up;
+		};
+	};
+
 	pcie1_default_state: pcie1-default-state {
 		perst-n-pins {
 			pins = "gpio28";
@@ -402,6 +418,12 @@
 
 &qupv3 {
 	uart2: serial@1a84000 {
+		status = "okay";
+	};
+
+	i2c3: i2c@1a90000 {
+		pinctrl-0 = <&i2c3_pinmux>;
+		pinctrl-names = "default";
 		status = "okay";
 	};
 };

@@ -1758,7 +1758,7 @@
 	i2c0_fw: i2c0_firmware@0 {
 		compatible = "qcom,ipq9650-geni-i2c-fw-v1", "qcom,geni-i2c-fw-v1";
 		reg = <0x0 0x1a88000 0x0 0x4000>;
-		status = "disabled";
+		status = "okay";
 	};
 
 	i2c2: i2c@1A84000 {
@@ -1772,7 +1772,7 @@
 		clock-frequency = <400000>;
 		qup-se-fw-load = <&i2c2_fw>;
 		qcom,geni-se-clk-32mhz;
-		status = "okay";
+		status = "disabled";
 	};
 
 	i2c2_fw: i2c2_firmware@0 {
@@ -1798,6 +1798,26 @@
 	i2c1_fw: i2c1_firmware@0 {
 		compatible = "qcom,ipq9650-geni-i2c-fw-v1", "qcom,geni-i2c-fw-v1";
 		reg = <0x0 0x1a8c000 0x0 0x4000>;
+		status = "okay";
+	};
+
+	i2c3: i2c@1a90000 {
+		compatible = "qcom,geni-i2c";
+		reg = <0x0 0x1a90000 0x0 0x4000>;
+		reg-names = "se_phys";
+		assigned-clocks = <&gcc GCC_QUPV3_I2C_SE4_CLK>;
+		assigned-clock-rates = <64000000>;
+		clocks = <&gcc GCC_QUPV3_I2C_SE4_CLK>;
+		clock-names = "se";
+		clock-frequency = <400000>;
+		qup-se-fw-load = <&i2c3_fw>;
+		qcom,geni-se-clk-32mhz;
 		status = "disabled";
+	};
+
+	i2c3_fw: i2c3_firmware@0 {
+		compatible = "qcom,ipq9650-geni-i2c-fw-v1", "qcom,geni-i2c-fw-v1";
+		reg = <0x0 0x1a90000 0x0 0x4000>;
+		status = "okay";
 	};
 };

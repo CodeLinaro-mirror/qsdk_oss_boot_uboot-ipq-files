@@ -204,4 +204,5 @@
 #define GCC_REFGEN_PCIE_HCLK		193
 #define GCC_USB_CMN_HCLK		194
 #define GCC_USB_CMN_LDO_CLK		195
+#define GCC_QUPV3_I2C_SE4_CLK		196
 #endif
