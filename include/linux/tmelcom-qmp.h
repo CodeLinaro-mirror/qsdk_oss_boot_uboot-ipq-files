@@ -33,6 +33,7 @@
  */
 #define TMEL_MSG_SECBOOT	0x00
 #define TMEL_MSG_FUSE		0x03
+#define TMEL_MSG_KM		0x07
 #define TMEL_MSG_HCS		0x0B
 
 /*
@@ -58,9 +59,39 @@
 #define TMEL_ACTION_FUSE_ROM_PATCH_REQ                   0x09
 
 /*
- * Action ID's for TMEL_MSG_HCS
+ * Action ID's for TMEL_MSG_HCS (Host Crypto Services)
  */
+#define TMEL_ACTION_HCS_AES_ENCRYPT			0x0A
+#define TMEL_ACTION_HCS_AES_DECRYPT			0x0B
 #define TMEL_ACTION_HCS_PRNG_GET			0x0C
+#define TMEL_ACTION_HCS_AES_DERIVE			0x04
+#define TMEL_ACTION_HCS_AES_CLEAR			0x01
+
+/*
+ * TME Key IDs
+ */
+#define TME_KID_ALLOC					0xAAAAAAAA
+#define TME_KID_INVALID					0xFFFFFFFF
+#define TME_KID_CHIP_RAND_BASE				0x9
+#define TME_KID_OEM_PRODUCT_SEED			0xC
+#define TME_KID_L2_KEYWRAPSVC				0x6
+#define TME_KID_L2_SECURESTRGSVC			0x7
+#define TME_KID_L2_CLIENTEXTSVC				0x3
+
+/*
+ * TME KDF and Algorithm IDs
+ */
+#define TME_KAL_KDF_NIST				0x80000
+#define TME_KAL_SHA512_HMAC				0x58000
+#define TME_KAL_AES256_ECB				0xC
+#define TME_KAL_AES256_CBC				0x8
+
+/*
+ * TME Key Lineage IDs
+ */
+#define TME_KLI_NP_CU					0x800
+#define TME_KLI_NA					0x0
+
 
 /*
  * UIDs for TMEL_MSG_SECBOOT
@@ -87,10 +118,27 @@
 						TMEL_ACTION_FUSE_READ_MULTIPLE_ROW)
 
 /*
- * UIDs for TMEL_MSG_HCS
+ * UIDs for TMEL_MSG_HCS (Host Crypto Services)
  */
+#define TMEL_MSG_UID_HCS_AES_ENCRYPT		TMEL_MSG_UID_CREATE(TMEL_MSG_HCS,\
+						TMEL_ACTION_HCS_AES_ENCRYPT)
+
+#define TMEL_MSG_UID_HCS_AES_DECRYPT		TMEL_MSG_UID_CREATE(TMEL_MSG_HCS,\
+						TMEL_ACTION_HCS_AES_DECRYPT)
+
 #define TMEL_MSG_UID_HCS_PRNG_GET		TMEL_MSG_UID_CREATE(TMEL_MSG_HCS,\
 						TMEL_ACTION_HCS_PRNG_GET)
+
+#define TMEL_MSG_UID_HCS_AES_DERIVE		TMEL_MSG_UID_CREATE(TMEL_MSG_KM,\
+						TMEL_ACTION_HCS_AES_DERIVE)
+
+#define TMEL_MSG_UID_HCS_AES_CLEAR		TMEL_MSG_UID_CREATE(TMEL_MSG_KM,\
+						TMEL_ACTION_HCS_AES_CLEAR)
+
+#define TMEL_MSG_UID_AES_ENCRYPT		TMEL_MSG_UID_HCS_AES_ENCRYPT
+#define TMEL_MSG_UID_AES_DECRYPT		TMEL_MSG_UID_HCS_AES_DECRYPT
+#define TMEL_MSG_UID_AES_DERIVE_KEY		TMEL_MSG_UID_HCS_AES_DERIVE
+#define TMEL_MSG_UID_AES_CLEAR_KEY		TMEL_MSG_UID_HCS_AES_CLEAR
 
 /*
  * Parameter ID for HCS PRNG GET
@@ -321,6 +369,126 @@ struct tmel_license_enforce_hw_req {
 struct sec_enforceHWFeatureId;
 struct sec_fid_info;
 
+#ifdef CONFIG_CMD_AES_256
+/*
+ * AES Crypto Service structures
+ */
+
+/* Common buffer structures for AES operations */
+struct tmel_cbuffer {
+	u32 buf;
+	u32 buf_len;
+} __packed;
+
+struct tmel_cbuffer_resp {
+	u32 buf;
+	u32 length;
+	u32 length_used;
+} __packed;
+
+/* AES Encrypt structures */
+struct tmel_aes_encrypt_req {
+	u32 algo;
+	u32 key_id;
+	struct tmel_cbuffer in_aad;
+	struct tmel_cbuffer in_plain_txt;
+} __packed;
+
+struct tmel_aes_encrypt_resp {
+	struct tmel_cbuffer_resp out_aad;
+	struct tmel_cbuffer_resp out_iv;
+	struct tmel_cbuffer_resp out_tag;
+	struct tmel_cbuffer_resp out_cipher_txt;
+	u32 status;
+	u32 seq_status[5];
+} __packed;
+
+struct tmel_aes_encrypt_msg {
+	struct tmel_aes_encrypt_req req;
+	struct tmel_aes_encrypt_resp resp;
+} __packed;
+
+/* AES Decrypt structures */
+struct tmel_aes_decrypt_req {
+	u32 algo;
+	u32 key_id;
+	struct tmel_cbuffer in_aad;
+	struct tmel_cbuffer in_iv;
+	struct tmel_cbuffer in_tag;
+	struct tmel_cbuffer in_cipher_txt;
+} __packed;
+
+struct tmel_aes_decrypt_resp {
+	struct tmel_cbuffer_resp out_aad;
+	struct tmel_cbuffer_resp out_plain_txt;
+	u32 status;
+	u32 seq_status[5];
+} __packed;
+
+struct tmel_aes_decrypt_msg {
+	struct tmel_aes_decrypt_req req;
+	struct tmel_aes_decrypt_resp resp;
+} __packed;
+
+/* AES Key Derivation structures */
+
+/* TME KDF spec constants */
+#define TME_KDF_SW_CONTEXT_BYTES_MAX		128
+#define TME_KDF_SALT_LABEL_BYTES_MAX		64
+
+/* TME KDF spec structure with 128-byte context */
+struct tme_kdf_spec {
+	u32 kdf_algo;
+	u32 input_key;
+	u32 mix_key;
+	u32 l2_key;
+	struct {
+		u32 low;
+		u32 high;
+	} policy;
+	u8 sw_context[TME_KDF_SW_CONTEXT_BYTES_MAX];
+	u32 sw_context_len;
+	u32 security_context;
+	u8 salt_label[TME_KDF_SALT_LABEL_BYTES_MAX];
+	u32 salt_label_len;
+	u32 prf_digest_algo;
+} __packed;
+
+/* TME derive key request/response structures */
+struct tme_derive_req {
+	u32 key_id;
+	u32 kdf_buf;
+	u32 kdf_len;
+	u32 cred_slot;
+} __packed;
+
+struct tme_derive_resp {
+	u32 key_id;
+	u32 status;
+	u32 seq_status[5];
+} __packed;
+
+struct tme_derive_msg {
+	struct tme_derive_req req;
+	struct tme_derive_resp resp;
+} __packed;
+
+/* AES Clear Key structures */
+struct tmel_aes_clear_key_req {
+	u32 key_id;
+} __packed;
+
+struct tmel_aes_clear_key_resp {
+	u32 status;
+	u32 seq_status[5];
+} __packed;
+
+struct tmel_aes_clear_key_msg {
+	struct tmel_aes_clear_key_req req;
+	struct tmel_aes_clear_key_resp resp;
+} __packed;
+#endif /* CONFIG_CMD_AES_256 */
+
 void tmel_secboot_sec_free(void *ptr);
 int ipq_get_tmelcom_device(struct tmelcom **tmelcom_priv);
 int ipq_list_fuse_tme_impl(void *params);
@@ -329,6 +497,11 @@ int ipq_check_secure_boot_tme_impl(void *params);
 int ipq_secure_auth_tme_impl(void *params);
 int ipq_get_tme_version_impl(void *params);
 int ipq_prng_get_tme_impl(void *params);
+int ipq_aes_256_enc_tme_impl(void *params);
+int ipq_aes_256_dec_tme_impl(void *params);
+int ipq_aes_derive_key_tme_impl(void *params);
+int ipq_aes_derive_key_max_ctxt_tme_impl(void *params);
+int ipq_aes_clear_key_tme_impl(void *params);
 
 #ifdef CONFIG_IPQ_SOFTSKU_SUPPORT
 int ipq_license_install_tme(void *license, size_t licenseLen,

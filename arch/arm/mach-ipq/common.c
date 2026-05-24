@@ -255,6 +255,66 @@ __weak int ipq_ice_key_configure_optee_impl(void *p)
 	return -EOPNOTSUPP;
 }
 
+__weak int ipq_aes_256_enc_tme_impl(void *p)
+{
+	debug("TME communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_aes_256_dec_tme_impl(void *p)
+{
+	debug("TME communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_aes_derive_key_tme_impl(void *p)
+{
+	debug("TME communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_aes_derive_key_max_ctxt_tme_impl(void *p)
+{
+	debug("TME communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_aes_clear_key_tme_impl(void *p)
+{
+	debug("TME communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_aes_256_enc_scm_impl(void *p)
+{
+	debug("SCM communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_aes_256_dec_scm_impl(void *p)
+{
+	debug("SCM communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_aes_derive_key_scm_impl(void *p)
+{
+	debug("SCM communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_aes_derive_key_max_ctxt_scm_impl(void *p)
+{
+	debug("SCM communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
+__weak int ipq_aes_clear_key_scm_impl(void *p)
+{
+	debug("SCM communication not supported on this platform\n");
+	return -EOPNOTSUPP;
+}
+
 /* Function Pointer Table for communication handlers */
 static int (*const comm_functions[FUNC_MAX][COMM_TYPE_MAX])(void *) = {
 	[FUNC_LIST_FUSE]	 = {ipq_list_fuse_tme_impl, ipq_list_fuse_scm_impl, NULL},
@@ -267,7 +327,13 @@ static int (*const comm_functions[FUNC_MAX][COMM_TYPE_MAX])(void *) = {
 	[FUNC_ICE_CONFIGURE]	 = {NULL, ipq_ice_configure_scm_impl,
 				    ipq_ice_configure_optee_impl},
 	[FUNC_ICE_KEY_CONFIGURE] = {NULL, ipq_ice_key_configure_scm_impl,
-				    ipq_ice_key_configure_optee_impl}
+				    ipq_ice_key_configure_optee_impl},
+	[FUNC_FUSEIPQ]		 = {NULL, ipq_fuseipq_scm_impl, ipq_fuseipq_optee_impl},
+	[FUNC_AES_ENCRYPT]	 = {ipq_aes_256_enc_tme_impl, ipq_aes_256_enc_scm_impl, NULL},
+	[FUNC_AES_DECRYPT]	 = {ipq_aes_256_dec_tme_impl, ipq_aes_256_dec_scm_impl, NULL},
+	[FUNC_AES_DERIVE_KEY]	 = {ipq_aes_derive_key_tme_impl, ipq_aes_derive_key_scm_impl, NULL},
+	[FUNC_AES_CLEAR_KEY]	 = {ipq_aes_clear_key_tme_impl, ipq_aes_clear_key_scm_impl, NULL},
+	[FUNC_AES_DERIVE_KEY_MAX_CTXT] = {ipq_aes_derive_key_max_ctxt_tme_impl, ipq_aes_derive_key_max_ctxt_scm_impl, NULL}
 };
 
 /**

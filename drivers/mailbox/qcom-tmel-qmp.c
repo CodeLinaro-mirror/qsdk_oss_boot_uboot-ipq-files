@@ -1004,6 +1004,94 @@ int tmelcom_prng_get(struct tmel *tdev, struct tmel_get_prng *prng_msg)
 #endif /* CONFIG_IPQ_TMEL_PRNG_IPC_SUPPORT */
 
 /**
+ * tmelcom_aes_encrypt() - Encrypt data using AES
+ * @tdev: the tmel device
+ * @aes_msg: AES encryption message with request/response
+ * @size: size of the message
+ */
+static int tmelcom_aes_encrypt(struct tmel *tdev, void *aes_msg, size_t size)
+{
+	int ret;
+	struct udevice *dev = tdev->dev;
+
+	if (!tdev || !dev || !aes_msg || !size)
+		return -EINVAL;
+
+	ret = tmel_process_request(tdev, TMEL_MSG_UID_AES_ENCRYPT,
+				   aes_msg, size);
+	if (ret)
+		dev_err(dev, "%s : IPC Failed. ret: %d\n", __func__, ret);
+
+	return ret;
+}
+
+/**
+ * tmelcom_aes_decrypt() - Decrypt data using AES
+ * @tdev: the tmel device
+ * @aes_msg: AES decryption message with request/response
+ * @size: size of the message
+ */
+static int tmelcom_aes_decrypt(struct tmel *tdev, void *aes_msg, size_t size)
+{
+	int ret;
+	struct udevice *dev = tdev->dev;
+
+	if (!tdev || !dev || !aes_msg || !size)
+		return -EINVAL;
+
+	ret = tmel_process_request(tdev, TMEL_MSG_UID_AES_DECRYPT,
+				   aes_msg, size);
+	if (ret)
+		dev_err(dev, "%s : IPC Failed. ret: %d\n", __func__, ret);
+
+	return ret;
+}
+
+/**
+ * tmelcom_aes_derive_key() - Derive AES key
+ * @tdev: the tmel device
+ * @derive_msg: AES key derivation message with request/response
+ * @size: size of the message
+ */
+static int tmelcom_aes_derive_key(struct tmel *tdev, void *derive_msg, size_t size)
+{
+	int ret;
+	struct udevice *dev = tdev->dev;
+
+	if (!tdev || !dev || !derive_msg || !size)
+		return -EINVAL;
+
+	ret = tmel_process_request(tdev, TMEL_MSG_UID_AES_DERIVE_KEY,
+				   derive_msg, size);
+	if (ret)
+		dev_err(dev, "%s : IPC Failed. ret: %d\n", __func__, ret);
+
+	return ret;
+}
+
+/**
+ * tmelcom_aes_clear_key() - Clear AES key
+ * @tdev: the tmel device
+ * @clear_msg: AES clear key message
+ * @size: size of the message
+ */
+static int tmelcom_aes_clear_key(struct tmel *tdev, void *clear_msg, size_t size)
+{
+	int ret;
+	struct udevice *dev = tdev->dev;
+
+	if (!tdev || !dev || !clear_msg || !size)
+		return -EINVAL;
+
+	ret = tmel_process_request(tdev, TMEL_MSG_UID_AES_CLEAR_KEY,
+				   clear_msg, size);
+	if (ret)
+		dev_err(dev, "%s : IPC Failed. ret: %d\n", __func__, ret);
+
+	return ret;
+}
+
+/**
  * tmel_qmp_send() - Send message through mailbox
  * @chan: mailbox channel
  * @data: message data
@@ -1071,6 +1159,19 @@ static int tmel_qmp_send(struct mbox_chan *chan, const void *data)
 		}
 		break;
 #endif
+	case TMEL_MSG_UID_AES_ENCRYPT:
+		ret = tmelcom_aes_encrypt(tdev, tmsg->msg, tmsg->size);
+		break;
+	case TMEL_MSG_UID_AES_DECRYPT:
+		ret = tmelcom_aes_decrypt(tdev, tmsg->msg, tmsg->size);
+		break;
+	case TMEL_MSG_UID_AES_DERIVE_KEY:
+		/* Handles both regular and max context derive key requests */
+		ret = tmelcom_aes_derive_key(tdev, tmsg->msg, tmsg->size);
+		break;
+	case TMEL_MSG_UID_AES_CLEAR_KEY:
+		ret = tmelcom_aes_clear_key(tdev, tmsg->msg, tmsg->size);
+		break;
 	default:
 		ret = -EINVAL;
 		break;
