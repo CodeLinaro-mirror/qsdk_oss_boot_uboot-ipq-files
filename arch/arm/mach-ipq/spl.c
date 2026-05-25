@@ -3188,13 +3188,6 @@ int ipq_spl_failsafe_get_env_info(u8 boot_device)
 		printf("Loading Environment ... Failed due to bad CRC\n");
 
 	/*
-	 * Bootfrom is applicable only for NAND flash type.
-	 * Override parsed value with the default value for NOR/EMMC.
-	 */
-	if (boot_device != BOOT_DEVICE_NAND)
-		g_bootrec.env_bootfrom = IPQ_SPL_BOOT_FROM_ACTIVE;
-
-	/*
 	 * print the ENV info
 	 */
 	if (g_bootrec.env_failover)
