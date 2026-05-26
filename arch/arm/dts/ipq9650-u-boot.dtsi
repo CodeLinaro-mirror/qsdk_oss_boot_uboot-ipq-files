@@ -328,11 +328,13 @@
 				<&gcc GCC_USB0_AUX_CLK>,
 				<&gcc GCC_USB0_SLEEP_CLK>,
 				<&gcc GCC_USB0_MOCK_UTMI_CLK>,
-				<&gcc GCC_USB0_PHY_CFG_AHB_CLK>;
+				<&gcc GCC_USB0_PHY_CFG_AHB_CLK>,
+				<&gcc GCC_USB_CMN_HCLK>,
+				<&gcc GCC_USB_CMN_LDO_CLK>;
 			resets = <&gcc GCC_USB_BCR>;
 			ranges;
-			qcom,quirk-ref-clk-per = <0xA40C010>;
-			qcom,quirk-ref-clk-adj = <0xA87F0A0>;
+			qcom,quirk-ref-clk-per = <0x0400c010>;
+			qcom,quirk-ref-clk-adj = <0x049458a0>;
 			status = "disabled";
 
 			dwc3@8a00000 {
@@ -366,7 +368,9 @@
 				<&gcc GCC_USB0_AUX_CLK>,
 				<&gcc GCC_USB0_SLEEP_CLK>,
 				<&gcc GCC_USB0_MOCK_UTMI_CLK>,
-				<&gcc GCC_USB0_PHY_CFG_AHB_CLK>;
+				<&gcc GCC_USB0_PHY_CFG_AHB_CLK>,
+				<&gcc GCC_USB_CMN_HCLK>,
+				<&gcc GCC_USB_CMN_LDO_CLK>;
 			resets = <&gcc GCC_USB_BCR>;
 			ranges;
 			qcom,quirk-ref-clk-per = <0x4004010>;
