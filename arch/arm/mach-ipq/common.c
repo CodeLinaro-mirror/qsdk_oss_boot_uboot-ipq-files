@@ -2306,6 +2306,7 @@ int ipq_get_booted_bank_info(const char **booted_bank_str)
 }
 #endif
 
+#ifdef CONFIG_FAILSAFE
 /* append_partlabel_bootargs() - Append bootargs with partlabel information
  * @bootargs: bootargs to append the partlabel information
  * @buflen: Buffer length
@@ -2361,6 +2362,67 @@ int append_partlabel_bootargs(char *bootargs, size_t buflen)
 
 	return 0;
 }
+#elif CONFIG_FAILSAFE_V2
+/* append_partlabel_bootargs() - Append bootargs with partlabel information
+ * @bootargs: bootargs to append the partlabel information
+ * @buflen: Buffer length
+ *
+ * Reads booted bank info from SMEM and append the corresponding partlabel:
+ * - "active" -> rootfs-active
+ * - "inactive" -> rootfs-inactive
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+
+int append_partlabel_bootargs(char *bootargs, size_t buflen)
+{
+	const char *part_name;
+	char append_str[64];
+	size_t current_len, append_len, required_len;
+	size_t size;
+	struct udevice *dev;
+	uint32_t smembootset;
+	uint32_t *readsmemval = NULL;
+
+	if (!bootargs || buflen == 0)
+		return -EINVAL;
+
+	uclass_get_device(UCLASS_SMEM, 0, &dev);
+	readsmemval = smem_get(dev, -1, SMEM_BOOT_SET_INFO, &size);
+	if (IS_ERR_OR_NULL(readsmemval)) {
+		debug("Failed to get SMEM item: SMEM_BOOT_SET_INFO\n");
+		return -ENODEV;
+	}
+	smembootset = *readsmemval;
+
+	if (smembootset == BOOT_FROM_SET_ACTIVE)
+		part_name = "rootfs-active";
+	else if (smembootset == BOOT_FROM_SET_INACTIVE)
+		part_name = "rootfs-inactive";
+	else {
+		printf("Booted bank information not found\n");
+		return -EINVAL;
+	}
+
+	/* Append PARTLABEL=<partition> to bootargs */
+	snprintf(append_str, sizeof(append_str), " PARTLABEL=%s", part_name);
+
+	/* Check if we have enough space before appending */
+	current_len = strlen(bootargs);
+	append_len = strlen(append_str);
+	required_len = current_len + append_len + 1; /* +1 for null terminator */
+
+	if (required_len > buflen) {
+		printf("ERROR: bootargs buffer overflow!\n");
+		debug("required: %zu, available:%zu\n", required_len, buflen);
+		return -ENOSPC;
+	}
+
+	strlcat(bootargs, append_str, buflen);
+
+	return 0;
+}
+#endif
 
 /**
  * fdt_set_booted_bank_property() - Set booted-bank property in device tree
