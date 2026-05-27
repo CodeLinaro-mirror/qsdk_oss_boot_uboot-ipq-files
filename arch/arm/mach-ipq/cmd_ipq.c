@@ -721,6 +721,31 @@ static int do_fuseipq(struct cmd_tbl *cmdtp, int flag, int argc,
 
 	load_seg_cnt = load_seg_cnt * sizeof(struct load_seg_info);
 #endif
+
+#ifdef CONFIG_OPTEE
+	/* For OPTEE, convert 32-bit addresses to 64-bit using struct */
+	if (load_seg_buff) {
+		int i, seg_count = load_seg_cnt / sizeof(struct load_seg_info);
+		struct load_seg_info_64 *load_seg_buff_64;
+
+		load_seg_buff_64 = malloc_cache_aligned(seg_count * sizeof(struct load_seg_info_64));
+		if (!load_seg_buff_64) {
+			printf("Failed to allocate 64-bit address buffer\n");
+			ret = CMD_RET_FAILURE;
+			goto exit;
+		}
+
+		/* Convert each 32-bit segment to 64-bit */
+		for (i = 0; i < seg_count; i++) {
+			load_seg_buff_64[i].startAddr = (u64)load_seg_buff[i].startAddr;
+			load_seg_buff_64[i].endAddr = (u64)load_seg_buff[i].endAddr;
+		}
+
+		fuseipq_param.load_seg_buff_64 = load_seg_buff_64;
+		fuseipq_param.load_seg_cnt_64 = seg_count * sizeof(struct load_seg_info_64);
+	}
+#endif
+
 	do {
 		ret = -ENOTSUPP;
 		fuseipq_param.meta_data_size = meta_data_size;
@@ -780,6 +805,10 @@ static int do_fuseipq(struct cmd_tbl *cmdtp, int flag, int argc,
 
 #if defined (CONFIG_FUSEIPQ_V2) || (CONFIG_FUSEIPQ_V3)
 exit:
+#endif
+#ifdef CONFIG_OPTEE
+	if (fuseipq_param.load_seg_buff_64)
+		free(fuseipq_param.load_seg_buff_64);
 #endif
 	if (load_seg_buff)
 		free(load_seg_buff);
