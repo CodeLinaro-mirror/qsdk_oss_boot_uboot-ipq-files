@@ -25,6 +25,9 @@
 #define MACH_TYPE_IPQ9650_RDP488		0x8090000
 #define MACH_TYPE_IPQ9650_RDP506		0x8090001
 #define MACH_TYPE_IPQ9650_RDP489		0x8090100
+#define MACH_TYPE_IPQ9650_RDP490		0x8090200
+#define MACH_TYPE_IPQ9650_RDP491		0x8090300
+
 
 #define TIMEOUT_MS				30000
 #define CLK_SRC					32000
@@ -223,6 +226,18 @@ struct machid_dts_map machid_dts[] = {
 		MACH_TYPE_IPQ9650_RDP489,
 		"ipq9650-rdp489",
 		"rdp489",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ9650_RDP490,
+		"ipq9650-rdp490",
+		"rdp490",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ9650_RDP491,
+		"ipq9650-rdp491",
+		"rdp491",
 		"1"
 	},
 };
