@@ -215,7 +215,7 @@ struct pbl_shared_data {
 /*
  * Image version table definitions
  */
-#define IMAGE_INDEX_TMEL			10
+#define IMAGE_INDEX_TMEL			28
 
 #define DEFAULT_SHIFT			0x0
 #define DEFAULT_32BIT_MASK		0xFFFFFFFF
@@ -1884,13 +1884,13 @@ static int ipq_spl_populate_smem(void *ctx)
 
 			/*
 			 * Populate TME-L version entry
-			 * Format: "10:TME-L_VERSION:OEM_VERSION"
+			 * Format: "28:TME-L_VERSION:OEM_VERSION"
 			 */
 			memset(tmel_entry, 0, sizeof(struct image_version_entry));
 
-			/* Set image index (10 for TME-L) */
-			tmel_entry->image_index[0] = '1';
-			tmel_entry->image_index[1] = '0';
+			/* Set image index (28 for TME-L) */
+			tmel_entry->image_index[0] = '0' + (IMAGE_INDEX_TMEL / 10);
+			tmel_entry->image_index[1] = '0' + (IMAGE_INDEX_TMEL % 10);
 
 			/* Set first separator */
 			tmel_entry->image_colon_sep1[0] = ':';
