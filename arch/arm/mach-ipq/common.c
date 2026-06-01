@@ -2636,20 +2636,74 @@ void ipq_update_lmb_reservation(void)
 	lmb_rgn_lst = &lmb->used_mem;
 	rgn = lmb_rgn_lst->data;
 
-	/*
-	 * U-boot reserved the LMB region, covering the entire DDR from the
-	 * start of U-boot to the end of DDR due to relocation skip.
-	 * This makes that region LMB_NOOVERWRITE.
-	 * Therefore, update and reserve until the end of u-boot region.
-	 */
-	for (i = 0; i < lmb_rgn_lst->count; i++) {
-		if ((rgn[i].base < CONFIG_TEXT_BASE) &&
-			((rgn[i].base + rgn[i].size - 1) > CONFIG_TEXT_BASE)) {
+	if (CONFIG_IS_ENABLED(IPQ_DYNAMIC_RELOCATION) &&
+	    !(gd->flags & GD_FLG_SKIP_RELOC)) {
+		/*
+		 * Normal relocation path: U-Boot image is at gd->relocaddr
+		 * (top of highest DDR bank minus SZ_2M reserved for noncached
+		 * DMA + alignment).  Trim each DDR no-overwrite reservation:
+		 *   - If it contains gd->relocaddr: keep [relocaddr, ram_top)
+		 *     so the image and noncached region are protected; this
+		 *     also frees the stack/heap area below relocaddr for
+		 *     lmb_alloc to use when loading the kernel.
+		 *   - Otherwise (e.g. a wholesale Bank 1 reservation): remove
+		 *     it entirely so the kernel can use the full bank.
+		 * LMB_NOMAP regions (SMEM, TFA, OP-TEE) are left untouched.
+		 */
+		phys_addr_t uboot_start = gd->relocaddr;
+		phys_addr_t uboot_end   = gd->ram_top;
+		int j;
 
-			rgn[i].size = ((CONFIG_TEXT_BASE + CONFIG_TEXT_SIZE +
-					SZ_1M) - rgn[i].base);
+		for (i = 0; i < lmb_rgn_lst->count; ) {
+			bool in_ddr = false;
 
-			break;
+			if (rgn[i].flags & LMB_NOMAP) {
+				i++;
+				continue;
+			}
+
+			for (j = 0; j < CONFIG_NR_DRAM_BANKS; j++) {
+				if (!gd->bd->bi_dram[j].size)
+					break;
+				if (rgn[i].base >= gd->bd->bi_dram[j].start &&
+				    rgn[i].base < (gd->bd->bi_dram[j].start +
+						   gd->bd->bi_dram[j].size)) {
+					in_ddr = true;
+					break;
+				}
+			}
+
+			if (!in_ddr) {
+				i++;
+				continue;
+			}
+
+			if (uboot_start >= rgn[i].base &&
+			    uboot_start < rgn[i].base + rgn[i].size) {
+				rgn[i].base = uboot_start;
+				rgn[i].size = uboot_end - uboot_start;
+				i++;
+			} else {
+				memmove(&rgn[i], &rgn[i + 1],
+					(lmb_rgn_lst->count - i - 1) * sizeof(*rgn));
+				lmb_rgn_lst->count--;
+			}
+		}
+	} else {
+		/*
+		 * Skip-reloc (crashdump) path or non-dynamic build: U-Boot
+		 * runs in-place at CONFIG_TEXT_BASE.  lmb_reserve_uboot_region
+		 * reserved from rsv_start to bank_end, covering the entire top
+		 * of RAM.  Trim the reservation that spans CONFIG_TEXT_BASE to
+		 * free the memory above the in-place image for the kernel.
+		 */
+		for (i = 0; i < lmb_rgn_lst->count; i++) {
+			if ((rgn[i].base < CONFIG_TEXT_BASE) &&
+				((rgn[i].base + rgn[i].size - 1) > CONFIG_TEXT_BASE)) {
+				rgn[i].size = ((CONFIG_TEXT_BASE + CONFIG_TEXT_SIZE +
+						SZ_1M) - rgn[i].base);
+				break;
+			}
 		}
 	}
 }

@@ -396,8 +396,13 @@ static int process_secure_region_node(int node, u64 *base, u64 *size)
 /* Maximum number of secure regions we expect to find in device tree */
 #define MAX_SECURE_REGIONS 10
 
-/* Increase array size to accommodate secure regions */
-static struct mm_region ipq_mem_map[CONFIG_NR_DRAM_BANKS + 3 + MAX_SECURE_REGIONS] = { { 0 } };
+/*
+ * 1 peripheral + CONFIG_NR_DRAM_BANKS DRAM + up to MAX_SECURE_REGIONS secure
+ * regions + 1 relocated U-Boot text + 1 pre-reloc U-Boot text
+ * (IPQ_DYNAMIC_RELOCATION only) + 1 terminator
+ */
+static struct mm_region ipq_mem_map[CONFIG_NR_DRAM_BANKS + 4 + MAX_SECURE_REGIONS]
+	__section(".data") = { { 0 } };
 struct mm_region *mem_map = ipq_mem_map;
 
 /**
@@ -417,6 +422,7 @@ static void ipq_remap_secure_regions(int *next_idx)
 	int node, mem_node;
 	u64 base, size;
 	int i = *next_idx;
+	int secure_count = 0;
 
 	if (!fdt)
 		return;
@@ -428,8 +434,9 @@ static void ipq_remap_secure_regions(int *next_idx)
 	/* Iterate through reserved-memory child nodes */
 	fdt_for_each_subnode(node, fdt, mem_node) {
 		if (process_secure_region_node(node, &base, &size)) {
-			/* Check if we have space in mem_map array */
-			if (i >= ARRAY_SIZE(ipq_mem_map) - 3) {
+			/* 3 trailing slots: relocated text, pre-reloc text, terminator */
+			if (secure_count >= MAX_SECURE_REGIONS ||
+			    i >= ARRAY_SIZE(ipq_mem_map) - 3) {
 				printf("Warning: Not enough mem_map entries for all secure regions\n");
 				break;
 			}
@@ -443,6 +450,7 @@ static void ipq_remap_secure_regions(int *next_idx)
 					   PTE_BLOCK_PXN | PTE_BLOCK_UXN;
 
 			i++;
+			secure_count++;
 		}
 	}
 
@@ -454,10 +462,10 @@ static void build_mem_map(void)
 	int i, j;
 
 	/*
-	 * Ensure the peripheral block is sized to correctly
-	 * cover the address range up to the first memory bank.
-	 * Don't map the first page to ensure that we actually trigger
-	 * an abort on a null pointer access rather than just hanging.
+	 * Ensure the peripheral block is sized to correctly cover the address
+	 * range up to the first memory bank.
+	 * Don't map the first page to ensure that we actually trigger an abort
+	 * on a null pointer access rather than just hanging.
 	 */
 	mem_map[0].phys = 0x1000;
 	mem_map[0].virt = mem_map[0].phys;
@@ -484,7 +492,7 @@ static void build_mem_map(void)
 	ipq_remap_secure_regions(&i);
 
 	/*
-	 * Mark only uboot relocated text region with executable permission
+	 * Mark the relocated U-Boot text region as executable.
 	 */
 	mem_map[i].phys = round_down(gd->relocaddr, SZ_4K);
 	mem_map[i].virt = mem_map[i].phys;
@@ -492,10 +500,30 @@ static void build_mem_map(void)
 		round_up(gd->relocaddr + gd->mon_len, SZ_4K) - mem_map[i].phys;
 	mem_map[i].attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) |
 				PTE_BLOCK_INNER_SHARE;
-
 	i++;
+
+	/*
+	 * Also mark the pre-relocation text region (CONFIG_TEXT_BASE) as
+	 * executable. Pre-relocation data structures (e.g. serial driver state)
+	 * remain at this address until the serial driver is re-probed after
+	 * relocation. Skip this entry when running in-place (skip-reloc path)
+	 * since gd->relocaddr already equals CONFIG_TEXT_BASE in that case.
+	 */
+#if CONFIG_IS_ENABLED(IPQ_DYNAMIC_RELOCATION)
+	if (gd->relocaddr != CONFIG_TEXT_BASE) {
+		mem_map[i].phys = round_down(CONFIG_TEXT_BASE, SZ_4K);
+		mem_map[i].virt = mem_map[i].phys;
+		mem_map[i].size =
+			round_up(CONFIG_TEXT_BASE + gd->mon_len, SZ_4K) - mem_map[i].phys;
+		mem_map[i].attrs = PTE_BLOCK_MEMTYPE(MT_NORMAL) |
+					PTE_BLOCK_INNER_SHARE;
+		i++;
+	}
+#endif
+
 	mem_map[i].phys = UINT64_MAX;
 	mem_map[i].size = 0;
+	mem_map[i].attrs = 0;
 
 #ifdef DEBUG
 	debug("Configured memory map:\n");
@@ -510,9 +538,6 @@ u64 get_page_table_size(void)
 	return SZ_96K;
 }
 
-/* This function open-codes setup_all_pgtables() so that we can
- * insert additional mappings *before* turning on the MMU.
- */
 void enable_caches(void)
 {
 	u64 tlb_addr = gd->arch.tlb_addr;
@@ -613,6 +638,23 @@ static bool isexecute_configured(int i)
 		set_section_dcache(i, EXEC_CACHE_OPTION);
 		done = true;
 	}
+
+#if CONFIG_IS_ENABLED(IPQ_DYNAMIC_RELOCATION)
+	/*
+	 * Also mark the pre-relocation text region (CONFIG_TEXT_BASE) as
+	 * executable. Pre-relocation data structures (e.g. serial driver state)
+	 * remain at this address until the serial driver is re-probed after
+	 * relocation. Skip when running in-place since relocaddr equals
+	 * CONFIG_TEXT_BASE in that case and the check above already covers it.
+	 */
+	if (!done && gd->relocaddr != CONFIG_TEXT_BASE &&
+	    i >= (round_down(CONFIG_TEXT_BASE, SZ_1M) >> MMU_SECTION_SHIFT) &&
+	    i < (round_up(CONFIG_TEXT_BASE + gd->mon_len, SZ_1M)
+			>> MMU_SECTION_SHIFT)) {
+		set_section_dcache(i, EXEC_CACHE_OPTION);
+		done = true;
+	}
+#endif
 
 	return done;
 }
@@ -827,14 +869,95 @@ int board_late_init(void)
 
 int mach_cpu_init(void)
 {
+#if CONFIG_IS_ENABLED(IPQ_DYNAMIC_RELOCATION) && defined(CONFIG_IPQ_CRASHDUMP)
+	/*
+	 * Set GD_FLG_SKIP_RELOC early (before arch_setup_dest_addr) so
+	 * that gd->relocaddr is adjusted correctly for the in-place path.
+	 * DLOAD_MAGIC_COOKIE in TCSR_BOOT_MISC indicates crashdump boot.
+	 */
+	if (ipq_read_tcsr_boot_misc() & DLOAD_MAGIC_COOKIE)
+		gd->flags |= GD_FLG_SKIP_RELOC;
+#else
 	gd->flags |= GD_FLG_SKIP_RELOC;
+#endif
 	return 0;
 }
 
 int arch_setup_dest_addr(void)
 {
+#if CONFIG_IS_ENABLED(IPQ_DYNAMIC_RELOCATION)
+	if (gd->flags & GD_FLG_SKIP_RELOC) {
+		/* Run in-place: relocaddr = load address, reloc_off = 0 */
+		gd->relocaddr = CONFIG_TEXT_BASE;
+		gd->reloc_off = 0;
+	} else {
+		/*
+		 * Reserve 2MB above the relocated U-Boot image for the
+		 * noncached DMA region used by the network driver.
+		 * SZ_2M (instead of SZ_1M) ensures nc_start =
+		 * ALIGN(relocaddr + mon_len, SZ_1M) lands within the
+		 * reserved gap and never falls exactly at a DDR bank
+		 * boundary, avoiding an MMU block-split that would
+		 * exceed the SZ_64K page-table budget.
+		 *
+		 * Layout after reserve_uboot() subtracts mon_len:
+		 *   [gd->relocaddr]              ← relocated U-Boot image
+		 *   [ALIGN(relocaddr+mon_len,1M)] ← noncached DMA region (1MB)
+		 *   [gd->ram_top - 1MB]          ← unused gap (alignment slack)
+		 *   [gd->ram_top]                ← top of RAM
+		 */
+		gd->relocaddr -= SZ_2M;
+	}
+#else
 	gd->relocaddr = CONFIG_TEXT_BASE;
 	gd->reloc_off = gd->relocaddr - CONFIG_TEXT_BASE;
+#endif
+	return 0;
+}
+
+int reserve_arch(void)
+{
+#if CONFIG_IS_ENABLED(IPQ_DYNAMIC_RELOCATION)
+	bool want_skip = false;
+
+#if defined(CONFIG_IPQ_CRASHDUMP)
+	want_skip = !!(ipq_read_tcsr_boot_misc() & DLOAD_MAGIC_COOKIE);
+#endif
+
+	/*
+	 * reserve_uboot() in board_f.c sets GD_FLG_SKIP_RELOC when
+	 * CONFIG_SKIP_RELOCATE=y (compile-time, cannot be prevented).
+	 * Re-evaluate the runtime condition here — after reserve_uboot()
+	 * but before setup_reloc() — to handle both defconfig cases:
+	 *
+	 * Case A: CONFIG_SKIP_RELOCATE=y, normal boot (want_skip=false)
+	 *   reserve_uboot() set the flag but we want relocation.
+	 *   Clear the flag and subtract mon_len from gd->relocaddr
+	 *   (reserve_uboot() skipped this subtraction because the flag
+	 *   was set). arch_setup_dest_addr() already subtracted SZ_1M,
+	 *   so the DMA region remains correctly placed.
+	 *
+	 * Case B: CONFIG_SKIP_RELOCATE=y, crashdump (want_skip=true)
+	 *   mach_cpu_init() already set the flag; reserve_uboot() is a
+	 *   no-op. No change needed.
+	 *
+	 * Case C: CONFIG_SKIP_RELOCATE=n, crashdump (want_skip=true)
+	 *   mach_cpu_init() set the flag; reserve_uboot() did not touch
+	 *   it. No change needed.
+	 *
+	 * Case D: CONFIG_SKIP_RELOCATE=n, normal boot (want_skip=false)
+	 *   Neither mach_cpu_init() nor reserve_uboot() set the flag.
+	 *   No change needed.
+	 */
+	if (!want_skip && (gd->flags & GD_FLG_SKIP_RELOC)) {
+		/* Case A: undo the compile-time skip, enable relocation */
+		gd->flags &= ~GD_FLG_SKIP_RELOC;
+		gd->relocaddr -= gd->mon_len;
+		gd->relocaddr &= ~(4096 - 1);
+		gd->start_addr_sp = gd->relocaddr;
+	}
+#endif /* CONFIG_IS_ENABLED(IPQ_DYNAMIC_RELOCATION) */
+
 	return 0;
 }
 
@@ -869,11 +992,50 @@ int arm_reserve_mmu(void)
 #else
 int arm_reserve_mmu(void)
 {
+#if !(CONFIG_IS_ENABLED(SYS_ICACHE_OFF) && CONFIG_IS_ENABLED(SYS_DCACHE_OFF))
 	/* reserve TLB table */
 	gd->arch.tlb_size = PGTABLE_SIZE;
-	gd->arch.tlb_addr = CONFIG_TEXT_BASE + gd->mon_len;
-	gd->arch.tlb_addr += (0x10000 - 1);
-	gd->arch.tlb_addr &= ~(0x10000 - 1);
+
+	if (gd->flags & GD_FLG_SKIP_RELOC) {
+		/*
+		 * In-place (crashdump) path: TLB immediately after the
+		 * U-Boot image at its load address, 64KB aligned.
+		 */
+		gd->arch.tlb_addr = CONFIG_TEXT_BASE + gd->mon_len;
+		gd->arch.tlb_addr += (0x10000 - 1);
+		gd->arch.tlb_addr &= ~(0x10000 - 1);
+	} else {
+		/*
+		 * Normal reloc path: replicate the generic arm_reserve_mmu()
+		 * behaviour from arch/arm/lib/cache.c — subtract tlb_size
+		 * from gd->relocaddr, align to 64KB, and place TLB there.
+		 * reserve_uboot() will later subtract mon_len from
+		 * gd->relocaddr to place the U-Boot image below the TLB.
+		 */
+		gd->relocaddr    -= gd->arch.tlb_size;
+		gd->relocaddr    &= ~(0x10000 - 1);
+		gd->arch.tlb_addr = gd->relocaddr;
+	}
+
+	debug("TLB table from %08lx to %08lx\n", gd->arch.tlb_addr,
+	      gd->arch.tlb_addr + gd->arch.tlb_size);
+
+#ifdef CFG_SYS_MEM_RESERVE_SECURE
+	/*
+	 * Record allocated tlb_addr in case gd->tlb_addr is overwritten
+	 * with a location within secure RAM.
+	 */
+	gd->arch.tlb_allocated = gd->arch.tlb_addr;
+#endif
+
+	if (IS_ENABLED(CONFIG_CMO_BY_VA_ONLY)) {
+		/*
+		 * Ensure page tables are in a valid state before
+		 * invalidate_dcache_all() is called prior to mmu_setup().
+		 */
+		memset((void *)gd->arch.tlb_addr, 0, gd->arch.tlb_size);
+	}
+#endif
 	return 0;
 }
 #endif
@@ -1014,6 +1176,55 @@ phys_size_t get_effective_memsize(void)
 #endif
 	return ram_size;
 }
+
+#ifdef CONFIG_ARM64
+/*
+ * board_get_usable_ram_top() - Return the top of usable RAM for ARM64.
+ *
+ * On ARM64 IPQ platforms DDR may be split across multiple non-contiguous
+ * banks. The number of banks, their base addresses and sizes vary per SoC
+ * and board configuration and are reported at runtime via the SMEM usable
+ * RAM partition table.
+ *
+ * get_effective_memsize() caps ram_top to the first bank so that U-Boot
+ * is placed in a contiguous region. For ARM64 U-Boot can address the full
+ * 64-bit space, so ram_top should be the end of the highest DDR bank.
+ * This prevents lmb_add_memory() from reserving higher banks wholesale
+ * as no-overwrite.
+ *
+ * dram_init_banksize() runs after setup_dest_addr() so gd->bd->bi_dram[]
+ * is not yet populated here. Read the SMEM usable-RAM partition table
+ * directly — the same source used by dram_init().
+ */
+phys_addr_t board_get_usable_ram_top(phys_size_t total_size)
+{
+	size_t size;
+	struct udevice *dev;
+	struct usable_ram_partition_table *rpt;
+	struct ram_partition_entry *rpe;
+	phys_addr_t top = 0;
+	int i;
+
+	uclass_get_device(UCLASS_SMEM, 0, &dev);
+	rpt = smem_get(dev, -1, SMEM_USABLE_RAM_PARTITION_TABLE, &size);
+
+	if (rpt == NULL)
+		return gd->ram_top;
+
+	rpe = &rpt->ram_part_entry[0];
+	for (i = 0; i < rpt->num_partitions; i++, rpe++) {
+		if ((rpe->partition_category == RAM_PARTITION_SDRAM) &&
+		    (rpe->partition_type == RAM_PARTITION_SYS_MEMORY)) {
+			phys_addr_t bank_end = rpe->start_address + rpe->length;
+
+			if (bank_end > top)
+				top = bank_end;
+		}
+	}
+
+	return top ? top : gd->ram_top;
+}
+#endif
 
 #if CONFIG_IS_ENABLED(NAND_QTI)
 void board_nand_init(void)
