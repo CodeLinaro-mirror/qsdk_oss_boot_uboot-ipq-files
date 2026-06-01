@@ -1697,7 +1697,7 @@
 		pinctrl-0 = <&uart2_pins>;
 		pinctrl-names = "default";
 		qup-se-fw-load = <&uart2_fw>;
-		status = "okay";
+		status = "disabled";
 	};
 
 	uart2_fw: uart_firmware@1 {
