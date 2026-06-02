@@ -24,11 +24,12 @@
 //id len + id
 #define THIN_TOC_ENTRY_SIZE (4 + MAX_LICENSE_ID_LEN)
 #define LICENSE_MANAGER_SLOT_SIZE (4 * 1024)
+#define LICENSE_DEVICE_ID_IS_SOC 1
 
 typedef struct LicenseMeta {
     UsefulBufC identifier;
-    uint8_t attach_len;
-    uint8_t attach_num;
+    uint8_t device_id_len;
+    uint8_t device_id;
 } LicenseMeta;
 
 
@@ -40,8 +41,8 @@ int32_t LicenseStore_initForOffTargetUse(LicenseStore* self) {
 
 void LicenseMeta_init(LicenseMeta* self) {
     self->identifier = NULLUsefulBufC;
-    self->attach_len = 0;
-    self->attach_num = 0;
+    self->device_id_len = 0;
+    self->device_id = 0;
 }
 
 
@@ -58,7 +59,7 @@ static int getClientIdAndLicenseFromUB(UsefulBufC ub,
                                        UsefulBufC* license) {
     UsefulInputBuf in = {0};
     UsefulInputBuf_Init(&in, ub);
-    
+
     // Client ID is optional
     UsefulBufC cid = NULLUsefulBufC;
 
@@ -110,8 +111,8 @@ static bool ThinToc_isDataVacant(MDSemantics const* self, UsefulBufC data) {
 static int readMetaFromBuffer(UsefulInputBuf* in, LicenseMeta* meta) {
     // Safe defaults
     meta->identifier = NULLUsefulBufC;
-    meta->attach_len = 0;
-    meta->attach_num = 0;
+    meta->device_id_len = 0;
+    meta->device_id = 0;
 
     // This variable can temporarily be invalid, since we are filling its members
     // with potentially random data.  The entryStatus call below performs sanity
@@ -125,9 +126,9 @@ static int readMetaFromBuffer(UsefulInputBuf* in, LicenseMeta* meta) {
         return -1;
     }
     temp.identifier.ptr = ident;
-    temp.attach_len = UsefulInputBuf_GetByte(in);
-    if (temp.attach_len) {
-        temp.attach_num = UsefulInputBuf_GetByte(in);
+    temp.device_id_len = UsefulInputBuf_GetByte(in);
+    if (temp.device_id_len) {
+        temp.device_id = UsefulInputBuf_GetByte(in);
     }
     *meta = temp;
     return 0;
@@ -165,7 +166,7 @@ int32_t LicenseStore_init(LicenseStore* self, QWESStore store) {
 
     if (!self->storage) {
         /**
-            Partition information , GUID and storage type is not required 
+            Partition information , GUID and storage type is not required
 	    as store APIs wil take care of it.
         */
         PartitionInfo info = {0, 0, 0};
@@ -176,7 +177,7 @@ int32_t LicenseStore_init(LicenseStore* self, QWESStore store) {
             return LICENSE_STORE_NO_MEMORY;
         }
     }
-    
+
     static const MDSemantics LicenseSem = {
         // See WriteMetaToBuffer.
         .meta_len = THIN_TOC_ENTRY_SIZE,
@@ -210,15 +211,15 @@ int32_t install_license (void* visitor,
    UsefulBufC client_id = NULLUsefulBufC;
    UsefulBufC license = NULLUsefulBufC;
 
-    // Parse meta to check attach_len and attach_num
+    // Parse meta to check device_id_len and device_id
     LicenseMeta lic_meta;
     LicenseMeta_init(&lic_meta);
     UsefulInputBuf in = {0};
     UsefulInputBuf_Init(&in, meta);
     readMetaFromBuffer(&in, &lic_meta);
 
-    // If attach_len is present, only install licenses with attach_num == 0
-    if (lic_meta.attach_len && lic_meta.attach_num != 0) {
+    // If device_id_len is present, only install licenses of soc
+    if (lic_meta.device_id_len && lic_meta.device_id != LICENSE_DEVICE_ID_IS_SOC) {
         return LICENSE_STORE_SUCCESS;
     }
 
