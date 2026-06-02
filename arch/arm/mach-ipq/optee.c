@@ -108,8 +108,9 @@ int ipq_fuseipq_optee_impl(void *params)
 	param[0].u.memref.size	= shm_elf->size;
 	param[0].attr		= TEE_PARAM_ATTR_TYPE_MEMREF_INPUT;
 
-	ret = tee_shm_register(dev, (void *)(ulong)fuseipq_params->load_seg_buff,
-			       fuseipq_params->load_seg_cnt, 0x0, &shm_dat);
+	/* Use 64-bit struct buffer for OPTEE */
+	ret = tee_shm_register(dev, (void *)(ulong)fuseipq_params->load_seg_buff_64,
+			       fuseipq_params->load_seg_cnt_64, 0x0, &shm_dat);
 	if (ret < 0) {
 		printf("Cannot register input dat memory 0x%X\n", ret);
 		tee_shm_free(shm_elf);

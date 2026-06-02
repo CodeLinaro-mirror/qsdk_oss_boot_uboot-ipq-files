@@ -495,14 +495,17 @@ struct cal_dt_config {
 #endif
 
 struct load_seg_info {
-#ifdef CONFIG_OPTEE
-	uint64_t startAddr;       /**< Region start address (SoC view) */
-	uint64_t endAddr;	 /**< Region end address (SoC view) */
-#else
 	uint32_t startAddr;       /**< Region start address (SoC view) */
 	uint32_t endAddr;	 /**< Region end address (SoC view) */
-#endif
 };
+
+#ifdef CONFIG_OPTEE
+/* 64-bit version of load_seg_info for OPTEE */
+struct load_seg_info_64 {
+	u64 startAddr;       /**< Region start address (64-bit) */
+	u64 endAddr;	     /**< Region end address (64-bit) */
+};
+#endif
 
 /* All CMD-related parameters should be declared below*/
 struct fuseipq_params {
@@ -518,6 +521,11 @@ struct fuseipq_params {
 	struct load_seg_info *load_seg_buff;
 	uint8_t load_seg_cnt;
 	u32 fuse_status;
+#ifdef CONFIG_OPTEE
+	/* For OPTEE targets, fuseipq needs 64-bit addresses */
+	struct load_seg_info_64 *load_seg_buff_64;
+	uint8_t load_seg_cnt_64;
+#endif
 };
 
 struct list_fuse_params {
