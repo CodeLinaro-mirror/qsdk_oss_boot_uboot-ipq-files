@@ -100,7 +100,6 @@ struct dts_fixup ipq9574_usb_fixup[] = {
 
 struct dts_fixup *usb_fixup = ipq9574_usb_fixup;
 
-#ifdef CONFIG_DTB_RESELECT
 struct machid_dts_map machid_dts[] = {
 	{
 		MACH_TYPE_IPQ9574_RDP417,
@@ -438,7 +437,6 @@ void ipq_update_board_name(int machid, struct multidtb_config *dtb)
 	}
 
 }
-#endif /* CONFIG_DTB_RESELECT */
 
 #ifdef CONFIG_IPQ_EARLY_WDT
 void ipq_enable_non_sec_watchdog(void)

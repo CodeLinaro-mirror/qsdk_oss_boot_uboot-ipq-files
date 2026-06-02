@@ -84,7 +84,6 @@ struct node_info * fnodes = ipq_fnodes ;
 int * fnode_entires = &ipq_fnode_entires;
 #endif
 
-#ifdef CONFIG_DTB_RESELECT
 struct machid_dts_map machid_dts[] = {
 	{
 		MACH_TYPE_IPQ5424_RDP464,
@@ -361,7 +360,6 @@ void ipq_update_board_name(int machid, struct multidtb_config *dtb)
 	}
 
 }
-#endif /* CONFIG_DTB_RESELECT */
 
 #if defined(CONFIG_SPL)
 void ipq_spl_board_early_init_f(void)
