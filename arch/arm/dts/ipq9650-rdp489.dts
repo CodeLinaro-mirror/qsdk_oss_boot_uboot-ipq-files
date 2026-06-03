@@ -400,6 +400,12 @@
 	};
 };
 
+&qupv3 {
+	uart2: serial@1a84000 {
+		status = "okay";
+	};
+};
+
 &tmel_qmp {
 	status = "okay";
 };
