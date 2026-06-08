@@ -28,14 +28,14 @@
 			status = "okay";
 		};
 
-		pcie0_phy: phy@84000 {
+		pcie1_phy: phy@f4000 {
 			status = "okay";
 		};
 
-		pcie0: pcie@70000000 {
-			pinctrl-0 = <&pcie0_default_state>;
+		pcie1: pcie@50000000 {
+			pinctrl-0 = <&pcie1_default_state>;
 			pinctrl-names = "default";
-			perst-gpios = <&tlmm 32 GPIO_ACTIVE_LOW>;
+			perst-gpios = <&tlmm 29 GPIO_ACTIVE_LOW>;
 			status = "okay";
 		};
 
@@ -110,9 +110,9 @@
 };
 
 &tlmm {
-	pcie0_default_state: pcie0-default-state {
+	pcie1_default_state: pcie1-default-state {
 		perst-n-pins {
-			pins = "gpio32";
+			pins = "gpio29";
 			function = "gpio";
 			drive-strength = <6>;
 			bias-pull-down;
