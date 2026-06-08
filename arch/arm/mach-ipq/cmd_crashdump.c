@@ -64,7 +64,7 @@
 #if defined(CONFIG_IPQ_CRASHDUMP_TO_MEMORY) || \
 	defined(CONFIG_IPQ_CRASHDUMP_TO_NVMEMORY)
 
-typedef struct {
+typedef struct __attribute__((packed)) {
 	char name[DUMP_NAME_STR_MAX_LEN];
 	uint64_t offset;
 	uint64_t size;
@@ -208,7 +208,7 @@ static u8 g_minidump_value;
 #endif /* CONFIG_IPQ_MINIDUMP */
 
 typedef struct {
-	char name[DUMP_NAME_STR_MAX_LEN];
+	char name[DUMP_PATH_STR_MAX_LEN];
 	uint64_t start_addr;
 	uint64_t size;
 	uint8_t is_aligned_access:1;
@@ -1567,7 +1567,7 @@ static int verify_crashdump_iface(crashdump_config_t * dump_config)
  */
 static int split_bin_dump(crashdump_config_t *dump_config,
 		crashdump_infos_int_t *dump_entry, uint64_t split_size,
-		char dump_name_prefix[DUMP_NAME_STR_MAX_LEN],
+		char dump_name_prefix[DUMP_PATH_STR_MAX_LEN],
 		uint8_t file_no_start)
 {
 	int ret = 0;
@@ -1613,7 +1613,7 @@ static int prepare_crashdump_level_table(crashdump_config_t *dump_config,
 	int i, ret = 0;
 	crashdump_infos_int_t dump_entry;
 	struct crashdump_infos *dump_infos = dump_config->dump_infos;
-	char dump_name_prefix[DUMP_NAME_STR_MAX_LEN] = { 0 };
+	char dump_name_prefix[DUMP_PATH_STR_MAX_LEN] = { 0 };
 	char *dump_dir = env_get("dumpdir");
 	uint64_t split_bin_sz = 0;
 	uint8_t file_no = 0;
@@ -1644,14 +1644,14 @@ static int prepare_crashdump_level_table(crashdump_config_t *dump_config,
 			size_t name_len = strlen(name);
 			size_t dir_len = strlen(dump_dir);
 
-			if(dir_len + name_len + 1 >= DUMP_NAME_STR_MAX_LEN) {
+			if(dir_len + name_len + 1 >= DUMP_PATH_STR_MAX_LEN) {
 				printf("dump path info length is exceeded maximum length allowed\n");
 				goto usb_default_dump;
 			}
 
 			if (name_len > 4 && strcmp(name + name_len - 4,
 						   ".BIN") == 0) {
-				char name_without_ext[DUMP_NAME_STR_MAX_LEN];
+				char name_without_ext[DUMP_PATH_STR_MAX_LEN];
 
 				strlcpy(name_without_ext, name, name_len - 3);
 				name_without_ext[name_len - 3] = '\0';
@@ -3010,8 +3010,8 @@ static int dump_to_dst(crashdump_config_t *dump_config,
 	case DUMP_TO_EMMC:
 		loff_t len;
 		int ret;
-		char abs_file_path[DUMP_NAME_STR_MAX_LEN+1];
-		snprintf(abs_file_path, DUMP_NAME_STR_MAX_LEN+1, "/%s",
+		char abs_file_path[DUMP_PATH_STR_MAX_LEN+1];
+		snprintf(abs_file_path, DUMP_PATH_STR_MAX_LEN+1, "/%s",
 				dump_entry->name);
 
 		if (fs_set_blk_dev("mmc", iface_cfg->emmc_part_dev,
