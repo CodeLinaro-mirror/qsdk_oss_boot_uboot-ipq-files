@@ -3322,8 +3322,9 @@ static void ipq_dump_func(crashdump_config_t *dump_config, uint8_t debug)
 	bool skip_crashdump = 1;
 
 	dump_config->debug = debug;
-	dump_config->ram_top = ((gd->ram_top & BIT(0)) ? (gd->ram_top + 1) :
-					gd->ram_top);
+	dump_config->ram_top = ((gd->ram_top & BIT(0)) ? ((uint64_t)gd->ram_top + 1) :
+				gd->ram_top);
+
 	parse_crashdump_config(dump_config);
 	if (!dump_config->force_collect_dump) {
 		etime = get_timer(0) + (10 * CONFIG_SYS_HZ);
