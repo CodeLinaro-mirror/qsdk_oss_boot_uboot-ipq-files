@@ -475,27 +475,27 @@ struct cal_per_dev_config {
 	u32 board_id;
 	u32 caldata_offset;
 	u32 caldata_size;
-	u32 cal_fw_image_addr;
-	u32 hremote_addr;
+	phys_addr_t cal_fw_image_addr;
+	phys_addr_t hremote_addr;
 	u32 hremote_size;
-	u32 rddm_addr;
+	phys_addr_t rddm_addr;
 	u32 rddm_size;
-	u32 caldb_addr;
+	phys_addr_t caldb_addr;
 	u32 caldb_size;
-	u32 host_ddr_status;
+	phys_addr_t host_ddr_status;
 };
 
 struct cal_config {
 	struct cal_fw_header *cal_fw_header;
-	u32 ddr_base_addr;
+	phys_addr_t ddr_base_addr;
 	u32 ddr_rmem_size;
-	u32 caldata_addr;
 	u32 archive_owner_slot_id;
+	phys_addr_t caldata_addr;
 	struct cal_per_dev_config dev_cfg[CONFIG_IPQ_MAX_PCIE];
 };
 
 struct cal_dt_config {
-	u32 rmem_base_addr;
+	phys_addr_t rmem_base_addr;
 	u32 rmem_size;
 	u32 board_id;
 	u32 caldata_offset;
