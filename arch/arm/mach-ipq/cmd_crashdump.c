@@ -3240,6 +3240,10 @@ void ipq_do_dump_data(crashdump_config_t *dump_config)
 
 		memcpy((void*)(uintptr_t)iface_cfg->dump2mem_rsvd_addr,
 				hdr, sizeof(memdump_hdr_t));
+
+		flush_dcache_range((unsigned long)iface_cfg->dump2mem_rsvd_addr,
+				   (unsigned long)iface_cfg->dump2mem_rsvd_addr +
+				   sizeof(memdump_hdr_t));
 		break;
 #endif /* CONFIG_IPQ_CRASHDUMP_TO_MEMORY */
 
