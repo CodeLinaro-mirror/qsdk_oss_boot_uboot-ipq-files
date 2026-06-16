@@ -289,76 +289,7 @@ static int qwes_store_read(void *client_handle, u32 start_slot,
 static int qwes_store_write(void *client_handle, u32 start_slot,
 			    u32 num_slots, u8 *data_buffer)
 {
-	struct license_storage_ctx *ctx = (struct license_storage_ctx *)client_handle;
-	lbaint_t lba;
-	ulong n;
-	int ret;
-
-	if (!ctx || !data_buffer) {
-		pr_err("Invalid parameters for write\n");
-		return QWES_STORE_INVALID_PARAM;
-	}
-
-	/* Check bounds */
-	if (start_slot + num_slots > ctx->partition_size_in_slots) {
-		pr_err("Write beyond partition bounds\n");
-		return QWES_STORE_INVALID_PARAM;
-	}
-
-	/* Flush cache: each slot is SLOT_SIZE bytes */
-	flush_dcache_range((unsigned long)data_buffer,
-			   (unsigned long)data_buffer + (ulong)num_slots * SLOT_SIZE);
-
-#ifdef CONFIG_IPQ_NAND
-	/* Handle NAND write */
-	if (ctx->is_nand) {
-		loff_t offset;
-		size_t length;
-
-		if (!ctx->nand_mtd) {
-			pr_err("NAND MTD device not initialized\n");
-			return QWES_STORE_ERROR;
-		}
-
-		/* Calculate byte offset and length from slot index */
-		offset = ctx->nand_offset + ((loff_t)start_slot * SLOT_SIZE);
-		length = (size_t)num_slots * SLOT_SIZE;
-
-		/* Check bounds */
-		if (offset + length > ctx->nand_offset + ctx->nand_size) {
-			pr_err("NAND write beyond partition bounds\n");
-			return QWES_STORE_INVALID_PARAM;
-		}
-
-		/* Write to NAND */
-		ret = nand_write(ctx->nand_mtd, offset, &length, data_buffer);
-		if (ret) {
-			pr_err("NAND write failed: %d\n", ret);
-			return QWES_STORE_ERROR;
-		}
-
-		return QWES_STORE_SUCCESS;
-	}
-#endif
-
-	/* Handle block device write (MMC/SPI) */
-	/* Convert slot index to LBA: each slot is SLOT_SIZE bytes */
-	{
-		lbaint_t slot_offset_bytes = (lbaint_t)start_slot * SLOT_SIZE;
-		lbaint_t num_bytes = (lbaint_t)num_slots * SLOT_SIZE;
-		ulong num_blks = num_bytes / ctx->part_info.blksz;
-
-		lba = ctx->part_info.start + (slot_offset_bytes / ctx->part_info.blksz);
-
-		/* Write blocks */
-		n = blk_dwrite(ctx->dev_desc, lba, num_blks, data_buffer);
-		if (n != num_blks) {
-			pr_err("Failed to write (expected=%lu, actual=%lu)\n",
-			       num_blks, n);
-			return QWES_STORE_ERROR;
-		}
-	}
-
+	/* No action needed in SPL*/
 	return QWES_STORE_SUCCESS;
 }
 
