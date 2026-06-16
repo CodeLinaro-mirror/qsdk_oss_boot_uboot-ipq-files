@@ -1364,6 +1364,87 @@ union ipo_action_u {
 	struct ipo_action bf;
 };
 
+/* V2 IPO Rule: widen src_1 to 8 bits */
+struct ipo_rule_reg_v2 {
+	u32  rule_field_0:32;
+	u32  rule_field_1:20;
+	u32  fake_mac_header:1;
+	u32  range_en:1;
+	u32  inverse_en:1;
+	u32  rule_type:5;
+	u32  src_type:3;
+	u32  src_0:1;
+	u32  src_1:8;
+	u32  pri:9;
+	u32  res_chain:1;
+	u32  post_routing_en:1;
+	u32  _reserved0:13;
+};
+
+union ipo_rule_reg_v2_u {
+	u32 val[3];
+	struct ipo_rule_reg_v2 bf;
+};
+
+struct ipo_action_v2 {
+	u32 dest_info_change_en:1;
+	u32 fwd_cmd:2;
+	u32 dest_info:14;
+	u32 mirror_en:1;
+	u32 bypass_bitmap_0:14;
+	u32 bypass_bitmap_1:18;
+	u32 svid_change_en:1;
+	u32 stag_fmt:2;
+	u32 svid_0:11;
+	u32 svid_1:1;
+	u32 cvid_change_en:1;
+	u32 ctag_fmt:2;
+	u32 cvid:12;
+	u32 dscp_tc_change_en:1;
+	u32 dscp_tc:8;
+	u32 stag_pcp_change_en:4;
+	u32 stag_pcp:3;
+	u32 stag_dei_change_en:2;
+	u32 stag_dei:1;
+	u32 ctag_pcp_change_en:4;
+	u32 ctag_pcp:3;
+	u32 ctag_dei_change_en:2;
+	u32 ctag_dei:1;
+	u32 tags_to_remove:2;
+	u32 stpid_cmd:2;
+	u32 stpid_index:2;
+	u32 ctpid_cmd:2;
+	u32 ctpid_index:2;
+	u32 dscp_pbit_mapping_index:1;
+	u32 counter_en:1;
+	u32 counter_id:7;
+	u32 counter_mode:1;
+	u32 enqueue_pri_change_en:1;
+	u32 enqueue_pri:4;
+	u32 int_dp_change_en:1;
+	u32 int_dp:2;
+	u32 policer_en:1;
+	u32 policer_index:9;
+	u32 qid_en:1;
+	u32 qid:8;
+	u32 service_code_en:1;
+	u32 service_code_0:3;
+	u32 service_code_1:5;
+	u32 syn_toggle:1;
+	u32 cpu_code_en:1;
+	u32 cpu_code:8;
+	u32 metadata_en:1;
+	u32 dscp_tc_mask:8;
+	u32 qos_res_prec:3;
+	u32 metadata_pri:4;
+	u32 _reserved0:1;
+};
+
+union ipo_action_v2_u {
+	u32 val[6];
+	struct ipo_action_v2 bf;
+};
+
 struct ppe_acl_set {
 	phys_addr_t reg_base;
 	u32 rule_id;
