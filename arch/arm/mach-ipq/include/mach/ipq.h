@@ -89,7 +89,8 @@
 #endif
 #define CFG_IPQ_NAND_PART	       BIT(IPQ_NAND_FLASH_VALID_BIT)
 
-#define DUMP_NAME_STR_MAX_LEN		50
+#define DUMP_NAME_STR_MAX_LEN		20
+#define DUMP_PATH_STR_MAX_LEN		50
 #define DUMP2MEM_MAGIC1_COOKIE		0x4D494E49
 #define DUMP2MEM_MAGIC2_COOKIE		0x44554D50
 
@@ -136,10 +137,6 @@
 #endif
 
 #define reset()				do_reset(NULL, 0, 0, NULL)
-
-#ifndef DUMP_NAME_STR_MAX_LEN
-#define DUMP_NAME_STR_MAX_LEN		50
-#endif
 
 /*
  * QCN9224 fusing
