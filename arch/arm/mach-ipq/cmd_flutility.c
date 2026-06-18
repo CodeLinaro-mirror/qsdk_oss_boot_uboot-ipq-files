@@ -805,7 +805,7 @@ int do_flash(struct cmd_tbl *cmdtp, int flag, int argc, char * const argv[])
 			break;
 
 		BLK_PART_GET_INFO_S(bpart_info, part_name, &disk_info,
-					SMEM_BOOT_NORGPT_FLASH, true);
+					SMEM_BOOT_NORGPT_FLASH, false);
 
 		ret = ipq_part_get_info_by_name(&bpart_info);
 		if (ret) {
