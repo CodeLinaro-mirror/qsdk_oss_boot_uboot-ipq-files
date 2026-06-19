@@ -1,0 +1,49 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ */
+
+#ifndef _IPQ5610_H_
+#define _IPQ5610_H_
+
+#ifndef __ASSEMBLY__
+#include <linux/types.h>
+extern uint32_t g_board_machid;
+extern uint32_t g_env_offset;
+#endif
+
+#if defined(CONFIG_ENV_IS_IN_SPI_FLASH) && defined(CONFIG_ENV_OFFSET) && defined(CONFIG_RUNTIME_SF_ENV_UPDATE)
+#undef CONFIG_ENV_OFFSET
+#define CONFIG_ENV_OFFSET       g_env_offset
+#endif
+
+#define CONFIG_HAS_CUSTOM_SYS_INIT_SP_ADDR
+#define CONFIG_CUSTOM_SYS_INIT_SP_ADDR		\
+		(CONFIG_TEXT_BASE - CONFIG_SYS_MALLOC_LEN -\
+			CONFIG_ENV_SIZE - GENERATED_GBL_DATA_SIZE)
+
+#define CONFIG_MACH_TYPE                        (g_board_machid)
+#define CFG_SYS_SDRAM_BASE0_ADDR		0x80000000
+#define CFG_SYS_SDRAM_BASE0_SIZE		0x80000000
+#if (CONFIG_NR_DRAM_BANKS > 1)
+#define CFG_SYS_SDRAM_BASE1_ADDR		0x800000000
+#define CFG_SYS_SDRAM_BASE1_SIZE		0x80000000
+#endif
+
+#define CFG_SYS_SDRAM_BASE			CFG_SYS_SDRAM_BASE0_ADDR
+#define KERNEL_START_ADDR			CFG_SYS_SDRAM_BASE
+#define BOOT_PARAMS_ADDR			(KERNEL_START_ADDR + 0x100)
+#define CFG_ROOTFS_LOAD_ADDR			(CFG_SYS_SDRAM_BASE + (32 << 20))
+#define FDT_HIGH				0x88500000
+
+#define CFG_EMULATION
+/* override the counter frequency incase of emulation platform */
+#ifdef CFG_EMULATION
+#define CFG_EMUL_FREQUENCY_DIVIDER		200
+#define CFG_SYS_HZ_CLOCK			(CONFIG_COUNTER_FREQUENCY / \
+						CFG_EMUL_FREQUENCY_DIVIDER)
+#else
+#define CFG_SYS_HZ_CLOCK			CONFIG_COUNTER_FREQUENCY
+#endif
+
+#endif /* _IPQ5610_H_ */
