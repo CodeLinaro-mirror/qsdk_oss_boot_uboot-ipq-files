@@ -705,6 +705,33 @@ static struct ipq_eth_port_config ipq5210_port_config[] = {
 			PORT_WRAPPER_UQXGMII,
 		},
 	},
+	{
+		QCE2204_SWITCH_TYPE,
+		{
+			CLK_312_5_MHZ,		/* 10M  */
+			CLK_312_5_MHZ,		/* 100M */
+			CLK_312_5_MHZ,		/* 1G   */
+			CLK_312_5_MHZ,		/* 10G  */
+			CLK_312_5_MHZ,		/* 2.5G */
+			CLK_312_5_MHZ		/* 5G   */
+		},
+		{
+			XGMAC,
+			XGMAC,
+			XGMAC,
+			XGMAC,
+			XGMAC,
+			XGMAC
+		},
+		{
+			PORT_WRAPPER_10GBASE_R,
+			PORT_WRAPPER_10GBASE_R,
+			PORT_WRAPPER_10GBASE_R,
+			PORT_WRAPPER_10GBASE_R,
+			PORT_WRAPPER_10GBASE_R,
+			PORT_WRAPPER_10GBASE_R
+		},
+	},
 	/* Internal PHY Type */
 	{
 		INTERNAL_PHY_TYPE,

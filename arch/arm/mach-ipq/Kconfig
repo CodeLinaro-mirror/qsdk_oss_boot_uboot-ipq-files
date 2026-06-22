@@ -972,6 +972,7 @@ config TARGET_IPQ5210
 	imply PHY_QCA_8081 if !SPL
 	imply PHY_QCA_8033 if !SPL
 	imply PHY_QCE_1204 if !SPL
+	imply PHY_QCE_2204 if !SPL
 	imply CLK_QCOM_NSSCC_QCE2204 if !SPL
 	imply MDIO_AHB
 	select TEE
