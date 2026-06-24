@@ -11,9 +11,14 @@
 #include <config.h>
 #include <mtd_node.h>
 #include <jffs2/load_kernel.h>
+#include <irq_func.h>
+#include <hang.h>
 
 #include <dm/lists.h>
 #include <dm/root.h>
+
+/* External declarations for SPL functions */
+extern u8 get_boot_mode(void);
 
 #define IM_SLEEP_CLK				0x1834020
 /* MACH IDs for various RDPs */
@@ -347,6 +352,47 @@ void reset_cpu(void)
 	psci_sys_reset(SYSRESET_COLD);
 }
 #endif /* !CONFIG_SPL */
+
+#if defined(CONFIG_SPL_BUILD)
+void ipq_spl_pre_reset_seq(void)
+{
+	static int exception_count;
+	u8 boot_mode;
+
+	/**
+	 * Disable interrupts to prevent race conditions
+	 */
+	disable_interrupts();
+
+	/**
+	 * Flush all caches to ensure data consistency
+	 */
+	flush_dcache_all();
+
+	/**
+	 * Increment exception counter
+	 */
+	exception_count++;
+
+	/**
+	 * Check for nested exceptions
+	 */
+	if (exception_count > 1) {
+		printf("Nested exception detected (count=%d)\n", exception_count);
+		hang();
+	} else {
+		boot_mode = get_boot_mode();
+		switch (boot_mode) {
+		case IPQ_SPL_BOOT_MODE_FORCE_INACIVE:
+		case IPQ_SPL_BOOT_MODE_FAILOVER_EN:
+			break;
+
+		default:
+			IPQ_SPL_SET_TCSR_EDL();
+		}
+	}
+}
+#endif /* CONFIG_SPL_BUILD */
 
 uint32_t is_board_support_image_auth(void)
 {

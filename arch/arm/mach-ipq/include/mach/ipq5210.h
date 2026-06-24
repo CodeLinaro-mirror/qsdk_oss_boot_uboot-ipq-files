@@ -7,6 +7,7 @@
 #define __IPQ5210_H__
 
 #define TCSR_BOOT_MISC_REG			((u32 *)0x195C100)
+#define PSHOLD_CTL_BASE				0x004AB000
 #define QFPROM_CORR_TME_OEM_ATE_ROW0_LSB	0xA40E0
 #define QFPROM_CORR_TME_OEM_ATE_ROW1_LSB	0xA40E8
 
@@ -73,6 +74,11 @@
 #endif
 
 #if defined(CONFIG_SPL)
+/* Macro to set TCSR register for EDL mode */
+#define IPQ_SPL_SET_TCSR_EDL() \
+	writel(readl(TCSR_BOOT_MISC_REG) | ENABLE_EDL_MODE, \
+	       TCSR_BOOT_MISC_REG)
+
 #define IPQ_SPL_FEATURE_CONFIG2_REG_ADDR	0xA600C
 #define IPQ_SPL_TMEL_BYPASS_DISABLE_MASK	BIT(0)
 

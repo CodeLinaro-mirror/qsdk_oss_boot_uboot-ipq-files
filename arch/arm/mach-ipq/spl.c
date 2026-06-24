@@ -163,10 +163,6 @@ struct pbl_shared_data {
 						IPQ_SPL_TCSR_BOOT_INFO_ADDR, \
 						IPQ_SPL_SETB_MASK)
 
-#define IPQ_SPL_SET_TCSR_EDL()		setbits_le32(\
-						IPQ_SPL_TCSR_REG_ADDR, \
-						IPQ_SPL_EDL_MASK)
-
 #define IPQ_SPL_FORCE_INACTIVE_ADDR	0x86000CC
 #define IPQ_SPL_IS_FORCE_INACTIVE_EN()	\
 	(readl(IPQ_SPL_FORCE_INACTIVE_ADDR) == 1)
@@ -358,14 +354,6 @@ enum {
 	IPQ_SPL_BOOT_FROM_ACTIVE		= 0x0,
 	IPQ_SPL_BOOT_FROM_INACTIVE		= 0x1,
 	IPQ_SPL_BOOT_SET_MAX,
-};
-
-enum {
-	IPQ_SPL_BOOT_MODE_DEFAULT	= 0x0,
-	IPQ_SPL_BOOT_MODE_SPL_INACTIVE	= 0x1,
-	IPQ_SPL_BOOT_MODE_FORCE_INACIVE	= 0x2,
-	IPQ_SPL_BOOT_MODE_FAILOVER_EN	= 0x3,
-	IPQ_SPL_BOOT_MODE_MAX,
 };
 
 /**
@@ -1154,6 +1142,16 @@ u8 ipq_spl_alt_bootset(u8 bootset)
 {
 	return bootset == IPQ_SPL_BOOT_FROM_INACTIVE ?
 		IPQ_SPL_BOOT_FROM_ACTIVE : IPQ_SPL_BOOT_FROM_INACTIVE;
+}
+
+/**
+ * get_boot_mode() - Get the current SPL boot mode
+ *
+ * Return: Current boot mode from g_bootrec structure
+ */
+u8 get_boot_mode(void)
+{
+	return g_bootrec.boot_mode;
 }
 
 /**

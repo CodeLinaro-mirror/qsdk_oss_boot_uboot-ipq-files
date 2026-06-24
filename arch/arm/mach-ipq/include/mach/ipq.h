@@ -301,6 +301,16 @@ enum comm_type_id {
 	COMM_TYPE_OPTEE,
 	COMM_TYPE_MAX
 };
+#if defined(CONFIG_SPL)
+/* SPL Boot Modes */
+enum {
+	IPQ_SPL_BOOT_MODE_DEFAULT	= 0x0,
+	IPQ_SPL_BOOT_MODE_SPL_INACTIVE	= 0x1,
+	IPQ_SPL_BOOT_MODE_FORCE_INACIVE	= 0x2,
+	IPQ_SPL_BOOT_MODE_FAILOVER_EN	= 0x3,
+	IPQ_SPL_BOOT_MODE_MAX,
+};
+#endif /* CONFIG_SPL */
 
 struct machid_dts_map {
 	int machid;
@@ -718,6 +728,14 @@ void ipq_update_board_name(int machid, struct multidtb_config *dtb);
 void ipq_board_early_init_f(void);
 #if defined(CONFIG_SPL)
 void ipq_spl_board_early_init_f(void);
+/**
+ * ipq_spl_pre_reset_seq() - Board-specific SPL pre-reset sequence
+ *
+ * This function is called before SPL reset to perform board-specific
+ * cleanup or state preservation. Boards can override this weak function
+ * to implement custom pre-reset behavior.
+ */
+void ipq_spl_pre_reset_seq(void);
 #endif
 /**
  * ipq_board_read_smem_info() - read and save smem information
