@@ -4412,17 +4412,17 @@ int qti_nand_deinit(struct udevice *device)
 #ifdef CONFIG_SPL
 int nand_spl_load_image(uint32_t offs, unsigned int size, void *dst)
 {
-	int ret;
 	struct mtd_info *mtd = get_nand_dev_by_index(0);
+	size_t actual;
 	size_t length = size;
 
 	if (!mtd) {
 		printf("No NAND flash device found\n");
-		ret = -ENODEV;
-	} else {
-		ret = nand_read(mtd, offs, &length, (u_char *)dst);
+		return -ENODEV;
 	}
-	return ret;
+
+	return nand_read_skip_bad(mtd, (loff_t)offs, &length, &actual,
+				  mtd->size, (u_char *)dst);
 }
 
 void nand_deselect(void)
