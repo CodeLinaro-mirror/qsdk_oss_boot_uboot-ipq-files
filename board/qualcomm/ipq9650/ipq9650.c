@@ -347,18 +347,44 @@ void ipq_spl_pre_reset_seq(void)
 	 */
 	if (exception_count > 1) {
 		printf("Nested exception detected (count=%d)\n", exception_count);
+		pr_err("System entered hang state\n");
 		hang();
 	} else {
 		boot_mode = get_boot_mode();
 		switch (boot_mode) {
 		case IPQ_SPL_BOOT_MODE_FORCE_INACIVE:
+		case IPQ_SPL_BOOT_MODE_INTERMEDIATE_RESET:
 		case IPQ_SPL_BOOT_MODE_FAILOVER_EN:
+			printf("Resetting CPU ...\n");
 			break;
 
 		default:
+			printf("Entering EDL ...\n");
 			IPQ_SPL_SET_TCSR_EDL();
 		}
 	}
+
+	/*
+	 * Check and clear the FSM status before reset
+	 */
+	if (IPQ_SPL_GCC_FSM_STATE() == IPQ_SPL_FSM_SP_PRE_DDR_INIT_ST_VAL) {
+		setbits_le32(IPQ_SPL_GCC_FSM_CTRL_ADDR,
+				IPQ_SPL_FSM_DDR_OUT_OF_SELF_RFRSH_BIT |
+				IPQ_SPL_FSM_SECOND_PASS_COMPLETE_BIT);
+
+		setbits_le32(IPQ_SPL_GCC_RESET_DEBUG_ADDR,
+				IPQ_SPL_GCC_ALLOW_OTHER_RST_DBG_EN);
+	} else {
+		/*
+		 * Clear the GCC RESET DBG REG
+		 */
+		writel(0, IPQ_SPL_GCC_RESET_DEBUG_ADDR);
+	}
+
+	/*
+	 * Reset the GCC reset status reg, before PS_HOLD
+	 */
+	writel(U32_MAX, IPQ_SPL_GCC_RESET_STATUS_ADDR);
 }
 #endif /* CONFIG_SPL_BUILD */
 

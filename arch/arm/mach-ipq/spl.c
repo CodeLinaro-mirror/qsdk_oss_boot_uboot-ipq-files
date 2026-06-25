@@ -147,9 +147,9 @@ struct pbl_shared_data {
 					  IPQ_SPL_DLOAD_MASK) >> \
 					  IPQ_SPL_DLOAD_SHFT)
 
-#define IPQ_SPL_IS_POR_RESET()		((readl(IPQ_SPL_TCSR_REG_ADDR) & \
+#define IPQ_SPL_IS_POR_RESET()		(((readl(IPQ_SPL_TCSR_REG_ADDR) & \
 					  IPQ_SPL_POR_RESET_MASK) >> \
-					  IPQ_SPL_POR_RESET_SHFT == 0)
+					  IPQ_SPL_POR_RESET_SHFT) == 0)
 
 #define IPQ_SPL_IS_TCSR_SETB()		((readl(IPQ_SPL_TCSR_BOOT_INFO_ADDR) & \
 					  IPQ_SPL_SETB_MASK) >> \
@@ -1187,7 +1187,6 @@ void ipq_spl_set_tcsr_set(u8 bootset)
  */
 void ipq_spl_reset_cpu(void)
 {
-	printf("Resetting CPU ...\n");
 	reset_cpu();
 }
 
@@ -1207,7 +1206,6 @@ void ipq_spl_edl_reset(void)
 	ipq_spl_set_tcsr_set(g_bootrec.env_bootfrom);
 	bootcount_store(0);
 
-	printf("Entering EDL ...\n");
 	ipq_spl_reset_cpu();
 }
 
@@ -3425,6 +3423,7 @@ void ipq_spl_failsafe_verify_tcsr_set(void)
 		/*
 		 * Intermediate reset - Ignore the current bootcunt
 		 */
+		g_bootrec.boot_mode = IPQ_SPL_BOOT_MODE_INTERMEDIATE_RESET;
 		if (bootcount > 0)
 			bootcount_store(--bootcount);
 
