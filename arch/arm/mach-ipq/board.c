@@ -411,6 +411,132 @@ static bool isexecute_configured(int i)
 	return done;
 }
 
+/**
+ * List of reserved memory node prefixes that should be remapped as non-cacheable.
+ * Add new node prefixes here to extend the list of secure regions.
+ *
+ * Note: These are node names (e.g., "tz@8a600000"), not labels.
+ * Device tree labels (e.g., "tz:") are not returned by fdt_get_name().
+ */
+static const char *secure_region_prefixes[] = {
+	"tz@",
+	"tz_mem",
+	"tz_region",
+	"smem",
+	"tfa",
+	"optee",
+	"atf",
+};
+
+/**
+ * ipq_remap_secure_regions() - Remap secure memory regions as non-cacheable
+ *
+ * Scans the device tree /reserved-memory node for specific secure region nodes
+ * and remaps those regions as DCACHE_OFF in the MMU. This prevents cache
+ * writebacks to secure regions that would trigger XPU violations when accessed
+ * from Non-Secure U-Boot.
+ *
+ * Only remaps nodes whose names match the prefixes in secure_region_prefixes[].
+ */
+void ipq_remap_secure_regions(void)
+{
+	const void *fdt = gd->fdt_blob;
+	int node, mem_node;
+	int addr_cells, size_cells;
+	const fdt32_t *addr_cells_ptr, *size_cells_ptr;
+
+	if (!fdt)
+		return;
+
+	mem_node = fdt_path_offset(fdt, "/reserved-memory");
+	if (mem_node < 0)
+		return;
+
+	/* Read #address-cells and #size-cells from /reserved-memory node */
+	addr_cells_ptr = fdt_getprop(fdt, mem_node, "#address-cells", NULL);
+	if (!addr_cells_ptr)
+		return;
+	addr_cells = fdt32_to_cpu(*addr_cells_ptr);
+	if (addr_cells < 1 || addr_cells > 2)
+		return;
+
+	size_cells_ptr = fdt_getprop(fdt, mem_node, "#size-cells", NULL);
+	if (!size_cells_ptr)
+		return;
+	size_cells = fdt32_to_cpu(*size_cells_ptr);
+	if (size_cells < 1 || size_cells > 2)
+		return;
+
+	/* Iterate through reserved-memory child nodes */
+	fdt_for_each_subnode(node, fdt, mem_node) {
+		const fdt32_t *reg;
+		const char *node_name;
+		u64 base, size;
+		int len;
+		u32 start_section, end_section, i, j;
+		bool is_target_node = false;
+
+		/* Only process nodes with "no-map" property */
+		if (!fdt_getprop(fdt, node, "no-map", NULL))
+			continue;
+
+		/* Get node name and check if it matches any target prefix */
+		node_name = fdt_get_name(fdt, node, NULL);
+		if (!node_name)
+			continue;
+
+		/* Check if node name matches any of the secure region prefixes */
+		for (j = 0; j < ARRAY_SIZE(secure_region_prefixes); j++) {
+			if (strncmp(node_name, secure_region_prefixes[j],
+				    strlen(secure_region_prefixes[j])) == 0) {
+				is_target_node = true;
+				break;
+			}
+		}
+
+		/* Skip if not a target node */
+		if (!is_target_node)
+			continue;
+
+		reg = fdt_getprop(fdt, node, "reg", &len);
+		if (!reg)
+			continue;
+
+		/* Verify we have enough cells */
+		if (len < (addr_cells + size_cells) * sizeof(fdt32_t))
+			continue;
+
+		/* Parse base address based on #address-cells */
+		if (addr_cells == 2)
+			base = ((u64)fdt32_to_cpu(reg[0]) << 32) | fdt32_to_cpu(reg[1]);
+		else
+			base = fdt32_to_cpu(reg[0]);
+
+		/* Parse size based on #size-cells */
+		if (size_cells == 2)
+			size = ((u64)fdt32_to_cpu(reg[addr_cells]) << 32) |
+			       fdt32_to_cpu(reg[addr_cells + 1]);
+		else
+			size = fdt32_to_cpu(reg[addr_cells]);
+
+		/* Skip zero-size regions to prevent underflow */
+		if (!size)
+			continue;
+
+		/* Validate address range is within addressable space */
+		if (base > ULONG_MAX || (base + size - 1) > ULONG_MAX)
+			continue;
+
+		/* Calculate section range for this region */
+		start_section = base >> MMU_SECTION_SHIFT;
+		end_section = (base + size - 1) >> MMU_SECTION_SHIFT;
+
+		/* Remap all sections in this region as non-cacheable */
+		for (i = start_section; i <= end_section; i++)
+			set_section_dcache(i, DCACHE_OFF);
+	}
+}
+
 void dram_bank_mmu_setup(int bank)
 {
 	struct bd_info *bd = gd->bd;
@@ -442,6 +568,14 @@ void dram_bank_mmu_setup(int bank)
 
 		set_section_dcache(i, NONEXEC_CACHE_OPTION);
 	}
+
+	/*
+	 * Phase 2: Remap secure regions as non-cacheable
+	 * After marking all sections as cacheable, selectively remap
+	 * secure regions (ATF, OP-TEE, SMEM) as DCACHE_OFF to prevent
+	 * XPU violations from cache writebacks.
+	 */
+	ipq_remap_secure_regions();
 }
 
 void enable_caches(void)
