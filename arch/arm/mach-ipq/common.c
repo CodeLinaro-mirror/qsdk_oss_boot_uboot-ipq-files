@@ -22,6 +22,10 @@
 #ifdef CONFIG_CMD_UBI
 #include <ubi_uboot.h>
 #endif
+#if defined(CONFIG_IPQ_ART_UBI_SUPPORT)
+#include <linux/ctype.h>
+#include <linux/mtd/partitions.h>
+#endif
 #ifdef CONFIG_CB_CALIB
 #include <gzip.h>
 #endif
@@ -1861,6 +1865,115 @@ static void ipq_set_part_entry(char *name, struct ipq_smem_flash_info *smem,
 	part->size = ((loff_t)size) * bsize;
 }
 
+#if defined(CONFIG_IPQ_ART_UBI_SUPPORT)
+static int ipq_nand_is_ubi_partition(loff_t byte_offset, loff_t part_size)
+{
+	struct mtd_info *mtd = get_nand_dev_by_index(0);
+	struct ubi_ec_hdr ec_hdr;
+	size_t rlen = sizeof(ec_hdr);
+	uint32_t magic, crc, hdr_crc;
+
+	if (!mtd)
+		return 0;
+
+	if (nand_read_skip_bad(mtd, byte_offset, &rlen, NULL,
+			       part_size, (uint8_t *)&ec_hdr) < 0)
+		return 0;
+
+	magic = be32_to_cpu(ec_hdr.magic);
+	if (magic != UBI_EC_HDR_MAGIC)
+		return 0;
+
+	crc = crc32(UBI_CRC32_INIT, &ec_hdr, UBI_EC_HDR_SIZE_CRC);
+	hdr_crc = be32_to_cpu(ec_hdr.hdr_crc);
+
+	return (crc == hdr_crc) ? 1 : 0;
+}
+
+static void ipq_part_name_to_vol_name(const char *part_name,
+				      char *vol_name, size_t vol_name_sz)
+{
+	const char *src = strchr(part_name, ':');
+	size_t i;
+
+	src = src ? src + 1 : part_name;
+	for (i = 0; i < vol_name_sz - 1 && src[i]; i++)
+		vol_name[i] = tolower((unsigned char)src[i]);
+	vol_name[i] = '\0';
+}
+
+#ifndef CFG_UBI_ART_VOL_NAME
+#define CFG_UBI_ART_VOL_NAME		"art"
+#endif
+
+static const char *ipq_ubi_vol_name_for_part(const char *part_name,
+					     char *fallback_buf,
+					     size_t fallback_buf_sz)
+{
+	if (!strcmp(part_name, "0:ART"))
+		return CFG_UBI_ART_VOL_NAME;
+
+	ipq_part_name_to_vol_name(part_name, fallback_buf, fallback_buf_sz);
+	return fallback_buf;
+}
+
+static int ipq_nand_ubi_attach(const char *part_name,
+			       loff_t byte_offset, loff_t byte_size,
+			       const char **prev_part_out)
+{
+	struct mtd_info *master;
+	struct ubi_device *cur;
+	char env_str[80];
+	const char *saved;
+	char *saved_copy = NULL;
+	int ret;
+
+	if (prev_part_out)
+		*prev_part_out = NULL;
+
+	master = get_nand_dev_by_index(0);
+	if (!master)
+		return -ENODEV;
+
+	cur = ubi_get_device(0);
+	if (cur) {
+		bool already = cur->mtd && !strcmp(cur->mtd->name, part_name);
+
+		if (!already && prev_part_out)
+			*prev_part_out = cur->mtd ? cur->mtd->name : NULL;
+		ubi_put_device(cur);
+		if (already)
+			return 0;
+	}
+
+	saved = env_get("mtdparts");
+	if (saved) {
+		saved_copy = strdup(saved);
+		if (!saved_copy)
+			return -ENOMEM;
+	}
+
+	snprintf(env_str, sizeof(env_str),
+		 "mtdparts=nand0:0x%llx@0x%llx(%s)",
+		 (unsigned long long)byte_size,
+		 (unsigned long long)byte_offset,
+		 part_name);
+
+	ret = env_set("mtdparts", env_str);
+	if (ret) {
+		free(saved_copy);
+		return -EPERM;
+	}
+
+	ret = ubi_part((char *)part_name, NULL);
+
+	env_set("mtdparts", saved_copy);
+	free(saved_copy);
+
+	return ret;
+}
+#endif /* CONFIG_IPQ_ART_UBI_SUPPORT */
+
 int ipq_get_partition_data(char *part_name, uint32_t offset, uint8_t *buf,
 			size_t size, uint32_t fl_type)
 {
@@ -2040,6 +2153,33 @@ int ipq_get_partition_data(char *part_name, uint32_t offset, uint8_t *buf,
 			printf("No NAND flash device found\n");
 			ret = -ENODEV;
 		} else {
+#ifdef CONFIG_IPQ_ART_UBI_SUPPORT
+			loff_t part_base = part.offset - (loff_t)offset;
+			const char *prev_part = NULL;
+			char vol_name_buf[SMEM_PTN_NAME_MAX];
+			const char *vol_name;
+
+			if (ipq_nand_is_ubi_partition(part_base, part.size)) {
+				ret = ipq_nand_ubi_attach(part_name,
+							  part_base,
+							  part.size,
+							  &prev_part);
+				if (!ret) {
+					vol_name = ipq_ubi_vol_name_for_part(
+							part_name, vol_name_buf,
+							sizeof(vol_name_buf));
+					ret = ubi_volume_read((char *)vol_name,
+							      (char *)buf,
+							      (loff_t)offset,
+							      size);
+
+					run_command("ubi detach", 0);
+				}
+
+				goto exit;
+			}
+			/* Not UBI-formatted — use raw nand_read() below */
+#endif /* CONFIG_IPQ_ART_UBI_SUPPORT */
 			ret = nand_read(mtd, part.offset, &size, buf);
 		}
 	}
@@ -2816,13 +2956,25 @@ int ipq_init_ubi_part(void)
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
 	struct ubi_device *ubi = ubi_get_device(0);
 	char env_strings[64];
+	bool need_attach = true;
 
 	if (!sfi) {
 		printf("%s: smem flash info not found\n", __func__);
 		return -EINVAL;
 	}
 
-	if(ubi == NULL) {
+	/*
+	 * Already attached to the fs volume: nothing to do. Attached to
+	 * something else (e.g. ART, displaced by ipq_nand_ubi_attach()):
+	 * release our reference here, then (re)attach the fs volume below.
+	 */
+	if (ubi) {
+		if (ubi->mtd && !strcmp(ubi->mtd->name, CFG_UBI_FS_NAME))
+			need_attach = false;
+		ubi_put_device(ubi);
+	}
+
+	if (need_attach) {
 #if defined(CONFIG_BOOTCONFIG_V3) || defined(CONFIG_FAILSAFE_V2)
 		if (gd->board_type & ACTIVE_BOOT_SET) {
 			offset = sfi->rootfs_1.offset;
@@ -2850,8 +3002,7 @@ int ipq_init_ubi_part(void)
 		ret = ubi_part(CFG_UBI_FS_NAME, NULL);
 		if (ret)
 			return -EPERM;
-	} else
-		ubi_put_device(ubi);
+	}
 
 	return 0;
 }
