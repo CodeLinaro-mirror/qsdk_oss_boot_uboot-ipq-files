@@ -1643,9 +1643,21 @@ static int prepare_crashdump_level_table(crashdump_config_t *dump_config,
 			const char *name = dump_infos[i].name;
 			size_t name_len = strlen(name);
 			size_t dir_len = strlen(dump_dir);
+			size_t suffix_len = 0;
 
-			if(dir_len + name_len + 1 >= DUMP_PATH_STR_MAX_LEN) {
-				printf("dump path info length is exceeded maximum length allowed\n");
+#ifdef CONFIG_IPQ_COMPRESSED_CRASHDUMP
+			if (dump_config->is_compress_enabled &&
+					dump_infos[i].compression_support)
+				suffix_len = strlen(".gz");
+#endif /* CONFIG_IPQ_COMPRESSED_CRASHDUMP */
+
+			if (dir_len + name_len + suffix_len + 1 >=
+					DUMP_PATH_STR_MAX_LEN) {
+				printf("dump path info length (dumpdir + "
+					"name%s) exceeds maximum %d, "
+					"use a shorter dumpdir\n",
+					suffix_len ? " + .gz" : "",
+					DUMP_PATH_STR_MAX_LEN);
 				goto usb_default_dump;
 			}
 
@@ -2907,7 +2919,7 @@ static int dump_to_dst(crashdump_config_t *dump_config,
 
 		dump_entry->start_addr = iface_cfg->comp_out_addr;
 		dump_entry->size = compressed_out_sz;
-		snprintf(dump_entry->name, DUMP_NAME_STR_MAX_LEN,
+		snprintf(dump_entry->name, sizeof(dump_entry->name),
 				"%s.gz", dump_entry->name);
 	}
 #endif /* CONFIG_IPQ_COMPRESSED_CRASHDUMP */
@@ -3198,6 +3210,7 @@ void ipq_do_dump_data(crashdump_config_t *dump_config)
 		if (ret == CMD_RET_FAILURE)
 			break;
 
+		printf("Dumped as: %s\n", dump_entry->name);
 		dumped++;
 	}
 
