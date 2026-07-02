@@ -8,5 +8,6 @@
 #define _DT_BINDINGS_RESET_IPQ_GCC_IPQ5610_H
 
 #define GCC_SDCC_BCR				0
+#define GCC_QPIC_BCR				1
 
 #endif

@@ -3959,7 +3959,9 @@ void board_init_f(ulong dummy)
 	ipq_enable_all_clks();
 #endif
 
+#ifndef DISABLE_LCS_LOGS
 	ipq_spl_boot_logs();
+#endif
 
 #if defined(CONFIG_IPQ_TMEL_IPC_SUPPORT)
 	/* Skip TME fuse listing if tmel_bypass is enabled */

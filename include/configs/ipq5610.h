@@ -11,16 +11,19 @@
 extern uint32_t g_board_machid;
 extern uint32_t g_env_offset;
 #endif
-
 #if defined(CONFIG_ENV_IS_IN_SPI_FLASH) && defined(CONFIG_ENV_OFFSET) && defined(CONFIG_RUNTIME_SF_ENV_UPDATE)
 #undef CONFIG_ENV_OFFSET
 #define CONFIG_ENV_OFFSET       g_env_offset
 #endif
 
 #define CONFIG_HAS_CUSTOM_SYS_INIT_SP_ADDR
+#if defined(CONFIG_SPL)
+#define CONFIG_CUSTOM_SYS_INIT_SP_ADDR          CONFIG_SPL_TEXT_BASE
+#else
 #define CONFIG_CUSTOM_SYS_INIT_SP_ADDR		\
 		(CONFIG_TEXT_BASE - CONFIG_SYS_MALLOC_LEN -\
 			CONFIG_ENV_SIZE - GENERATED_GBL_DATA_SIZE)
+#endif
 
 #define CONFIG_MACH_TYPE                        (g_board_machid)
 #define CFG_SYS_SDRAM_BASE0_ADDR		0x80000000
