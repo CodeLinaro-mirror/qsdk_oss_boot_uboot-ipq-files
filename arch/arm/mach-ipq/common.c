@@ -2525,15 +2525,15 @@ static int mmc_send_wp_set_clr(struct mmc *mmc, unsigned int start,
 			return err;
 		}
 
-		if (MMC_ADDR_OUT_OF_RANGE(cmd.response[0])) {
+		err = mmc_send_status(mmc, &status);
+		if (err)
+			return err;
+
+		if (MMC_ADDR_OUT_OF_RANGE(status)) {
 			printf("%s: mmc block(0x%x) out of range",
 				__func__,cmd.cmdarg);
 			return -EINVAL;
 		}
-
-		err = mmc_send_status(mmc, &status);
-		if (err)
-			return err;
 	}
 
 	return 0;
