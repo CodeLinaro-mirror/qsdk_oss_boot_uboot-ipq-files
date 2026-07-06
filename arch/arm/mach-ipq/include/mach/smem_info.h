@@ -74,8 +74,9 @@ enum smem_mem_type {
 	SMEM_BOOT_SET_INFO = 511,
 	SMEM_FAILSAFE_BOOT_MODE = 512,
 	SMEM_FID_LIST_INFO = 513,
+	SMEM_SPL_CONSOLE_LOG = 514,
 	SMEM_FIRST_VALID_TYPE = SMEM_SPINLOCK_ARRAY,
-	SMEM_LAST_VALID_TYPE = SMEM_FID_LIST_INFO,
+	SMEM_LAST_VALID_TYPE = SMEM_SPL_CONSOLE_LOG,
 	SMEM_MAX_SIZE = SMEM_LAST_VALID_TYPE + 1,
 };
 
@@ -118,6 +119,21 @@ struct usable_ram_partition_table {
 struct smem_pmic_type {
 	unsigned int pmic_model;
 	unsigned int pmic_die_revision;
+};
+
+/*
+ * SPL console log buffer, staged through SMEM so boot logs survive even
+ * when UART output is disabled or SPL crashes before the console is seen.
+ */
+#define SMEM_SPL_CONSOLE_LOG_MAGIC	0x474F4C43	/* "CLOG" */
+#define SMEM_SPL_CONSOLE_LOG_OVERFLOW	BIT(0)
+
+struct smem_console_log {
+	u32 magic;		/* SMEM_SPL_CONSOLE_LOG_MAGIC */
+	u32 size;		/* Total data[] capacity in bytes */
+	u32 write_offset;	/* Next write position within data[] */
+	u32 flags;		/* SMEM_SPL_CONSOLE_LOG_* bits */
+	char data[];
 };
 
 struct ipq_platform_v1 {
