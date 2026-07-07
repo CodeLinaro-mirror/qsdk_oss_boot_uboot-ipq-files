@@ -37,6 +37,8 @@
 #include "nss_ppe_v4.h"
 #endif
 
+void ipq_random_ethaddr(uchar *addr);
+
 /* PPE Bridge Control Register Layout Types */
 enum ppe_bridge_ctrl_layout {
 	PPE_BRIDGE_CTRL_LAYOUT_UNKNOWN = 0,

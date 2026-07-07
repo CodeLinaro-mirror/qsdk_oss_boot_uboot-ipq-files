@@ -17,7 +17,6 @@ static int tftp_acl_our_port;
 
 /* Runtime PORT_BRIDGE_CTRL layout detection and helper functions */
 static enum ppe_bridge_ctrl_layout current_layout = PPE_BRIDGE_CTRL_LAYOUT_UNKNOWN;
-uchar ipq_def_enetaddr[6] = {0x00, 0x03, 0x7F, 0xBA, 0xDB, 0xAD};
 int mac_speed_config[] = {10, 100, 1000, 10000, 2500, 5000};
 /* Per-port scheduler configuration populated from DTS */
 static struct port_scheduler_cfg port_sched_cfg[9];
@@ -4921,7 +4920,7 @@ static int ipq_eth_read_hwaddr(struct udevice *dev)
 	if (ret)
 		memcpy(&pdata->enetaddr[0], &enet_addr[0], 6);
 	else
-		memcpy(&pdata->enetaddr[0], &ipq_def_enetaddr[0], 6);
+		ipq_random_ethaddr(&pdata->enetaddr[0]);
 
 	return 0;
 }

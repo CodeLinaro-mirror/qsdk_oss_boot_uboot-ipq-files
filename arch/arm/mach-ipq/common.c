@@ -2057,14 +2057,6 @@ exit:
 	return ret;
 }
 
-static void _get_eth_mac_address_random(uint8_t *enetaddr, int ncount)
-{
-	int i;
-
-	for (i = 0; i < 6 * ncount; ++i)
-		enetaddr[i] = ((get_timer(0) + i) & 0xFF);
-}
-
 int ipq_get_eth_mac_address(uint8_t *enetaddr, int no_of_macs)
 {
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
@@ -2077,57 +2069,84 @@ int ipq_get_eth_mac_address(uint8_t *enetaddr, int no_of_macs)
 					sfi->flash_type);
 }
 
+static bool ipq_is_art_part_present(struct ipq_smem_flash_info *sfi)
+{
+	uint32_t start_blk, blk_cnt;
+#if defined(CONFIG_MMC) || defined(CONFIG_NOR_BLK)
+	struct blkpart_info bpart_info;
+	struct disk_partition disk_info;
+#endif
+
+	switch (sfi->flash_type) {
+	case SMEM_BOOT_NAND_FLASH:
+	case SMEM_BOOT_QSPI_NAND_FLASH:
+	case SMEM_BOOT_SPI_FLASH:
+		return ipq_smem_getpart("0:ART", &start_blk, &blk_cnt) == 0;
+#if defined(CONFIG_MMC) || defined(CONFIG_NOR_BLK)
+	case SMEM_BOOT_MMC_FLASH:
+	case SMEM_BOOT_NORGPT_FLASH:
+		BLK_PART_GET_INFO_S(bpart_info, "0:ART", &disk_info,
+					sfi->flash_type, false);
+		return ipq_part_get_info_by_name(&bpart_info) == 0;
+#endif
+	default:
+		return false;
+	}
+}
+
+void ipq_random_ethaddr(uchar *addr)
+{
+	u64 seed = get_ticks();
+	int i;
+
+	for (i = 0; i < 6; i++) {
+		seed = seed * 6364136223846793005ULL + 1;
+		addr[i] = (uchar)(seed >> 33);
+	}
+
+	addr[0] &= 0xfe;	/* clear multicast bit */
+	addr[0] |= 0x02;	/* set local assignment bit (IEEE802) */
+}
+
 void ipq_set_ethmac_addr(void)
 {
-	int i, ret = -1;
+	int i, ret;
 	struct ipq_smem_flash_info *sfi = ipq_get_smem_info();
 	uchar enetaddr[CONFIG_ETH_MAX_MAC * 6] = { 0 };
 	uchar *mac_addr;
 	char ethaddr[16] = "ethaddr";
 	char mac[64];
-	bool israndom = false;
-	/* Get the MAC address from ART partition */
 
 	if (!sfi) {
 		printf("%s: Failed to get flash info\n", __func__);
 		return;
 	}
 
-	if (sfi->flash_type)
-		ret = ipq_get_eth_mac_address(enetaddr, CONFIG_ETH_MAX_MAC);
-	else {
-		israndom = true;
-		_get_eth_mac_address_random(enetaddr, CONFIG_ETH_MAX_MAC);
-	}
+	if (!ipq_is_art_part_present(sfi))
+		return;
 
-	if (ret < 0 && !israndom)
+	ret = ipq_get_eth_mac_address(enetaddr, CONFIG_ETH_MAX_MAC);
+	if (ret < 0)
 		printf("Failed to read MAC from flash %d\n", ret);
 
 	for (i = 0; (i < CONFIG_ETH_MAX_MAC); i++) {
 		mac_addr = &enetaddr[i * 6];
 
 		if (!is_valid_ethaddr(mac_addr)) {
-			if (!israndom) {
-				printf("MAC%d Address from ART is not valid\n",
-					i);
-				_get_eth_mac_address_random(mac_addr, 1);
-			} else
-				goto cont;
+			printf("MAC%d Address from ART is not valid\n", i);
+			ipq_random_ethaddr(mac_addr);
 		}
 
-		if (is_valid_ethaddr(mac_addr)) {
-			/*
-			 * U-Boot uses these to patch the 'local-mac-address'
-			 * dts entry for the ethernet entries, which in turn
-			 * will be picked up by the HLOS driver
-			 */
-			snprintf(mac, sizeof(mac), "%x:%x:%x:%x:%x:%x",
-					mac_addr[0], mac_addr[1],
-					mac_addr[2], mac_addr[3],
-					mac_addr[4], mac_addr[5]);
-			env_set(ethaddr, mac);
-		}
-cont:
+		/*
+		 * U-Boot uses these to patch the 'local-mac-address'
+		 * dts entry for the ethernet entries, which in turn
+		 * will be picked up by the HLOS driver
+		 */
+		snprintf(mac, sizeof(mac), "%x:%x:%x:%x:%x:%x",
+				mac_addr[0], mac_addr[1], mac_addr[2],
+				mac_addr[3], mac_addr[4], mac_addr[5]);
+		env_set(ethaddr, mac);
+
 		snprintf(ethaddr, sizeof(ethaddr), "eth%daddr", (i + 1));
 	}
 }
