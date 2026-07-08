@@ -286,9 +286,167 @@ static void check_recovery_mode(void)
 #endif
 }
 
+/*
+ * List of reserved memory node prefixes that should be remapped as non-cacheable.
+ * Add new node prefixes here to extend the list of secure regions.
+ *
+ * Note: These are node names (e.g., "tz@8a600000"), not labels.
+ * Device tree labels (e.g., "tz:") are not returned by fdt_get_name().
+ */
+static const char *secure_region_prefixes[] = {
+	"tz@",
+	"tz_mem",
+	"tz_region",
+	"smem",
+	"tfa",
+	"optee",
+	"atf",
+};
+
+/**
+ * process_secure_region_node() - Check and parse a single reserved-memory node
+ * @node: Device tree node offset
+ * @base: Output - base address (if region matches)
+ * @size: Output - size (if region matches)
+ *
+ * This helper function checks if a given device tree node represents a secure
+ * region that should be mapped as non-cacheable. It validates the node has the
+ * "no-map" property, matches one of the secure region prefixes, and parses the
+ * base address and size from the reg property.
+ *
+ * Returns: 1 if this is a matching secure region, 0 otherwise
+ */
+static int process_secure_region_node(int node, u64 *base, u64 *size)
+{
+	const void *fdt = gd->fdt_blob;
+	const fdt32_t *reg;
+	const char *node_name;
+	int len, addr_cells, size_cells, parent;
+	u32 j;
+	bool is_target_node = false;
+
+	/* Only process nodes with "no-map" property */
+	if (!fdt_getprop(fdt, node, "no-map", NULL))
+		return 0;
+
+	/* Get node name and check if it matches any target prefix */
+	node_name = fdt_get_name(fdt, node, NULL);
+	if (!node_name)
+		return 0;
+
+	/* Check if node name matches any of the secure region prefixes */
+	for (j = 0; j < ARRAY_SIZE(secure_region_prefixes); j++) {
+		if (strncmp(node_name, secure_region_prefixes[j],
+			    strlen(secure_region_prefixes[j])) == 0) {
+			is_target_node = true;
+			break;
+		}
+	}
+
+	/* Skip if not a target node */
+	if (!is_target_node)
+		return 0;
+
+	/* Get reg property */
+	reg = fdt_getprop(fdt, node, "reg", &len);
+	if (!reg)
+		return 0;
+
+	/* Get #address-cells and #size-cells from parent node */
+	parent = fdt_parent_offset(fdt, node);
+	if (parent < 0)
+		return 0;
+
+	addr_cells = fdt_address_cells(fdt, parent);
+	size_cells = fdt_size_cells(fdt, parent);
+
+	if (addr_cells < 1 || addr_cells > 2 || size_cells < 1 || size_cells > 2)
+		return 0;
+
+	/* Verify we have enough cells */
+	if (len < (addr_cells + size_cells) * sizeof(fdt32_t))
+		return 0;
+
+	/* Parse base address based on #address-cells */
+	if (addr_cells == 2)
+		*base = ((u64)fdt32_to_cpu(reg[0]) << 32) | fdt32_to_cpu(reg[1]);
+	else
+		*base = fdt32_to_cpu(reg[0]);
+
+	/* Parse size based on #size-cells */
+	if (size_cells == 2)
+		*size = ((u64)fdt32_to_cpu(reg[addr_cells]) << 32) |
+			fdt32_to_cpu(reg[addr_cells + 1]);
+	else
+		*size = fdt32_to_cpu(reg[addr_cells]);
+
+	/* Skip zero-size regions */
+	if (!*size)
+		return 0;
+
+	/* Validate address range is within addressable space */
+	if (*base > ULONG_MAX || *size > ULONG_MAX - *base)
+		return 0;
+
+	return 1;
+}
+
 #ifdef CONFIG_ARM64
-static struct mm_region ipq_mem_map[CONFIG_NR_DRAM_BANKS + 3] = { { 0 } };
+/* Maximum number of secure regions we expect to find in device tree */
+#define MAX_SECURE_REGIONS 10
+
+/* Increase array size to accommodate secure regions */
+static struct mm_region ipq_mem_map[CONFIG_NR_DRAM_BANKS + 3 + MAX_SECURE_REGIONS] = { { 0 } };
 struct mm_region *mem_map = ipq_mem_map;
+
+/**
+ * ipq_remap_secure_regions() - Remap secure memory regions as non-cacheable
+ * @next_idx: Pointer to the next available mem_map index (ARM64 only)
+ *
+ * Scans the device tree /reserved-memory node for specific secure region nodes
+ * and remaps those regions as DCACHE_OFF in the MMU. This prevents cache
+ * writebacks to secure regions that would trigger XPU violations when accessed
+ * from Non-Secure U-Boot.
+ *
+ * ARM64: Adds secure regions as separate Device-nGnRnE entries in mem_map array.
+ */
+static void ipq_remap_secure_regions(int *next_idx)
+{
+	const void *fdt = gd->fdt_blob;
+	int node, mem_node;
+	u64 base, size;
+	int i = *next_idx;
+
+	if (!fdt)
+		return;
+
+	mem_node = fdt_path_offset(fdt, "/reserved-memory");
+	if (mem_node < 0)
+		return;
+
+	/* Iterate through reserved-memory child nodes */
+	fdt_for_each_subnode(node, fdt, mem_node) {
+		if (process_secure_region_node(node, &base, &size)) {
+			/* Check if we have space in mem_map array */
+			if (i >= ARRAY_SIZE(ipq_mem_map) - 3) {
+				printf("Warning: Not enough mem_map entries for all secure regions\n");
+				break;
+			}
+
+			/* Add this secure region as Device-nGnRnE (non-cacheable) */
+			mem_map[i].phys = base;
+			mem_map[i].virt = base;
+			mem_map[i].size = size;
+			mem_map[i].attrs = PTE_BLOCK_MEMTYPE(MT_DEVICE_NGNRNE) |
+					   PTE_BLOCK_NON_SHARE |
+					   PTE_BLOCK_PXN | PTE_BLOCK_UXN;
+
+			i++;
+		}
+	}
+
+	*next_idx = i;
+}
 
 static void build_mem_map(void)
 {
@@ -317,6 +475,13 @@ static void build_mem_map(void)
 				PTE_BLOCK_INNER_SHARE |
 				PTE_BLOCK_PXN | PTE_BLOCK_UXN;
 	}
+
+	/*
+	 * Add secure regions as Device-nGnRnE (non-cacheable) entries
+	 * This prevents cache writebacks to secure regions that would
+	 * trigger XPU violations from Non-Secure U-Boot
+	 */
+	ipq_remap_secure_regions(&i);
 
 	/*
 	 * Mark only uboot relocated text region with executable permission
@@ -381,6 +546,47 @@ void enable_caches(void)
 #define EXEC_CACHE_OPTION				0x100e
 #define NONEXEC_CACHE_OPTION				0x101e
 
+/**
+ * ipq_remap_secure_regions() - Remap secure memory regions as non-cacheable
+ *
+ * Scans the device tree /reserved-memory node for specific secure region nodes
+ * and remaps those regions as DCACHE_OFF in the MMU. This prevents cache
+ * writebacks to secure regions that would trigger XPU violations when accessed
+ * from Non-Secure U-Boot.
+ *
+ * Only remaps nodes whose names match the prefixes in secure_region_prefixes[].
+ * Used by ARM32 architecture.
+ */
+static void ipq_remap_secure_regions(void)
+{
+	const void *fdt = gd->fdt_blob;
+	int node, mem_node;
+	u64 base, size;
+
+	if (!fdt)
+		return;
+
+	mem_node = fdt_path_offset(fdt, "/reserved-memory");
+	if (mem_node < 0)
+		return;
+
+	/* Iterate through reserved-memory child nodes */
+	fdt_for_each_subnode(node, fdt, mem_node) {
+		if (process_secure_region_node(node, &base, &size)) {
+			/* ARM32: Use set_section_dcache for each 1MB section */
+			u32 start_section, end_section, i;
+
+			/* Calculate section range for this region */
+			start_section = base >> MMU_SECTION_SHIFT;
+			end_section = (base + size - 1) >> MMU_SECTION_SHIFT;
+
+			/* Remap all sections in this region as non-cacheable */
+			for (i = start_section; i <= end_section; i++)
+				set_section_dcache(i, DCACHE_OFF);
+		}
+	}
+}
+
 int arch_cpu_init(void)
 {
 	u32 val;
@@ -409,132 +615,6 @@ static bool isexecute_configured(int i)
 	}
 
 	return done;
-}
-
-/**
- * List of reserved memory node prefixes that should be remapped as non-cacheable.
- * Add new node prefixes here to extend the list of secure regions.
- *
- * Note: These are node names (e.g., "tz@8a600000"), not labels.
- * Device tree labels (e.g., "tz:") are not returned by fdt_get_name().
- */
-static const char *secure_region_prefixes[] = {
-	"tz@",
-	"tz_mem",
-	"tz_region",
-	"smem",
-	"tfa",
-	"optee",
-	"atf",
-};
-
-/**
- * ipq_remap_secure_regions() - Remap secure memory regions as non-cacheable
- *
- * Scans the device tree /reserved-memory node for specific secure region nodes
- * and remaps those regions as DCACHE_OFF in the MMU. This prevents cache
- * writebacks to secure regions that would trigger XPU violations when accessed
- * from Non-Secure U-Boot.
- *
- * Only remaps nodes whose names match the prefixes in secure_region_prefixes[].
- */
-void ipq_remap_secure_regions(void)
-{
-	const void *fdt = gd->fdt_blob;
-	int node, mem_node;
-	int addr_cells, size_cells;
-	const fdt32_t *addr_cells_ptr, *size_cells_ptr;
-
-	if (!fdt)
-		return;
-
-	mem_node = fdt_path_offset(fdt, "/reserved-memory");
-	if (mem_node < 0)
-		return;
-
-	/* Read #address-cells and #size-cells from /reserved-memory node */
-	addr_cells_ptr = fdt_getprop(fdt, mem_node, "#address-cells", NULL);
-	if (!addr_cells_ptr)
-		return;
-	addr_cells = fdt32_to_cpu(*addr_cells_ptr);
-	if (addr_cells < 1 || addr_cells > 2)
-		return;
-
-	size_cells_ptr = fdt_getprop(fdt, mem_node, "#size-cells", NULL);
-	if (!size_cells_ptr)
-		return;
-	size_cells = fdt32_to_cpu(*size_cells_ptr);
-	if (size_cells < 1 || size_cells > 2)
-		return;
-
-	/* Iterate through reserved-memory child nodes */
-	fdt_for_each_subnode(node, fdt, mem_node) {
-		const fdt32_t *reg;
-		const char *node_name;
-		u64 base, size;
-		int len;
-		u32 start_section, end_section, i, j;
-		bool is_target_node = false;
-
-		/* Only process nodes with "no-map" property */
-		if (!fdt_getprop(fdt, node, "no-map", NULL))
-			continue;
-
-		/* Get node name and check if it matches any target prefix */
-		node_name = fdt_get_name(fdt, node, NULL);
-		if (!node_name)
-			continue;
-
-		/* Check if node name matches any of the secure region prefixes */
-		for (j = 0; j < ARRAY_SIZE(secure_region_prefixes); j++) {
-			if (strncmp(node_name, secure_region_prefixes[j],
-				    strlen(secure_region_prefixes[j])) == 0) {
-				is_target_node = true;
-				break;
-			}
-		}
-
-		/* Skip if not a target node */
-		if (!is_target_node)
-			continue;
-
-		reg = fdt_getprop(fdt, node, "reg", &len);
-		if (!reg)
-			continue;
-
-		/* Verify we have enough cells */
-		if (len < (addr_cells + size_cells) * sizeof(fdt32_t))
-			continue;
-
-		/* Parse base address based on #address-cells */
-		if (addr_cells == 2)
-			base = ((u64)fdt32_to_cpu(reg[0]) << 32) | fdt32_to_cpu(reg[1]);
-		else
-			base = fdt32_to_cpu(reg[0]);
-
-		/* Parse size based on #size-cells */
-		if (size_cells == 2)
-			size = ((u64)fdt32_to_cpu(reg[addr_cells]) << 32) |
-			       fdt32_to_cpu(reg[addr_cells + 1]);
-		else
-			size = fdt32_to_cpu(reg[addr_cells]);
-
-		/* Skip zero-size regions to prevent underflow */
-		if (!size)
-			continue;
-
-		/* Validate address range is within addressable space */
-		if (base > ULONG_MAX || (base + size - 1) > ULONG_MAX)
-			continue;
-
-		/* Calculate section range for this region */
-		start_section = base >> MMU_SECTION_SHIFT;
-		end_section = (base + size - 1) >> MMU_SECTION_SHIFT;
-
-		/* Remap all sections in this region as non-cacheable */
-		for (i = start_section; i <= end_section; i++)
-			set_section_dcache(i, DCACHE_OFF);
-	}
 }
 
 void dram_bank_mmu_setup(int bank)
