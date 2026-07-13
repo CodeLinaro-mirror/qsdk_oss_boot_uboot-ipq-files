@@ -26,6 +26,7 @@ extern u8 get_boot_mode(void);
 #define MACH_TYPE_IPQ9650_EMULATION		0xF060000
 #define MACH_TYPE_IPQ9650_DB_JU01		0x1090000
 #define MACH_TYPE_IPQ9650_DB_JU01_C1		0x1090001
+#define MACH_TYPE_IPQ9650_DB_JU01_C2		0x1090002
 #define MACH_TYPE_IPQ9650_DB_JU02		0x1090100
 #define MACH_TYPE_IPQ9650_RDP488		0x8090000
 #define MACH_TYPE_IPQ9650_RDP506		0x8090001
@@ -36,6 +37,7 @@ extern u8 get_boot_mode(void);
 #define MACH_TYPE_IPQ9650_RDP529		0x8090004
 #define MACH_TYPE_IPQ9650_RDP530		0x8090005
 #define MACH_TYPE_IPQ9650_RDP532		0x8090006
+#define MACH_TYPE_IPQ9650_TB_JU01_1		0x2090000
 
 #define TIMEOUT_MS				30000
 #define CLK_SRC					32000
@@ -213,6 +215,12 @@ struct machid_dts_map machid_dts[] = {
 		"1"
 	},
 	{
+		MACH_TYPE_IPQ9650_DB_JU01_C2,
+		"ipq9650-db-ju01-c2",
+		"1",
+		"db-ju01-c2"
+	},
+	{
 		MACH_TYPE_IPQ9650_DB_JU02,
 		"ipq9650-db-ju02",
 		"db-ju02",
@@ -228,6 +236,30 @@ struct machid_dts_map machid_dts[] = {
 		MACH_TYPE_IPQ9650_RDP506,
 		"ipq9650-rdp506",
 		"rdp506",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ9650_RDP507,
+		"ipq9650-rdp507",
+		"rdp507",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ9650_RDP529,
+		"ipq9650-rdp529",
+		"rdp529",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ9650_RDP530,
+		"ipq9650-rdp530",
+		"rdp530",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ9650_RDP532,
+		"ipq9650-rdp532",
+		"rdp532",
 		"1"
 	},
 	{
@@ -247,6 +279,12 @@ struct machid_dts_map machid_dts[] = {
 		"ipq9650-rdp491",
 		"rdp491",
 		"1"
+	},
+	{
+		MACH_TYPE_IPQ9650_TB_JU01_1,
+		"ipq9650-tb-ju01.1",
+		"1",
+		"tb-ju01.1"
 	},
 };
 
