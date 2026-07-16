@@ -48,3 +48,17 @@
 		};
 	};
 };
+
+/ {
+	aliases {
+		serial0 = &uart1;
+	};
+};
+
+&tmel_qmp {
+	status = "okay";
+};
+
+&tmelcom {
+	status = "okay";
+};
