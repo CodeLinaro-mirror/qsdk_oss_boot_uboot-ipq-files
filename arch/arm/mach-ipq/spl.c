@@ -70,6 +70,7 @@
 #include <bootcount.h>
 #include <sysreset.h>
 #include <blk.h>
+#include <qcom_voltage_control.h>
 
 /**
  * PBL Boot interface
@@ -3942,6 +3943,13 @@ void board_init_f(ulong dummy)
 	if (ret) {
 		pr_debug("ipq_spl_failsafe_check() failed (ret=%d)\n", ret);
 		goto fail;
+	}
+
+	if (CONFIG_IS_ENABLED(QCOM_FUSE_VOLTAGE_CONTROL)) {
+		ret = qcom_voltage_control_set_configured_mode("voltage-control");
+		if (ret && ret != -ENODEV)
+			pr_err("voltage setup failed (ret=%d)\n", ret);
+		ret = 0;
 	}
 
 	ret = ipq_spl_loader_pre_ddr(spl_boot_device());
