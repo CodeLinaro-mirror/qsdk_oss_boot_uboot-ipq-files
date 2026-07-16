@@ -51,6 +51,17 @@ config SPL_TEXT_SIZE
 	help
 	  This option defines the size of the u-boot SPL text in SRAM region.
 
+config SPL_RDP_IMAGE_GENERATION
+	bool "Generate SPL RDP variant images"
+	depends on SPL
+	depends on SPL_REMAKE_ELF
+	default n
+	help
+	  Enable generation of per-RDP SPL image variants for Qualcomm IPQ
+	  platforms. When enabled, the SPL build discovers matching RDP device
+	  trees, prunes them to SPL nodes and emits the corresponding SPL ELF
+	  outputs.
+
 config SPL_DDR2_MEM_BASE
        bool "Enable DDR2 memory region for SPL"
        depends on SPL

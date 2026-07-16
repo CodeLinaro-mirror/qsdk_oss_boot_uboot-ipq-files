@@ -93,7 +93,7 @@
 		};
 	};
 
-	spi0_pinmux: spi0 {
+	spi0 {
 		spi0_sclk {
 			pins = "gpio6";
 			function = "qup_se0_l2";
