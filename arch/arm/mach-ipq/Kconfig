@@ -90,6 +90,18 @@ config IPQ_I2C
 	select SYS_I2C_QUP if (TARGET_IPQ5332 || TARGET_IPQ9574)
         select CMD_I2C
 
+config SPL_QCOM_FUSE_VOLTAGE_CONTROL
+	bool "Qualcomm fuse based voltage control in SPL"
+	depends on SPL
+	depends on SPL_DM
+	depends on SPL_DRIVERS_MISC
+	depends on SPL_DM_REGULATOR
+	help
+	  Enable the Qualcomm fuse based voltage-control driver in SPL.
+	  This lets early boot code read CPR fuse values, compute the
+	  requested rail voltage and program the configured regulator before
+	  DDR initialization starts.
+
 config ARCH_64BIT_SUPPORT
 	bool "IPQSOC 64-bit support"
 	select ARM64
