@@ -2021,6 +2021,17 @@ static int ipq_spl_populate_smem(void *ctx)
 
 out_skip_smem_mibib_update:
 
+#ifdef CONFIG_IPQ_SOFTSKU_SUPPORT
+	/*
+	 * Populate FID information in SMEM
+	 */
+	ret = ipq_spl_save_fids_smem(smem);
+	if (ret) {
+		pr_err("Failed to populate FID info in SMEM (ret=%d)\n", ret);
+		/* Non-fatal error, continue */
+	}
+#endif /* CONFIG_IPQ_SOFTSKU_SUPPORT */
+
 	return 0;
 }
 
