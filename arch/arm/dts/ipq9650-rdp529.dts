@@ -392,7 +392,7 @@
 	i2c1: i2c@1a8c000 {
 		pinctrl-0 = <&i2c1_pinmux>;
 		pinctrl-names = "default";
-		status = "disabled";
+		status = "okay";
 	};
 
 	i2c2: i2c@1A84000 {
@@ -400,6 +400,28 @@
 		pinctrl-names = "default";
 		status = "okay";
 	};
+};
+
+&soc_cx_pmic {
+	status = "okay";
+};
+
+&soc_cx_gpio_reg {
+	status = "disabled";
+};
+
+&soc_cx_vc {
+	qcom,backend = "pmic";
+	regulator = <&soc_cx_pmic>;
+	status = "okay";
+};
+
+&ddr_cx_gpio_reg {
+	status = "okay";
+};
+
+&ddr_cx_vc {
+	status = "okay";
 };
 
 &tmel_qmp {
