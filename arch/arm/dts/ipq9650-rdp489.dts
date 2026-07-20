@@ -428,6 +428,28 @@
 	};
 };
 
+&soc_cx_pmic {
+	status = "disabled";
+};
+
+&soc_cx_gpio_reg {
+	status = "okay";
+};
+
+&soc_cx_vc {
+	qcom,backend = "gpio";
+	regulator = <&soc_cx_gpio_reg>;
+	status = "okay";
+};
+
+&ddr_cx_gpio_reg {
+	status = "disabled";
+};
+
+&ddr_cx_vc {
+	status = "disabled";
+};
+
 &tmel_qmp {
 	status = "okay";
 };

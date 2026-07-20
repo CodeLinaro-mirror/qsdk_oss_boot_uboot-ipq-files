@@ -1934,9 +1934,12 @@
 	};
 
 	i2c1: i2c@1a8c000 {
+		bootph-all;
 		compatible = "qcom,geni-i2c";
 		reg = <0x0 0x1a8c000 0x0 0x4000>;
 		reg-names = "se_phys";
+		#address-cells = <1>;
+		#size-cells = <0>;
 		assigned-clocks = <&gcc GCC_QUPV3_I2C_SE3_CLK>;
 		assigned-clock-rates = <64000000>;
 		clocks = <&gcc GCC_QUPV3_I2C_SE3_CLK>;
@@ -1945,9 +1948,28 @@
 		qup-se-fw-load = <&i2c1_fw>;
 		qcom,geni-se-clk-32mhz;
 		status = "disabled";
+
+		mp8899_pmic: pmic@68 {
+			compatible = "mps,mp8899";
+			reg = <0x68>;
+			bootph-pre-ram;
+
+			regulators {
+				bootph-pre-ram;
+
+				soc_cx_pmic: buck3 {
+					regulator-name = "buck3";
+					regulator-min-microvolt = <750000>;
+					regulator-max-microvolt = <820000>;
+					status = "disabled";
+					bootph-pre-ram;
+				};
+			};
+		};
 	};
 
 	i2c1_fw: i2c1_firmware@0 {
+		bootph-all;
 		compatible = "qcom,ipq9650-geni-i2c-fw-v1", "qcom,geni-i2c-fw-v1";
 		reg = <0x0 0x1a8c000 0x0 0x4000>;
 		status = "okay";
@@ -1971,5 +1993,62 @@
 		compatible = "qcom,ipq9650-geni-i2c-fw-v1", "qcom,geni-i2c-fw-v1";
 		reg = <0x0 0x1a90000 0x0 0x4000>;
 		status = "okay";
+	};
+};
+
+/ {
+	soc_cx_gpio_reg: soc-cx-gpio-regulator {
+		compatible = "qcom,gpio-regulator";
+		regulator-name = "soc_cx";
+		regulator-min-microvolt = <750000>;
+		regulator-max-microvolt = <820000>;
+		gpios = <&tlmm 16 GPIO_ACTIVE_HIGH>;
+		states = <
+			750000 0x0
+			820000 0x1
+		>;
+		status = "disabled";
+		bootph-pre-ram;
+	};
+
+	ddr_cx_gpio_reg: ddr-cx-gpio-regulator {
+		compatible = "qcom,gpio-regulator";
+		regulator-name = "ddr_cx";
+		regulator-min-microvolt = <750000>;
+		regulator-max-microvolt = <960000>;
+		gpios = <&tlmm 33 GPIO_ACTIVE_HIGH>,
+			<&tlmm 34 GPIO_ACTIVE_HIGH>;
+		states = <
+			750000 0x0
+			815000 0x1
+			890000 0x2
+			960000 0x3
+		>;
+		status = "disabled";
+		bootph-pre-ram;
+	};
+
+	voltage_control: voltage-control {
+		compatible = "qcom,ipq9650-fuse-voltage-control",
+			     "qcom,fuse-voltage-control";
+		bootph-pre-ram;
+
+		soc_cx_vc: soc_cx {
+			qcom,rail-name = "soc_cx";
+			qcom,backend = "gpio";
+			qcom,mode = "nominal";
+			regulator = <&soc_cx_gpio_reg>;
+			status = "disabled";
+			bootph-pre-ram;
+		};
+
+		ddr_cx_vc: ddr_cx {
+			qcom,rail-name = "ddr_cx";
+			qcom,backend = "gpio";
+			qcom,mode = "turbo";
+			regulator = <&ddr_cx_gpio_reg>;
+			status = "disabled";
+			bootph-pre-ram;
+		};
 	};
 };
