@@ -41,6 +41,7 @@ uint32_t g_env_offset __section(".data") = 0;
 #endif
 
 #define DTS_SUFFIX			"-ub"
+#define SZ_96K				0x18000
 
 /****************************************************************
  * Weak function definition
@@ -465,8 +466,7 @@ static void build_mem_map(void)
 			 PTE_BLOCK_NON_SHARE |
 			 PTE_BLOCK_PXN | PTE_BLOCK_UXN;
 
-	for (i = 1, j = 0; i < ARRAY_SIZE(ipq_mem_map) - 2 &&
-		j < ARRAY_SIZE(gd->bd->bi_dram) &&
+	for (i = 1, j = 0; j < CONFIG_NR_DRAM_BANKS &&
 		gd->bd->bi_dram[j].size; i++, j++) {
 		mem_map[i].phys = gd->bd->bi_dram[j].start;
 		mem_map[i].virt = mem_map[i].phys;
@@ -507,7 +507,7 @@ static void build_mem_map(void)
 
 u64 get_page_table_size(void)
 {
-	return SZ_64K;
+	return SZ_96K;
 }
 
 /* This function open-codes setup_all_pgtables() so that we can
