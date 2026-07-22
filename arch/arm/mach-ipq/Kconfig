@@ -153,6 +153,24 @@ config IPQ_NAND
 	  This option is required to use NAND flash devices connected via the
 	  QPIC interface on supported platforms.
 
+config IPQ_ART_UBI_SUPPORT
+	bool "Support UBI-formatted ART partition"
+	depends on IPQ_NAND
+	default y if TARGET_IPQ5210
+        default y if TARGET_IPQ9650
+	default n
+	help
+	  Enables runtime detection of a UBI-formatted ART partition in
+	  ipq_get_partition_data(). When the ART partition is UBI-formatted,
+	  reads are dispatched through ubi_volume_read() instead of the raw
+	  nand_read() path. Detection is done by validating the UBI erase
+	  counter header (magic + CRC32) at the partition's first PEB, so
+	  raw ART partitions are unaffected and continue to use the existing
+	  raw NAND read path.
+
+	  Only enable this on platforms where the ART partition may be
+	  provisioned as a UBI volume.
+
 config SPL_SYS_NAND_SELF_INIT
 		bool "use self init nand"
 		depends on !SPL_NAND_SIMPLE
