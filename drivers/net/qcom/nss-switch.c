@@ -26,7 +26,6 @@ DECLARE_GLOBAL_DATA_PTR;
 
 static int tftp_acl_our_port;
 
-uchar ipq_def_enetaddr[6] = {0x00, 0x03, 0x7F, 0xBA, 0xDB, 0xAD};
 int mac_speed_config[] = {10, 100, 1000, 10000, 2500, 5000};
 
 #ifdef CONFIG_MDIO_QCOM_I2C
@@ -2750,7 +2749,7 @@ static int ipq_eth_read_hwaddr(struct udevice *dev)
 	if (ret)
 		memcpy(&pdata->enetaddr[0], &enet_addr[0], 6);
 	else
-		memcpy(&pdata->enetaddr[0], &ipq_def_enetaddr[0], 6);
+		ipq_random_ethaddr(&pdata->enetaddr[0]);
 
 	return 0;
 }
