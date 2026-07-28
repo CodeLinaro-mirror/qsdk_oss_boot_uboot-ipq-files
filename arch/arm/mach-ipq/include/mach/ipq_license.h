@@ -120,6 +120,7 @@ typedef void *license_handle_t;
 int ipq_spl_mibib_getpart(const char *part_name, uint32_t *start_blk,
 			   uint32_t *blk_cnt);
 int ipq_spl_license_init(void *ctx);
+int ipq_spl_save_fids_smem(struct udevice *smem);
 int ipq_license_install_tme(void *license, size_t licenseLen,
 			     u64 *flags, u8 *identifier,
 			     size_t identifierLen, size_t *identifierLenOut);

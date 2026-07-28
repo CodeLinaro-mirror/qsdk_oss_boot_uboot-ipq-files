@@ -429,6 +429,67 @@ int boot_license_install(void *ptr, size_t len, uint16_t index)
 }
 
 /**
+ * ipq_spl_save_fids_smem() - Save FID information to SMEM
+ * @smem: Pointer to the SMEM device (already initialized)
+ *
+ * This function populates FID information into SMEM using the SMEM_FID_LIST_INFO
+ * item. It uses the platform-defined features[] array to populate the feature IDs
+ * and their enforcement status.
+ *
+ * Return: 0 on success, negative error code on failure
+ */
+int ipq_spl_save_fids_smem(struct udevice *smem)
+{
+#if defined(CONFIG_IPQ_SOFTSKU_SUPPORT) && defined(IPQ_HW_FEATURES)
+	int ret;
+	struct sec_enforceHWFeatureId *fid_list;
+	size_t smem_size;
+
+	if (!smem) {
+		pr_err("Invalid SMEM device handle\n");
+		return -EINVAL;
+	}
+
+	/* Use sizeof(features) to get the exact size of the array */
+	smem_size = sizeof(features);
+
+	if (smem_size == 0) {
+		pr_warn("No hardware features defined for this platform\n");
+		return 0;
+	}
+
+	printf("Populating FID information to SMEM (%zu features, %zu bytes)\n",
+	       ARRAY_SIZE(features), smem_size);
+
+	/* Allocate SMEM using sizeof(features) */
+	ret = smem_alloc(smem, -1, SMEM_FID_LIST_INFO, smem_size);
+	if (ret && ret != -EEXIST) {
+		pr_err("Failed to alloc SMEM_FID_LIST_INFO (ret=%d)\n", ret);
+		return ret;
+	}
+
+	/* Get pointer to SMEM FID list */
+	fid_list = (struct sec_enforceHWFeatureId *)smem_get(smem, -1, SMEM_FID_LIST_INFO, &smem_size);
+	if (!fid_list) {
+		pr_err("Failed to get SMEM_FID_LIST_INFO\n");
+		return -ENOENT;
+	}
+
+	/* Copy features[] array directly to SMEM */
+	memcpy(fid_list, features, sizeof(features));
+
+	/* Flush cache to ensure data is written to SMEM */
+	flush_dcache_range((unsigned long)fid_list,
+			   (unsigned long)fid_list + sizeof(features));
+
+	return 0;
+#else
+	pr_debug("SoftSKU support / HW features not enabled, skipping FID SMEM population\n");
+	return 0;
+#endif /* CONFIG_IPQ_SOFTSKU_SUPPORT && IPQ_HW_FEATURES */
+}
+
+/**
  * ipq_spl_license_init() - Main license initialization function
  * @ctx: SPL context (unused for now)
  *
