@@ -61,6 +61,148 @@
 #define DRAM_DUMP_NAME_PREFIX			"EBICS"
 #define STATIC_DMESG_SIZE			0x20000
 
+#ifdef CONFIG_IPQ_MINIDUMP
+/* CPU dump configuration */
+#define CPU_DUMP_IMEM_BASE              0x08600000 // IMEM base address
+#define CPU_DUMP_IMEM_OFFSET            0x658      // IMEM offset for table pointer
+#define CPU_DUMP_RECORD_SIZE            0x38       // 56 bytes per record
+#define CPU_DUMP_MAGIC_SYDB             0x42445953 // "SYDB" in little-endian
+
+/* Virtual to Physical address conversion constants */
+#ifdef CONFIG_ARM64
+#define PAGE_OFFSET                     0xFFFFFF8000000000ULL // ARM64 kernel VA offset
+#define CPU_STACK_DUMP_SIZE             (16 * 1024)           // 16KB stack dump for ARM64
+#else
+#define PAGE_OFFSET                     0x40000000UL          // ARM32 kernel VA offset
+#define CPU_STACK_DUMP_SIZE             (8 * 1024)            // 8KB stack dump for ARM32
+#endif
+
+struct dump_data_type {
+	u32 version;
+	u32 magic;
+	char name[32];
+	u64 start_addr;
+	u64 len;
+};
+
+#ifdef CONFIG_ARM64
+struct sysdbg_cpu64_ctxt_regs_type {
+	u64 x0;
+	u64 x1;
+	u64 x2;
+	u64 x3;
+	u64 x4;
+	u64 x5;
+	u64 x6;
+	u64 x7;
+	u64 x8;
+	u64 x9;
+	u64 x10;
+	u64 x11;
+	u64 x12;
+	u64 x13;
+	u64 x14;
+	u64 x15;
+	u64 x16;
+	u64 x17;
+	u64 x18;
+	u64 x19;
+	u64 x20;
+	u64 x21;
+	u64 x22;
+	u64 x23;
+	u64 x24;
+	u64 x25;
+	u64 x26;
+	u64 x27;
+	u64 x28;
+	u64 x29;
+	u64 x30;
+	u64 pc;
+	u64 currentEL;
+	u64 sp_el3;
+	u64 elr_el3;
+	u64 spsr_el3;
+	u64 sp_el2;
+	u64 elr_el2;
+	u64 spsr_el2;
+	u64 sp_el1;
+	u64 elr_el1;
+	u64 spsr_el1;
+	u64 sp_el0;
+	u64 __reserved1;
+	u64 __reserved2;
+	u64 __reserved3;
+	u64 __reserved4;
+	u64 __reserved5;
+	u64 __reserved6;
+	u64 __reserved7;
+	u64 __reserved8;
+};
+
+struct SysdbgCPUCtxtType {
+	u32 status[4];
+	struct sysdbg_cpu64_ctxt_regs_type cpu_regs;
+};
+
+#else /* ARM32 */
+
+struct sysdbg_cpu32_ctxt_regs_type {
+	u64 r0;
+	u64 r1;
+	u64 r2;
+	u64 r3;
+	u64 r4;
+	u64 r5;
+	u64 r6;
+	u64 r7;
+	u64 r8;
+	u64 r9;
+	u64 r10;
+	u64 r11;
+	u64 r12;
+	u64 r13_usr;
+	u64 r14_usr;
+	u64 r13_hyp;
+	u64 r14_irq;
+	u64 r13_irq;
+	u64 r14_svc;
+	u64 r13_svc;
+	u64 r14_abt;
+	u64 r13_abt;
+	u64 r14_und;
+	u64 r13_und;
+	u64 r8_fiq;
+	u64 r9_fiq;
+	u64 r10_fiq;
+	u64 r11_fiq;
+	u64 r12_fiq;
+	u64 r13_fiq;
+	u64 r14_fiq;
+	u64 pc;
+	u64 cpsr;
+	u64 r13_mon;
+	u64 r14_mon;
+	u64 r14_hyp;
+	u64 _reserved;
+	u64 __reserved1;
+	u64 __reserved2;
+	u64 __reserved3;
+	u64 __reserved4;
+	u64 __reserved5;
+	u64 __reserved6;
+	u64 __reserved7;
+	u64 __reserved8;
+};
+
+struct SysdbgCPUCtxtType {
+	u32 status[4];
+	struct sysdbg_cpu32_ctxt_regs_type cpu_regs;
+};
+
+#endif /* CONFIG_ARM64 */
+#endif /* CONFIG_IPQ_MINIDUMP */
+
 #if defined(CONFIG_IPQ_CRASHDUMP_TO_MEMORY) || \
 	defined(CONFIG_IPQ_CRASHDUMP_TO_NVMEMORY)
 
@@ -738,6 +880,211 @@ static void delete_crashdump_table(void)
 }
 
 #ifdef CONFIG_IPQ_MINIDUMP
+/**
+ * va_to_pa() - Convert kernel virtual address to physical address
+ * @va: Virtual address to convert
+ * @pa: Physical address
+ *
+ * Returns: Physical address, or 0 if conversion fails
+ */
+static u64 va_to_pa(u64 va)
+{
+	u64 pa;
+	u64 phys_offset = CFG_SYS_SDRAM_BASE;
+
+	/* Check if address is in kernel space */
+	if (va < PAGE_OFFSET) {
+		printf("Warning: VA 0x%llx is not in kernel space (< 0x%llx)\n",
+		       va, (uint64_t)PAGE_OFFSET);
+		return 0;
+	}
+
+	pa = va - PAGE_OFFSET + phys_offset;
+
+	/* Validate physical address is within DDR range */
+	if (pa < phys_offset || pa >= gd->ram_top) {
+		printf("Warning: Converted PA 0x%llx is outside DDR range [0x%llx - 0x%llx]\n",
+		       pa, phys_offset, (uint64_t)gd->ram_top);
+		return 0;
+	}
+
+	return pa;
+}
+
+/**
+ * should_collect_cpu_stacks() - Check if CPU stack dumps should be collected
+ *
+ * Checks the reset reason register to determine if CPU stack dumps should be collected.
+ * Only collects for specific reset reasons like NS WDT or HLOS panic.
+ * Uses SoC-specific macros defined in SoC header files.
+ *
+ * Returns: true if CPU stacks should be collected, false otherwise
+ */
+static bool should_collect_cpu_stacks(void)
+{
+	u32 reset_value;
+
+	/* Read the reset reason register */
+	reset_value = readl(CPU_STACK_RESET_REASON_ADDR);
+
+	/* Check reset reason using switch-case with SoC-defined macros */
+	switch (reset_value) {
+	case CPU_STACK_RESET_REASON_WD:
+		debug("Reset reason 0x%x: WD reset detected, collecting CPU stacks\n",
+		      reset_value);
+		return true;
+	case CPU_STACK_RESET_REASON_HLOS_PANIC:
+		debug("Reset reason 0x%x: HLOS/Kernel panic detected, collecting CPU stacks\n",
+		      reset_value);
+		return true;
+	default:
+		debug("Reset reason 0x%x does not match WD reset or HLOS panic, skipping CPU stacks\n",
+		      reset_value);
+		return false;
+	}
+}
+
+/**
+ * get_stack_pointer_from_context() - Extract stack pointer based on SoC configuration
+ * @context: CPU context structure
+ * @stack_ptr_reg: Which stack pointer register to read
+ *
+ * Returns: Stack pointer value (virtual address)
+ */
+static uint64_t get_stack_pointer_from_context(struct SysdbgCPUCtxtType *context,
+					       enum stack_ptr_register stack_ptr_reg)
+{
+#ifdef CONFIG_ARM64
+	switch (stack_ptr_reg) {
+	case EL0:
+		return context->cpu_regs.sp_el0;
+	case EL1:
+		return context->cpu_regs.sp_el1;
+	case EL2:
+		return context->cpu_regs.sp_el2;
+	case EL3:
+		return context->cpu_regs.sp_el3;
+	default:
+		return context->cpu_regs.sp_el1;  // Default to EL1
+	}
+#else /* ARM32 */
+	(void)stack_ptr_reg;
+	return context->cpu_regs.r13_svc;
+#endif
+}
+
+/**
+ * add_cpu_stack_dumps() - Add per-CPU stack dumps with VA to PA conversion
+ * @dump_config: crashdump configuration info
+ *
+ * Reads CPU dump table from IMEM and creates dump entries for each CPU's
+ * stack data. Converts virtual stack pointers to physical addresses.
+ * Only collects CPU stacks if reset reason check passes.
+ * Uses SoC-specific stack pointer register configuration.
+ *
+ * Returns: 0 on success, negative error code on failure
+ */
+static int add_cpu_stack_dumps(crashdump_config_t *dump_config)
+{
+	uint64_t table_addr;
+	struct dump_data_type *record;
+	struct SysdbgCPUCtxtType *context;
+	uint64_t stack_pointer_va, stack_pointer_pa;
+	crashdump_infos_int_t dump_entry;
+	int cpu_id, ret;
+	int entries_added = 0;
+
+	/* Check if we should collect CPU stacks */
+	if (!should_collect_cpu_stacks()) {
+		debug("Skipping CPU stack dump collection based on reset reason\n");
+		return 0;
+	}
+
+	debug("\n=== CPU Stack Dump Collection ===\n");
+
+	/* Read table pointer from IMEM */
+	table_addr = readl(CPU_DUMP_IMEM_BASE + CPU_DUMP_IMEM_OFFSET);
+	table_addr |= ((uint64_t)readl(CPU_DUMP_IMEM_BASE + CPU_DUMP_IMEM_OFFSET + 4)) << 32;
+
+	if (!table_addr) {
+		debug("CPU dump table pointer is NULL\n");
+		return -EINVAL;
+	}
+
+	/* Process each CPU record */
+	for (cpu_id = 0; cpu_id < CPU_STACK_MAX_CPUS; cpu_id++) {
+		record = (struct dump_data_type *)(uintptr_t)(table_addr +
+						(cpu_id * CPU_DUMP_RECORD_SIZE));
+
+		debug("CPU%d: Record name='%s', magic=0x%x\n",
+		      cpu_id, record->name, record->magic);
+
+		/* Check for valid SYDB magic */
+		if (record->magic != CPU_DUMP_MAGIC_SYDB)
+			continue;
+
+		/* Extract stack pointer from CPU context using SoC-specific register */
+		/* Validate record->start_addr before dereferencing */
+		if (!record->start_addr ||
+		    record->start_addr < CFG_SYS_SDRAM_BASE ||
+		    record->start_addr >= gd->ram_top) {
+			debug("CPU%d: Context address 0x%llx out of valid range, skipping\n",
+			      cpu_id, record->start_addr);
+			continue;
+		}
+		context = (struct SysdbgCPUCtxtType *)(uintptr_t)record->start_addr;
+		stack_pointer_va = get_stack_pointer_from_context(context, CPU_STACK_PTR_REG);
+
+		if (!stack_pointer_va) {
+			debug("CPU%d: Stack pointer is NULL, skipping\n", cpu_id);
+			continue;
+		}
+
+		debug("Stack pointer (VA): 0x%llx\n", stack_pointer_va);
+
+		/* Convert virtual address to physical address */
+		stack_pointer_pa = va_to_pa(stack_pointer_va);
+		if (!stack_pointer_pa) {
+			debug("CPU%d: VA to PA conversion failed, skipping\n", cpu_id);
+			continue;
+		}
+
+		debug("Stack pointer (PA): 0x%llx\n", stack_pointer_pa);
+
+		/* Validate stack pointer is within valid DDR range */
+		if (!gd->ram_top ||
+		    stack_pointer_pa < CFG_SYS_SDRAM_BASE ||
+		    stack_pointer_pa > gd->ram_top - CPU_STACK_DUMP_SIZE) {
+			debug("CPU%d: Stack PA 0x%llx out of valid DDR range, skipping\n",
+			      cpu_id, stack_pointer_pa);
+			continue;
+		}
+
+		/* Add CPU stack dump entry with physical address */
+		memset(&dump_entry, 0, sizeof(dump_entry));
+		dump_entry.start_addr = stack_pointer_pa;
+		dump_entry.size = CPU_STACK_DUMP_SIZE;
+		snprintf(dump_entry.name, sizeof(dump_entry.name),
+			 "CPU%d_STACK.BIN", cpu_id);
+		dump_entry.is_aligned_access = 0;
+		dump_entry.compression_support = 0;
+		dump_entry.dumptoflash_support = 1;
+
+		ret = add_entry_crashdump_table(dump_config, &dump_entry);
+		if (ret) {
+			debug("Failed to add %s: %d\n", dump_entry.name, ret);
+			continue;
+		}
+
+		debug("Added %s (%d KB)\n",
+		      dump_entry.name, CPU_STACK_DUMP_SIZE / 1024);
+		entries_added++;
+	}
+
+	debug("\n=== Added %d CPU stack dump entries ===\n\n", entries_added);
+	return 0;
+}
+
 /**
  * wdt_extract_tlv_info() - extract tlv header info
  * &tlv_info - tlv dump list head pointer
@@ -1780,6 +2127,17 @@ usb_default_dump:
 		if (ret)
 			break;
 	}
+
+#ifdef CONFIG_IPQ_MINIDUMP
+	/* Automatically add CPU stack dumps for MINIDUMP level */
+	if (dump_level == MINIDUMP && !ret) {
+		ret = add_cpu_stack_dumps(dump_config);
+		if (ret < 0) {
+			printf("Warning: CPU stack dump collection failed: %d\n", ret);
+			ret = 0;  /* Don't fail the entire dump process */
+		}
+	}
+#endif /* CONFIG_IPQ_MINIDUMP */
 
 	return ret;
 }

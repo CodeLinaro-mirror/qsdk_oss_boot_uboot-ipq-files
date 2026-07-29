@@ -1321,3 +1321,13 @@ int append_partlabel_bootargs(char *bootargs, size_t buflen);
 
 int fdt_set_booted_bank_property(void *blob);
 #endif /* CONFIG_BOOT_BANK_FIXUP */
+
+#ifdef CONFIG_IPQ_MINIDUMP
+/* Stack pointer register selection for different SoCs */
+enum stack_ptr_register {
+	EL0 = 0,
+	EL1,
+	EL2,
+	EL3,
+};
+#endif /* CONFIG_IPQ_MINIDUMP */

@@ -58,4 +58,13 @@ struct fuse_payload {
 #define TLV_BUF_OFFSET				(500 * 1024) - TME_CTXT_SIZE
 #define CFG_TLV_DUMP_SIZE			(12 * 1024)
 #endif /* CONFIG_IPQ_MINIDUMP_VERSION_V2 */
+
+#ifdef CONFIG_IPQ_MINIDUMP
+/* CPU stack dump configuration for IPQ9574 (Alder) */
+#define CPU_STACK_RESET_REASON_ADDR		0x086007A4
+#define CPU_STACK_RESET_REASON_HLOS_PANIC	0x47
+#define CPU_STACK_RESET_REASON_WD		0x1
+#define CPU_STACK_PTR_REG			EL1
+#define CPU_STACK_MAX_CPUS			4
+#endif /* CONFIG_IPQ_MINIDUMP */
 #endif
