@@ -65,6 +65,7 @@
 #include <env_internal.h>
 #include <bootcount.h>
 #include <sysreset.h>
+#include <blk.h>
 
 /**
  * PBL Boot interface
@@ -688,8 +689,11 @@ static void ipq_spl_log_otp_version(void);
 /*
  * Forward declarations for flash specific functions
  */
+static int (*get_guid_fn)(char *part_name, efi_guid_t *type_guid);
 static int ipq_spl_spinor_gpt_read(char *part_name, void *buf, ulong *read_sz);
+static int ipq_spl_spinor_get_guid(char *part_name, efi_guid_t *type_guid);
 static int ipq_spl_mmc_read(char *part_name, void *buf, ulong *read_sz);
+static int ipq_spl_mmc_get_guid(char *part_name, efi_guid_t *type_guid);
 static int ipq_spl_nand_read(char *part_name, void *buf, ulong *read_sz);
 
 /**
@@ -3298,6 +3302,8 @@ int ipq_spl_failsafe_parse_pblset(u8 boot_device)
 {
 	int ret;
 	char *part_name = (char *)IPQ_SPL_DEFAULT_SPL_PARTITION_LABEL;
+	const efi_guid_t spl_guid = IPQ_SPL_DEFAULT_SPL_PARTITION_GUID;
+	efi_guid_t type_guid;
 	struct mtd_info *mtd;
 	uint32_t part_offset, part_size;
 	uint32_t start_blk, blk_cnt, qpic_offset;
@@ -3307,6 +3313,16 @@ int ipq_spl_failsafe_parse_pblset(u8 boot_device)
 	 */
 	if (g_bootrec.is_pbl_set_parsed != 0)
 		return 0;
+
+	/*
+	 * Get GUID function pointer for GPT based flash memory
+	 */
+	if (boot_device == BOOT_DEVICE_SPI)
+		get_guid_fn = ipq_spl_spinor_get_guid;
+	else if (boot_device == BOOT_DEVICE_MMC1)
+		get_guid_fn = ipq_spl_mmc_get_guid;
+	else
+		get_guid_fn = NULL;
 
 	/*
 	 * Get the PBL set info from the PBL shared data
@@ -3323,7 +3339,36 @@ int ipq_spl_failsafe_parse_pblset(u8 boot_device)
 	/**
 	 * Verify the PBL set info
 	 */
-	if (boot_device == BOOT_DEVICE_NAND) {
+	if ((boot_device == BOOT_DEVICE_SPI) ||
+		(boot_device == BOOT_DEVICE_MMC1)) {
+		if (get_guid_fn == NULL)
+			return -ENODEV;
+
+		ret = get_guid_fn(part_name, &type_guid);
+		if (ret)
+			return ret;
+
+		/*
+		 * Verify GUID booted by PBL with the default GUID
+		 */
+		if (!memcmp(&spl_guid, &type_guid, sizeof(efi_guid_t)))
+			printf("%s GUID: matches with default\n", part_name);
+		else {
+			/*
+			 * GUID not matches with the default GUID,
+			 * update the PBL set info and the expected TCSR set
+			 */
+			printf("%s GUID: mismatches with default\n",
+				part_name);
+
+			g_bootrec.pbl_set =
+			ipq_spl_alt_bootset(g_bootrec.pbl_set);
+
+			g_bootrec.exp_tcsr_set =
+			ipq_spl_alt_bootset(g_bootrec.exp_boot_set);
+		}
+
+	} else if (boot_device == BOOT_DEVICE_NAND) {
 		/*
 		 * Find partition using generic MIBIB lookup
 		 */
@@ -3350,6 +3395,10 @@ int ipq_spl_failsafe_parse_pblset(u8 boot_device)
 		if (!((qpic_offset >= part_offset) &&
 			(qpic_offset < part_offset+part_size)))
 			g_bootrec.pbl_set = IPQ_SPL_BOOT_FROM_INACTIVE;
+
+	} else {
+		printf("Unsupported flash type\n");
+		return -EINVAL;
 	}
 
 	printf("Failsafe: PBL Booted set (parsed) %s\n",
@@ -3630,6 +3679,11 @@ void board_init_f(ulong dummy)
 		goto fail;
 	}
 
+	/*
+	 * Drop blkcache state before switching from board_init_f() to
+	 * board_init_r(), since allocator context changes across this handoff.
+	 */
+	blkcache_free();
 	board_init_r(NULL, 0);
 
 fail:
@@ -4165,7 +4219,7 @@ static int spl_find_partition_info(enum uclass_id uclass_id, int device_num,
 				   const char *part_name,
 				   struct disk_partition *info)
 {
-	int ret;
+	int part, ret;
 	struct blk_desc *desc;
 
 	if (!part_name || !info) {
@@ -4173,8 +4227,30 @@ static int spl_find_partition_info(enum uclass_id uclass_id, int device_num,
 		return -EINVAL;
 	}
 
+	/* Configure blkcache policy for this boot-device class. */
+	switch (uclass_id) {
+	case UCLASS_MMC:
+		/*
+		 * eMMC (512B blk): MBR(1) + GPT hdr(1) + GPT entries
+		 * (128 * 128B = 32 blks) => 34 blks (~17KB).
+		 * Use 8 blks * 5 entries (~20KB) to cover this.
+		 */
+		blkcache_configure(8, 5);
+		break;
+	case UCLASS_SPI:
+		/*
+		 * SPI-NOR (4KB blk): MBR(1) + GPT hdr(1) + GPT entries
+		 * (128 * 128B = 4 blks) => 6 blks (24KB).
+		 * Use 6 blks * 1 entry (24KB) to cover this.
+		 */
+		blkcache_configure(6, 1);
+		break;
+	default:
+		break;
+	}
+
 	/*
-	 *Get block device descriptor
+	 * Get block device descriptor
 	 */
 	desc = blk_get_devnum_by_uclass_id(uclass_id, device_num);
 	if (!desc) {
@@ -4194,17 +4270,55 @@ static int spl_find_partition_info(enum uclass_id uclass_id, int device_num,
 		desc->part_type = PART_TYPE_EFI;
 	}
 
-	/*
-	 * Find partition by name
-	 */
-	ret = part_get_info_by_name(desc, part_name, info);
-	if (ret < 0) {
-		printf("Partition '%s' not found\n", part_name);
-		return -ENOENT;
+	if (uclass_id == UCLASS_MMC &&
+	    !strcmp(part_name, IPQ_SPL_DEFAULT_SPL_PARTITION_LABEL)) {
+		/*
+		 * For SPL partition lookup on eMMC:
+		 * 1) Try BOOT1 first.
+		 * 2) Fallback to USER (DEFAULT) partition.
+		 */
+		ret = blk_dselect_hwpart(desc, EMMC_HWPART_BOOT1);
+		if (!ret) {
+			part = part_get_info_by_name(desc, part_name, info);
+			if (part >= 0) {
+				/* Restore USER hwpart for later accesses. */
+				ret = blk_dselect_hwpart(desc,
+							 EMMC_HWPART_DEFAULT);
+				if (ret)
+					return ret;
+				printf("Found partition '%s' at partition number %d (hwpart %d)\n",
+				       part_name, part, EMMC_HWPART_BOOT1);
+				return part;
+			}
+		}
+
+		ret = blk_dselect_hwpart(desc, EMMC_HWPART_DEFAULT);
+		if (!ret) {
+			part = part_get_info_by_name(desc, part_name, info);
+			if (part >= 0) {
+				printf("Found partition '%s' at partition number %d (hwpart %d)\n",
+				       part_name, part, EMMC_HWPART_DEFAULT);
+				return part;
+			}
+		}
+
+		goto not_found;
 	}
 
-	printf("Found partition '%s' at partition number %d\n", part_name, ret);
-	return ret;
+	/*
+	 * SPI and all other cases (including MMC non-SPL partitions):
+	 * no HW partition scan.
+	 */
+	part = part_get_info_by_name(desc, part_name, info);
+	if (part >= 0) {
+		printf("Found partition '%s' at partition number %d\n",
+		       part_name, part);
+		return part;
+	}
+
+not_found:
+	printf("Partition '%s' not found\n", part_name);
+	return -ENOENT;
 }
 
 /**
@@ -4258,6 +4372,52 @@ static int ipq_spl_blk_read(enum uclass_id uclass_id, int devnum,
 
 	if (count != blk_dread(bdev, disk_info.start, count, buf))
 		return -EIO;
+
+	return 0;
+}
+
+/**
+ * ipq_spl_blk_get_guid() - Retrieve the type GUID of a GPT partition
+ * @uclass_id:  Device class identifier (e.g. UCLASS_MMC, UCLASS_SPI)
+ * @devnum:     Device number within the given class
+ * @part_name:  GPT partition label whose type GUID is requested
+ * @type_guid:  Output pointer to store the retrieved EFI partition type GUID
+ *
+ * Looks up the named GPT partition on the specified block device using
+ * spl_find_partition_info(), extracts the partition type GUID string via
+ * disk_partition_type_guid(), and converts it to binary form using
+ * uuid_str_to_bin() into @type_guid.
+ *
+ * Return: 0 on success,
+ *         -EINVAL if @part_name or @type_guid is NULL,
+ *         -ENODEV if the partition is not found on the device.
+ */
+static int ipq_spl_blk_get_guid(enum uclass_id uclass_id, int devnum,
+				 const char *part_name, efi_guid_t *type_guid)
+{
+	struct disk_partition disk_info;
+	const char *uuid_str;
+	int ret;
+
+	if (!part_name || !type_guid) {
+		printf("%s: invalid parameters\n", __func__);
+		return -EINVAL;
+	}
+
+	/*
+	 * Find partition
+	 */
+	ret = spl_find_partition_info(uclass_id, devnum, part_name, &disk_info);
+	if (ret < 0) {
+		printf("%s: partition '%s' not found (err %d)\n",
+		       __func__, part_name, ret);
+		return -ENODEV;
+	}
+
+	uuid_str = disk_partition_type_guid(&disk_info);
+	printf("GPT Label: %s; GUID: %s\n", part_name, uuid_str);
+
+	uuid_str_to_bin(uuid_str, type_guid->b, UUID_STR_FORMAT_GUID);
 
 	return 0;
 }
@@ -4321,6 +4481,11 @@ unsigned long spl_mmc_get_uboot_raw_sector(struct mmc *mmc,
 					unsigned long raw_sect)
 {
 	return 0;
+}
+
+static int ipq_spl_mmc_get_guid(char *part_name, efi_guid_t *type_guid)
+{
+	return ipq_spl_blk_get_guid(UCLASS_MMC, 0, part_name, type_guid);
 }
 
 static int ipq_spl_mmc_read(char *part_name, void *buf, ulong *read_sz)
@@ -4431,6 +4596,22 @@ u32 spl_spi_boot_cs(void)
 	 * Return the SPI chip select to use
 	 */
 	return CONFIG_SF_DEFAULT_CS;
+}
+
+static int ipq_spl_spinor_get_guid(char *part_name, efi_guid_t *type_guid)
+{
+	struct spi_flash *flash;
+
+	flash = spi_flash_probe(spl_spi_boot_bus(), spl_spi_boot_cs(),
+				CONFIG_SF_DEFAULT_SPEED,
+				CONFIG_SF_DEFAULT_MODE);
+	if (!flash) {
+		printf("%s: SPI probe failed\n", __func__);
+		return -ENODEV;
+	}
+
+	return ipq_spl_blk_get_guid(UCLASS_SPI, CONFIG_SF_DEFAULT_BUS,
+				    part_name, type_guid);
 }
 
 static int ipq_spl_spinor_gpt_read(char *part_name, void *buf, ulong *read_sz)
