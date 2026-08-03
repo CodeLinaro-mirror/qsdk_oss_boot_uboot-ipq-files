@@ -24,7 +24,9 @@ extern u8 get_boot_mode(void);
 /* MACH IDs for various RDPs */
 #define MACH_TYPE_IPQ5210_EMULATION		0xf060000
 #define MACH_TYPE_IPQ5210_DB_HM01_1		0x1080000
+#define MACH_TYPE_IPQ5210_DB_HM01_C1		0x1080001
 #define MACH_TYPE_IPQ5210_DB_HM02_1		0x1080100
+#define MACH_TYPE_IPQ5210_DB_HM02_C1		0x1080101
 #define MACH_TYPE_IPQ5210_RDP497		0x8080000
 #define MACH_TYPE_IPQ5210_RDP498		0x8080100
 #define MACH_TYPE_IPQ5210_RDP499		0x8080200
@@ -116,8 +118,20 @@ struct machid_dts_map machid_dts[] = {
 		"1"
 	},
 	{
+		MACH_TYPE_IPQ5210_DB_HM01_C1,
+		"ipq5210-db-hm01-c1",
+		"db-hm01.1",
+		"1"
+	},
+	{
 		MACH_TYPE_IPQ5210_DB_HM02_1,
 		"ipq5210-db-hm02.1",
+		"db-hm02.1",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_DB_HM02_C1,
+		"ipq5210-db-hm02-c1",
 		"db-hm02.1",
 		"1"
 	},
