@@ -766,28 +766,64 @@ struct ipq_spl_img_ctx img_tbl_fit[] = {
 		.sw_id = IPQ_SPL_QCCONFIG_SEC_AUTH_SWID,
 		.auth = true,
 		.fixup = ipq_spl_xcfg_fixup,
+#if defined(CONFIG_TARGET_IPQ5210)
+	}, {
+		.img_name = "qcconfig-meta-v7",
+		.sw_id = IPQ_SPL_QCCONFIG_SEC_AUTH_SWID,
+		.auth = true,
+		.fixup = ipq_spl_xcfg_fixup,
+#endif
 	}, {
 		.img_name = "qclib-meta",
 		.sw_id = IPQ_SPL_QCLIB_DDR_SEC_AUTH_SWID,
 		.auth = true,
 		.fixup = ipq_spl_qclib_fixup,
+#if defined(CONFIG_TARGET_IPQ5210)
+	}, {
+		.img_name = "qclib-meta-v7",
+		.sw_id = IPQ_SPL_QCLIB_DDR_SEC_AUTH_SWID,
+		.auth = true,
+		.fixup = ipq_spl_qclib_fixup,
+#endif
 	}, {
 		.img_name = "tfa_bl31-meta",
 		.sw_id = IPQ_SPL_TZ_TEE_SEC_AUTH_SWID,
 		.auth = true,
 		.fixup = ipq_spl_tfa_fixup,
+#if defined(CONFIG_TARGET_IPQ5210)
+	}, {
+		.img_name = "tfa_bl31-meta-v7",
+		.sw_id = IPQ_SPL_TZ_TEE_SEC_AUTH_SWID,
+		.auth = true,
+		.fixup = ipq_spl_tfa_fixup,
+#endif
 	}, {
 		.img_name = "optee-meta",
 		.sw_id = IPQ_SPL_OP_TEE_SEC_AUTH_SWID,
 		.auth = true,
 		.fixup = ipq_spl_optee_fixup,
+#if defined(CONFIG_TARGET_IPQ5210)
+	}, {
+		.img_name = "optee-meta-v7",
+		.sw_id = IPQ_SPL_OP_TEE_SEC_AUTH_SWID,
+		.auth = true,
+		.fixup = ipq_spl_optee_fixup,
+#endif
 	}, {
 		.img_name = "uboot-meta",
 		.sw_id = IPQ_SPL_APPSBL_SEC_AUTH_SWID,
 		.auth = true,
 		.fixup = ipq_spl_uboot_fixup,
+#if defined(CONFIG_TARGET_IPQ5210)
+	}, {
+		.img_name = "uboot-meta-v7",
+		.sw_id = IPQ_SPL_APPSBL_SEC_AUTH_SWID,
+		.auth = true,
+		.fixup = ipq_spl_uboot_fixup,
+#endif
 	},
 };
+
 
 /*******************************************************************************
  * Function definition
