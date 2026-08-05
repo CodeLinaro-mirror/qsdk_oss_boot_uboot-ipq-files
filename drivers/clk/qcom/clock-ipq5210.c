@@ -177,6 +177,7 @@
 #define GCC_QDSS_TSCTR_CMD_RCGR			(0x2D01C)
 
 #define GCC_QDSS_AT_CMD_RCGR			(0x2D004)
+#define APCS_ALIAS0_CMD_RCGR			(0x00050)
 #define GCC_NSSNOC_SNOC_CMD_RCGR		(0x2E008)
 #define GCC_UNIPHY_SYS_CMD_RCGR			(0x17094)
 /* Ethernet related clocks */
@@ -240,6 +241,7 @@
 #define GCC_QUPV3_2X_CORE_SRC_SEL_GPLL0_OUT_MAIN	BIT(8)
 #define GCC_APSS_AXI_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
 #define GCC_APSS_AHB_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
+#define APCS_ALIAS0_SRC_SEL_APCPLL_OUT_EARLY		(5 << 8)
 #define GCC_QDSS_TSCTR_SRC_SEL_GPLL4_OUT_MAIN		BIT(8)
 
 /* Clock source selections */
@@ -803,6 +805,11 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 				     9, 0,
 				     GCC_QDSS_AT_SRC_SEL_GPLL4_OUT_MAIN);
 		break;
+	case APCS_ALIAS0_CLK:
+		clk_rcg_set_rate_v2(priv->base, APCS_ALIAS0_CMD_RCGR, 0,
+				    1, 0,
+				    APCS_ALIAS0_SRC_SEL_APCPLL_OUT_EARLY);
+		break;
 
 	default:
 		return -EINVAL;
@@ -1058,6 +1065,15 @@ static struct msm_clk_data ipq5210_gcc_data = {
 	.set_rate = ipq5210_set_rate,
 };
 
+static struct msm_clk_data ipq5210_apss_data = {
+	.resets = ipq5210_gcc_resets,
+	.num_resets = ARRAY_SIZE(ipq5210_gcc_resets),
+	.clks = ipq5210_clks,
+	.num_clks = ARRAY_SIZE(ipq5210_clks),
+	.enable = ipq5210_enable,
+	.set_rate = ipq5210_set_rate,
+};
+
 static const struct udevice_id gcc_ipq5210_of_match[] = {
 	{
 		.compatible = "qcom,ipq5210-gcc",
@@ -1066,10 +1082,26 @@ static const struct udevice_id gcc_ipq5210_of_match[] = {
 	{ }
 };
 
+static const struct udevice_id apss_ipq5210_of_match[] = {
+	{
+		.compatible = "qcom,ipq5210-apss",
+		.data = (ulong)&ipq5210_apss_data,
+	},
+	{ }
+};
+
 U_BOOT_DRIVER(gcc_ipq5210) = {
 	.name		= "gcc_ipq5210",
 	.id		= UCLASS_NOP,
 	.of_match	= gcc_ipq5210_of_match,
+	.bind		= qcom_cc_bind,
+	.flags		= DM_FLAG_PRE_RELOC | DM_FLAG_DEFAULT_PD_CTRL_OFF,
+};
+
+U_BOOT_DRIVER(apss_ipq5210) = {
+	.name		= "apss_ipq5210",
+	.id		= UCLASS_NOP,
+	.of_match	= apss_ipq5210_of_match,
 	.bind		= qcom_cc_bind,
 	.flags		= DM_FLAG_PRE_RELOC | DM_FLAG_DEFAULT_PD_CTRL_OFF,
 };
