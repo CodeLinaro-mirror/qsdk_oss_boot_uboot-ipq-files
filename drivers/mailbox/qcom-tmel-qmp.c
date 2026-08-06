@@ -3,6 +3,8 @@
  * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
  */
 #include <dm.h>
+#include <dma-bounce.h>
+#include <lmb.h>
 #include <malloc.h>
 #include <memalign.h>
 #include <mailbox-uclass.h>
@@ -202,6 +204,8 @@ struct qmp_device {
  * @irq_base: Base address for interrupt controller
  * @irq_num: IRQ number
  * @irq_flags: IRQ flags
+ * @sram_bounce: LMB address of lower-4-GB bounce buffer for SRAM path (0 if unused)
+ * @sram_bounce_size: size of SRAM bounce buffer in bytes
  */
 struct tmel {
 	struct udevice *dev;
@@ -214,6 +218,8 @@ struct tmel {
 	void __iomem *irq_base;
 	u32 irq_num;
 	u32 irq_flags;
+	phys_addr_t sram_bounce;	/* LMB addr of SRAM bounce buf, 0 if unused */
+	size_t sram_bounce_size;	/* size of SRAM bounce buffer */
 };
 
 struct tmel_secboot_sec_auth_req {
@@ -554,14 +560,41 @@ static int tmel_prepare_msg(struct tmel *tdev, u32 msg_uid, void *msg_buf,
 
 		flush_cache((ulong)mbox_payload, sizeof(struct mbox_payload));
 	} else if (msg_size <= QMP_SRAM_IPC_MAX_BUF_SIZE) {
-		/* SRAM */
+		/* SRAM path */
+		void *sram_buf;
+
 		msg_hdr->ipc_type = IPC_MBOX_SRAM;
 		msg_hdr->msg_len = 8;
 
-		tdev->sram_dma_addr = dma_map_single(msg_buf,
-						     msg_size,
-						     DMA_BIDIRECTIONAL);
+		/*
+		 * TMEL DMA engine is 32-bit. If msg_buf is above 4 GB (stack/heap
+		 * after U-Boot relocation to a high DDR bank), allocate a lower-4-GB
+		 * bounce buffer so the DMA address fits in sram_payload->payload_ptr
+		 * (a u32 field).
+		 */
+		tdev->sram_bounce = 0;
+		tdev->sram_bounce_size = 0;
 
+		sram_buf = dma32_bounce_start(msg_buf, msg_size,
+					      &tdev->sram_bounce, DMA32_BB_RW);
+		if (!sram_buf) {
+			dev_err(tdev->dev,
+				"Failed to alloc lower-4-GB SRAM bounce buffer (%zu bytes)\n",
+				msg_size);
+			return -ENOMEM;
+		}
+
+		tdev->sram_bounce_size = msg_size;
+
+		tdev->sram_dma_addr = dma_map_single(sram_buf, msg_size,
+						     DMA_BIDIRECTIONAL);
+		if (!tdev->sram_dma_addr) {
+			dma32_bounce_stop(msg_buf, tdev->sram_bounce,
+					  msg_size, DMA32_BB_WRITE);
+			tdev->sram_bounce = 0;
+			tdev->sram_bounce_size = 0;
+			return -ENOMEM;
+		}
 		sram_payload->payload_ptr = tdev->sram_dma_addr;
 		sram_payload->payload_len = msg_size;
 
@@ -593,6 +626,15 @@ static void tmel_unprepare_message(struct tmel *tdev, void *msg_buf, size_t msg_
 	} else if (ipc_pkt->msg_hdr.ipc_type == IPC_MBOX_SRAM) {
 		dma_unmap_single(tdev->sram_dma_addr, msg_size, DMA_BIDIRECTIONAL);
 		tdev->sram_dma_addr = 0;
+
+		/*
+		 * If a bounce buffer was used, copy the TMEL response back to
+		 * the original msg_buf and release the LMB allocation.
+		 */
+		dma32_bounce_stop(msg_buf, tdev->sram_bounce,
+				  tdev->sram_bounce_size, DMA32_BB_WRITE);
+		tdev->sram_bounce = 0;
+		tdev->sram_bounce_size = 0;
 	}
 }
 
@@ -726,8 +768,10 @@ static int tmel_process_request(struct tmel *tdev, u32 msg_uid, void *msg_buf,
 		return -ETIMEDOUT;
 	}
 
-	if (tdev->pkt.iov_len != sizeof(struct tmel_ipc_pkt))
+	if (tdev->pkt.iov_len != sizeof(struct tmel_ipc_pkt)) {
+		tmel_unprepare_message(tdev, msg_buf, msg_size);
 		return -EPROTO;
+	}
 
 	resp_ipc_pkt = (struct tmel_ipc_pkt *)tdev->pkt.iov_base;
 	tmel_unprepare_message(tdev, msg_buf, msg_size);
@@ -830,6 +874,8 @@ int tmelcom_fuse_list_read(struct tmel *tdev, struct tmel_fuse_payload *fuse, si
 	int ret;
 	struct tmel_fuse_read_multiple_msg msg = {0};
 	struct udevice *dev = tdev->dev;
+	phys_addr_t fuse_bounce = 0;
+	void *fuse_buf;
 	dma_addr_t dma_fuse;
 
 	if (!tdev || !dev || !fuse || !size)
@@ -840,28 +886,41 @@ int tmelcom_fuse_list_read(struct tmel *tdev, struct tmel_fuse_payload *fuse, si
 		return -EINVAL;
 	}
 
-	/* Additional validation: ensure size is reasonable */
-    if (size > QMP_SRAM_IPC_MAX_BUF_SIZE) {
-        dev_err(dev, "Fuse read size exceeds maximum allowed\n");
-        return -EINVAL;
-    }
+	if (size > QMP_SRAM_IPC_MAX_BUF_SIZE) {
+		dev_err(dev, "Fuse read size %zu exceeds maximum allowed\n", size);
+		return -EINVAL;
+	}
 
-	/* Flush cache before DMA mapping */
-	flush_cache((unsigned long)fuse, size);
-	dma_fuse = dma_map_single(fuse, size, DMA_BIDIRECTIONAL);
+	/*
+	 * msg.fuse_read_data.buf is a u32 field. TMEL reads this address and
+	 * DMA-accesses the fuse data directly. The fuse buffer is bidirectional:
+	 * the caller fills in fuse addresses (input) and TMEL writes back fuse
+	 * values (output). Use DMA32_BB_RW so the fuse addresses are copied into
+	 * the bounce buffer before TMEL reads them.
+	 */
+	fuse_buf = dma32_bounce_start(fuse, size, &fuse_bounce, DMA32_BB_RW);
+	if (!fuse_buf) {
+		dev_err(dev, "Failed to alloc lower-4-GB fuse bounce buffer\n");
+		return -ENOMEM;
+	}
+
+	flush_cache((unsigned long)fuse_buf, size);
+	dma_fuse = dma_map_single(fuse_buf, size, DMA_BIDIRECTIONAL);
 
 	msg.status = TMEL_ERROR_GENERIC;
 	msg.fuse_read_data.buf = (u32)dma_fuse;
 	msg.fuse_read_data.buf_len = size;
 
-	/*Send Fuse read row IPC call to TME*/
 	ret = tmel_process_request(tdev, TMEL_MSG_UID_FUSE_READ_MULTIPLE_ROW,
 				   &msg, sizeof(msg));
 	if (ret || msg.status)
-		dev_err(dev, "%s : IPC Failed. ret: %d, msg.status = 0x%x\n",
+		dev_err(dev, "%s: IPC failed, ret=%d status=0x%x\n",
 			__func__, ret, msg.status);
 
 	dma_unmap_single(dma_fuse, size, DMA_BIDIRECTIONAL);
+
+	/* Copy fuse result back to original buffer if bounce was used */
+	dma32_bounce_stop(fuse, fuse_bounce, size, DMA32_BB_WRITE);
 
 	return ret ? ret : msg.status;
 }
@@ -896,33 +955,44 @@ int tmelcom_get_tme_version(struct tmel *tdev, struct tmel_get_tme_version *vers
 		return -EINVAL;
 	}
 
-	dma_version = dma_map_single(version_buf, length, DMA_BIDIRECTIONAL);
-	if (!dma_version) {
-		dev_err(dev, "Failed to map DMA buffer\n");
-		return -ENOMEM;
-	}
+	/*
+	 * msg.rsp.patch_version.pdata is a u32 field. TMEL writes version data
+	 * to this address. Ensure version_buf is in lower 4 GB.
+	 */
+	{
+		phys_addr_t ver_bounce = 0;
+		void *ver_buf = dma32_bounce_start(version_buf, length,
+						   &ver_bounce, DMA32_BB_WRITE);
 
-	msg.rsp.status = TMEL_ERROR_GENERIC;
-	msg.rsp.patch_version.pdata = (u32)dma_version;
-	msg.rsp.patch_version.length = length;
-	msg.rsp.patch_version.length_used = 0;
+		if (!ver_buf) {
+			dev_err(dev, "Failed to alloc lower-4-GB version bounce buffer\n");
+			return -ENOMEM;
+		}
 
-	/* Send Get TME State IPC call to TME */
-	ret = tmel_process_request(tdev, TMEL_MSG_UID_SECBOOT_GET_STATE,
-				   &msg, sizeof(msg));
-	if (ret || msg.rsp.status)
-		dev_err(dev, "%s : IPC Failed. ret: %d, msg.status = 0x%x\n",
-			__func__, ret, msg.rsp.status);
+		dma_version = dma_map_single(ver_buf, length, DMA_BIDIRECTIONAL);
 
-	/* Validate returned length before invalidating cache */
-	if (msg.rsp.patch_version.length_used > length) {
-		dev_err(dev, "TME returned invalid length %u > buffer size %u\n",
-			msg.rsp.patch_version.length_used, length);
+		msg.rsp.status = TMEL_ERROR_GENERIC;
+		msg.rsp.patch_version.pdata = (u32)dma_version;
+		msg.rsp.patch_version.length = length;
+		msg.rsp.patch_version.length_used = 0;
+
+		ret = tmel_process_request(tdev, TMEL_MSG_UID_SECBOOT_GET_STATE,
+					   &msg, sizeof(msg));
+		if (ret || msg.rsp.status)
+			dev_err(dev, "%s: IPC failed, ret=%d status=0x%x\n",
+				__func__, ret, msg.rsp.status);
+
+		if (msg.rsp.patch_version.length_used > length) {
+			dev_err(dev, "TME returned invalid length %u > buffer size %u\n",
+				msg.rsp.patch_version.length_used, length);
+			dma_unmap_single(dma_version, length, DMA_BIDIRECTIONAL);
+			dma32_bounce_stop(NULL, ver_bounce, length, DMA32_BB_WRITE);
+			return -EOVERFLOW;
+		}
+
 		dma_unmap_single(dma_version, length, DMA_BIDIRECTIONAL);
-		return -EOVERFLOW;
+		dma32_bounce_stop(version_buf, ver_bounce, length, DMA32_BB_WRITE);
 	}
-
-	dma_unmap_single(dma_version, length, DMA_BIDIRECTIONAL);
 
 	version_msg->length = msg.rsp.patch_version.length_used;
 
@@ -967,36 +1037,46 @@ int tmelcom_prng_get(struct tmel *tdev, struct tmel_get_prng *prng_msg)
 		return -EINVAL;
 	}
 
-	dma_prng = dma_map_single(prng_buf, length, DMA_BIDIRECTIONAL);
-        if (!dma_prng) {
-               dev_err(dev, "Failed to map DMA buffer\n");
-               return -ENOMEM;
-        }
+	/*
+	 * msg.output.prng_buf.pdata is a u32 field. TMEL writes PRNG data to
+	 * this address. Ensure prng_buf is in lower 4 GB.
+	 */
+	{
+		phys_addr_t prng_bounce = 0;
+		void *prng_dma_buf = dma32_bounce_start(prng_buf, length,
+							&prng_bounce, DMA32_BB_WRITE);
 
-	msg.input.length = length;
-	msg.output.status = TMEL_ERROR_GENERIC;
-	msg.output.prng_buf.pdata = (u32)dma_prng;
-	msg.output.prng_buf.length = length;
-	msg.output.prng_buf.length_used = 0;
+		if (!prng_dma_buf) {
+			dev_err(dev, "Failed to alloc lower-4-GB PRNG bounce buffer\n");
+			return -ENOMEM;
+		}
 
-	/* Send PRNG get IPC call to TME */
-	ret = tmel_process_request(tdev, TMEL_MSG_UID_HCS_PRNG_GET,
-				   &msg, sizeof(msg));
-	if (ret || msg.output.status)
-		dev_err(dev, "%s : IPC Failed. ret: %d, msg.status = 0x%x\n",
-			__func__, ret, msg.output.status);
+		dma_prng = dma_map_single(prng_dma_buf, length, DMA_BIDIRECTIONAL);
 
-	/* Validate returned length before unmapping */
-        if (msg.output.prng_buf.length_used > length) {
-                dev_err(dev, "TME returned invalid length %u > buffer size %u\n",
-                        msg.output.prng_buf.length_used, length);
-                dma_unmap_single(dma_prng, length, DMA_BIDIRECTIONAL);
-                return -EOVERFLOW;
-        }
+		msg.input.length = length;
+		msg.output.status = TMEL_ERROR_GENERIC;
+		msg.output.prng_buf.pdata = (u32)dma_prng;
+		msg.output.prng_buf.length = length;
+		msg.output.prng_buf.length_used = 0;
 
-	dma_unmap_single(dma_prng, length, DMA_BIDIRECTIONAL);
+		ret = tmel_process_request(tdev, TMEL_MSG_UID_HCS_PRNG_GET,
+					   &msg, sizeof(msg));
+		if (ret || msg.output.status)
+			dev_err(dev, "%s: IPC failed, ret=%d status=0x%x\n",
+				__func__, ret, msg.output.status);
 
-	/* Update the length used in the response */
+		if (msg.output.prng_buf.length_used > length) {
+			dev_err(dev, "TME returned invalid length %u > buffer size %u\n",
+				msg.output.prng_buf.length_used, length);
+			dma_unmap_single(dma_prng, length, DMA_BIDIRECTIONAL);
+			dma32_bounce_stop(NULL, prng_bounce, length, DMA32_BB_WRITE);
+			return -EOVERFLOW;
+		}
+
+		dma_unmap_single(dma_prng, length, DMA_BIDIRECTIONAL);
+		dma32_bounce_stop(prng_buf, prng_bounce, length, DMA32_BB_WRITE);
+	}
+
 	prng_msg->length = msg.output.prng_buf.length_used;
 
 	return ret ? ret : msg.output.status;
