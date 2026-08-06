@@ -38,6 +38,8 @@
 #include <linux/mtd/spi-nor.h>
 #include <spl.h>
 #include <spl_load.h>
+#include <timestamp.h>
+#include <version.h>
 #include <mach/ipq.h>
 #include <mach/ipq_license.h>
 #include <spi_flash.h>
@@ -213,6 +215,7 @@ struct pbl_shared_data {
  * Image version table definitions
  */
 #define IMAGE_INDEX_TMEL			28
+#define IMAGE_INDEX_SPL				0
 
 #define DEFAULT_SHIFT			0x0
 #define DEFAULT_32BIT_MASK		0xFFFFFFFF
@@ -1767,6 +1770,46 @@ static int ipq_spl_get_fit_img_entry_point(void *fit,
 }
 
 /**
+ * ipq_spl_smem_set_image_version() - Populate one entry of SMEM_IMAGE_VERSION_TABLE.
+ * @smem:	SMEM device.
+ * @image_index:	Index of the image within the table (e.g. IMAGE_INDEX_SPL).
+ * @version:	Version string to store, e.g. "U-Boot SPL 2025.04 (...)".
+ * @label:	Human readable label used in the log line (e.g. "TME-L").
+ *
+ * Populates the entry in the format "<image_index>:<version>:<oem_version>".
+ */
+static void ipq_spl_smem_set_image_version(struct udevice *smem, int image_index,
+					    const char *version, const char *label)
+{
+	struct image_version_entry *img_ver_entry;
+	struct image_version_entry *entry;
+	size_t size;
+
+	img_ver_entry = (struct image_version_entry *)smem_get(smem, -1,
+						SMEM_IMAGE_VERSION_TABLE, &size);
+	if (!img_ver_entry) {
+		pr_err("Failed to get item: SMEM_IMAGE_VERSION_TABLE\n");
+		return;
+	}
+
+	entry = (struct image_version_entry *)img_ver_entry + image_index;
+
+	memset(entry, 0, sizeof(*entry));
+
+	entry->image_index[0] = '0' + (image_index / 10);
+	entry->image_index[1] = '0' + (image_index % 10);
+	entry->image_colon_sep1[0] = ':';
+
+	strlcpy(entry->image_qc_version_string, version,
+		IMAGE_QC_VERSION_STRING_LENGTH);
+
+	entry->image_colon_sep2[0] = ':';
+	entry->image_oem_version_string[0] = '\0';
+
+	printf("%s version added to SMEM: %s\n", label, version);
+}
+
+/**
  * ipq_spl_populate_smem() - Populate shared memory (SMEM) information.
  * @ctx:	Pointer to the global SPL context.
  *
@@ -1880,50 +1923,21 @@ static int ipq_spl_populate_smem(void *ctx)
 	/*
 	 * Populate TME-L Image Version in SMEM
 	 */
-	if (g_tme_version[0] != '\0') {
-		struct image_version_entry *img_ver_entry;
-		struct image_version_entry *tmel_entry;
-
-		img_ver_entry = (struct image_version_entry *)smem_get(smem, -1,
-							SMEM_IMAGE_VERSION_TABLE, &size);
-		if (!img_ver_entry) {
-			pr_err("Failed to get item: SMEM_IMAGE_VERSION_TABLE\n");
-			/* Non-fatal error, continue */
-		} else {
-			/*
-			 * Get pointer to TME-L entry (index 10) using pre-calculated offset
-			 */
-			tmel_entry =
-				(struct image_version_entry *)img_ver_entry + IMAGE_INDEX_TMEL;
-
-			/*
-			 * Populate TME-L version entry
-			 * Format: "28:TME-L_VERSION:OEM_VERSION"
-			 */
-			memset(tmel_entry, 0, sizeof(struct image_version_entry));
-
-			/* Set image index (28 for TME-L) */
-			tmel_entry->image_index[0] = '0' + (IMAGE_INDEX_TMEL / 10);
-			tmel_entry->image_index[1] = '0' + (IMAGE_INDEX_TMEL % 10);
-
-			/* Set first separator */
-			tmel_entry->image_colon_sep1[0] = ':';
-
-			/* Copy TME-L version string */
-			strlcpy(tmel_entry->image_qc_version_string, g_tme_version,
-				IMAGE_QC_VERSION_STRING_LENGTH);
-
-			/* Set second separator */
-			tmel_entry->image_colon_sep2[0] = ':';
-
-			/* Set OEM version string (empty for now) */
-			tmel_entry->image_oem_version_string[0] = '\0';
-
-			printf("TME-L version added to SMEM: %s\n", g_tme_version);
-		}
-	}
+	if (g_tme_version[0] != '\0')
+		ipq_spl_smem_set_image_version(smem, IMAGE_INDEX_TMEL,
+						g_tme_version, "TME-L");
 #endif /* CONFIG_IPQ_TMEL_IPC_SUPPORT */
 
+	/*
+	* Populate U-Boot SPL Image Version in SMEM
+	*/
+	{
+		static const char spl_version[] = "U-Boot SPL " PLAIN_VERSION
+			" (" U_BOOT_DATE " - " U_BOOT_TIME " " U_BOOT_TZ ")";
+
+		ipq_spl_smem_set_image_version(smem, IMAGE_INDEX_SPL,
+						spl_version, "U-Boot SPL");
+	}
 	/*
 	 * Update MIBIB partition table in SMEM only for NAND boot
 	 */
