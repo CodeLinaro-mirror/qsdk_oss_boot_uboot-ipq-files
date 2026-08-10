@@ -56,8 +56,8 @@
 				dev-mode = <0x1>;
 				phy_addr = <0>;
 				phy_type = <QCE2204_SWITCH_TYPE>;
-				id = <2>;
-				uniphy_id = <1>;
+				id = <1>;
+				uniphy_id = <0>;
 				uniphy_type = <0>;
 				max_speed = <2500>;
 				force-speed;
