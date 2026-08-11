@@ -34,6 +34,7 @@ extern u8 get_boot_mode(void);
 #define MACH_TYPE_IPQ9650_RDP490		0x8090200
 #define MACH_TYPE_IPQ9650_RDP491		0x8090300
 #define MACH_TYPE_IPQ9650_RDP507		0x8090002
+#define MACH_TYPE_IPQ9650_RDP525		0x8090003
 #define MACH_TYPE_IPQ9650_RDP529		0x8090004
 #define MACH_TYPE_IPQ9650_RDP530		0x8090005
 #define MACH_TYPE_IPQ9650_RDP532		0x8090006
@@ -242,6 +243,12 @@ struct machid_dts_map machid_dts[] = {
 		MACH_TYPE_IPQ9650_RDP507,
 		"ipq9650-rdp507",
 		"rdp507",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ9650_RDP525,
+		"ipq9650-rdp525",
+		"rdp525",
 		"1"
 	},
 	{
