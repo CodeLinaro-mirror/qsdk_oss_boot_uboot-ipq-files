@@ -714,6 +714,14 @@ config IPQ_SOFTSKU_SUPPORT
 	  including hardware feature enforcement and DDR limitation for
 	  entry-level SKUs.
 
+config IPQ_DYNAMIC_RELOCATION
+	bool "Enable dynamic U-Boot relocation"
+	default n
+	help
+	  When enabled, U-Boot performs normal relocation to the top of RAM
+	  on standard boot. It runs in-place only when a crashdump path is
+	  detected at runtime. This replaces the unconditional relocation skip.
+
 config IPQ_BOARD_DEFAULT
 	bool "Enable default config for all SoC"
 	default y

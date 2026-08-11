@@ -3278,7 +3278,21 @@ static unsigned long nc_next;
  */
 static int mem_init(void)
 {
-	unsigned long nc_start = NONCACHED_MEM_REGION_ADDR;
+	/*
+	 * Compute the noncached DMA region start at runtime using
+	 * gd->relocaddr + gd->mon_len, aligned to 1MB.
+	 *
+	 * Skip-reloc path (crashdump):
+	 *   gd->relocaddr = CONFIG_TEXT_BASE
+	 *   nc_start = ALIGN(CONFIG_TEXT_BASE + mon_len, SZ_1M)
+	 *
+	 * Normal reloc path:
+	 *   arch_setup_dest_addr() subtracted SZ_1M from gd->relocaddr
+	 *   before reserve_uboot() placed the image, so:
+	 *   nc_start = ALIGN(gd->relocaddr + mon_len, SZ_1M)
+	 *            = top_of_RAM - SZ_1M  (valid RAM, just above U-Boot)
+	 */
+	unsigned long nc_start = ALIGN(gd->relocaddr + gd->mon_len, SZ_1M);
 
 	nc_end = nc_start + NONCACHED_MEM_REGION_SIZE;
 	nc_next = nc_start;
