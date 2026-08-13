@@ -471,6 +471,22 @@ config IPQ_ELF_AUTH
 	   This configuration option enables the authentication method via
 	   elf based.
 
+config IPQ_MVEW
+	bool "MVEW (Multi-Version ELF Wrapper) outer wrapper support"
+	depends on IPQ_ELF_AUTH && TARGET_IPQ5210
+	default y if TARGET_IPQ5210
+	help
+	  This configuration option enables the entire MVEW (Multi-Version
+	  ELF Wrapper) outer-wrapper mechanism: detecting the MVEW-tagged
+	  outer wrapper, parsing its kernel/.itb/rootfs metadata program
+	  headers, selecting between MBN header version 7 and version 8,
+	  relocating the selected metadata alongside the kernel in DRAM,
+	  and carrying rootfs authentication metadata inside the same
+	  wrapper. This is needed only on IPQ5210 hardware variants that
+	  require different MBN header versions based on a fused SoC
+	  version. All other targets neither compile nor use any of this
+	  MVEW code and always boot the legacy single-version image format.
+
 config IPQ_SPL_LOAD_ELF_IMG
 	bool "IPQSOC SPL elf image load support"
 	default n

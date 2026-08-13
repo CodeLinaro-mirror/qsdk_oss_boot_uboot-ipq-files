@@ -985,6 +985,20 @@ int check_bootconfig(void);
  * Return HW version from TCSR read only register
  */
 uint32_t ipq_get_soc_hw_version(void);
+/* Only MBN header version that exists for boards without real dual-MBN
+ * hardware (i.e. without CONFIG_IPQ_MVEW).
+ */
+#define MVEW_MBN_VERSION_DEFAULT	7
+#ifdef CONFIG_IPQ_MVEW
+/**
+ * ipq_get_required_mbn_version() - Board-specific SoC HW version ->
+ * required MVEW MBN metadata wrapper version mapping
+ *
+ * Return 7 or 8, the MBN wrapper version this board's fused SoC HW
+ * version requires
+ */
+uint32_t ipq_get_required_mbn_version(void);
+#endif
 /**
  * ipq_setup_board_default_env() - Setup board specific default env.
  *
