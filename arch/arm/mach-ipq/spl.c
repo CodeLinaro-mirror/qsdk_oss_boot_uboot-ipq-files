@@ -48,6 +48,7 @@
 #include <asm/sections.h>
 #include <asm/system.h>
 #include <smem.h>
+#include <membuff.h>
 #include <atf_common.h>
 #include <linux/err.h>
 #ifdef CONFIG_ARM64
@@ -210,6 +211,14 @@ struct pbl_shared_data {
 #define QCSDI				"qcsdi"
 #define QCDAREKEY			"qc_dare_key"
 #define QCUART				"qc_uart"
+#define QCLIB_LOG_BUFFER		"qclib_log_buffer"
+
+/*
+ * Total size of the SMEM-resident console log buffer: must be large enough
+ * to hold the drained pre-DDR SRAM logs, QCLIB's IMEM log buffer, and all
+ * live SPL logging generated after consolidation (through end of SPL).
+ */
+#define SMEM_CONSOLE_LOG_SIZE		0x4000
 
 /*
  * Image version table definitions
@@ -407,6 +416,35 @@ static int g_bootldr_offset;
 static struct pbl_shared_data g_pbl_shared_data __section(".data");
 static char g_pbl_log_buffer[PBL_LOG_BUFFER_SIZE] __section(".data");
 static bool g_pbl_data_valid __section(".data");
+
+/**
+ * Global variable to store early SPL start timestamp
+ * Must be in .data section to survive BSS clearing
+ */
+#if CONFIG_IS_ENABLED(BOOTSTAGE)
+static u64 g_spl_start_time __section(".data");
+#endif/*CONFIG_BOOTSTAGE*/
+
+/**
+ * Pre-DDR SRAM console log buffer, backing gd->console_out until the
+ * SMEM-resident log buffer is available (see ipq_spl_smem_console_log_init()).
+ * Must be in .data section since it is populated via console_record_*()
+ * hooks starting in board_init_f(), before later BSS-clearing stages.
+ */
+#ifdef CONFIG_CONSOLE_RECORD
+static char g_console_record_buf[CONFIG_CONSOLE_RECORD_OUT_SIZE_F] __section(".data");
+
+/**
+ * Set once console logging has been consolidated into SMEM (see
+ * ipq_spl_smem_console_log_init()). Needed because gd->console_out only
+ * tracks a position within its own live buffer, not the absolute offset
+ * within smem_log->data -- ipq_spl_smem_console_log_sync() uses these to
+ * keep smem_log->write_offset current so a reader always knows how much of
+ * the buffer holds valid data, including logs emitted after consolidation.
+ */
+static struct smem_console_log *g_console_smem_log __section(".data");
+static u32 g_console_smem_base __section(".data");
+#endif /* CONFIG_CONSOLE_RECORD */
 
 /**
  * struct mi_boot_info - MIBIB header structure
@@ -681,6 +719,16 @@ static int ipq_spl_qclib_fixup(void *ctx);
 static int ipq_spl_tfa_fixup(void *ctx);
 static int ipq_spl_optee_fixup(void *ctx);
 static int ipq_spl_uboot_fixup(void *ctx);
+
+/*
+ * Forward declarations for console log sync/init (see full definitions
+ * below, needed by call sites - ipq_spl_qclib_fixup(), ipq_spl_reset_cpu(),
+ * hang() call sites - that appear earlier in this file)
+ */
+#ifdef CONFIG_CONSOLE_RECORD
+static void ipq_spl_smem_console_log_sync(void);
+static int ipq_spl_smem_console_log_init(void *ctx);
+#endif /* CONFIG_CONSOLE_RECORD */
 
 /*
  * Forward declarations for boot log functions
@@ -1191,6 +1239,9 @@ void ipq_spl_set_tcsr_set(u8 bootset)
  */
 void ipq_spl_reset_cpu(void)
 {
+#ifdef CONFIG_CONSOLE_RECORD
+	ipq_spl_smem_console_log_sync();
+#endif /* CONFIG_CONSOLE_RECORD */
 	reset_cpu();
 }
 
@@ -1293,6 +1344,9 @@ void ipq_spl_error_handler(const char *file, u32 line, u32 err_code)
 	 * End of Error handler. If we reach here, it means the system
 	 * has reached a hang state.
 	 */
+#ifdef CONFIG_CONSOLE_RECORD
+	ipq_spl_smem_console_log_sync();
+#endif /* CONFIG_CONSOLE_RECORD */
 	hang();
 
 }
@@ -1630,6 +1684,9 @@ static void ipq_spl_log_lcs_state(void)
 	 */
 	if (!allow_boot) {
 		pr_err("Unprovisioned chip: Boot not allowed (LCS=%s)\n", lcs_str);
+#ifdef CONFIG_CONSOLE_RECORD
+		ipq_spl_smem_console_log_sync();
+#endif /* CONFIG_CONSOLE_RECORD */
 		hang();
 	}
 }
@@ -2363,8 +2420,151 @@ static int ipq_spl_qclib_fixup(void *ctx)
 		entry_point);
 	qclib_entry(&pctx->if_tbl, NULL);
 
+#ifdef CONFIG_CONSOLE_RECORD
+	/*
+	 * Consolidate logs immediately after QCLIB returns, while its IMEM
+	 * log buffer (advertised via the interface table) is still valid --
+	 * the same region can be reused by subsequently loaded images.
+	 * Restrict to coldboot, matching the SMEM population done in
+	 * ipq_spl_tfa_fixup(). Console log consolidation is diagnostics-only:
+	 * never let a failure here abort boot.
+	 */
+	if (!IPQ_SPL_IS_DLOAD_BIT_SET()) {
+		ret = ipq_spl_smem_console_log_init(pctx);
+		if (ret)
+			pr_err("Failed to init SMEM console log (ret=%d)\n", ret);
+	}
+#endif /* CONFIG_CONSOLE_RECORD */
+
 	return 0;
 }
+
+#ifdef CONFIG_CONSOLE_RECORD
+/**
+ * ipq_spl_smem_console_log_sync() - Update write_offset for live SMEM logs.
+ *
+ * Once ipq_spl_smem_console_log_init() re-points gd->console_out directly
+ * into SMEM, further console_record_putc()/puts() calls only advance the
+ * live membuff's own head pointer -- smem_log->write_offset is never
+ * touched again unless this is called. Without it, any logging done after
+ * consolidation (e.g. "U-Boot SPL, End", or logs right before a fatal
+ * reset/hang) would be physically present in the SMEM buffer but invisible
+ * to a reader that trusts write_offset. Call this at every SPL exit point
+ * (normal completion, reset, hang) so write_offset always reflects the
+ * true amount of valid data.
+ *
+ * No-op if console logging has not been consolidated into SMEM yet.
+ */
+static void ipq_spl_smem_console_log_sync(void)
+{
+	struct membuff *mb = (struct membuff *)&gd->console_out;
+	u32 written;
+
+	if (!g_console_smem_log)
+		return;
+
+	written = g_console_smem_base + (u32)(mb->head - mb->start);
+	if (written > g_console_smem_log->size)
+		written = g_console_smem_log->size;
+	g_console_smem_log->write_offset = written;
+}
+
+/**
+ * ipq_spl_smem_console_log_init() - Consolidate console logs into SMEM.
+ * @ctx:	Pointer to the global SPL context.
+ *
+ * Allocates the SMEM_SPL_CONSOLE_LOG item, drains the pre-DDR SRAM console
+ * buffer (gd->console_out, populated since board_init_f()) into it,
+ * appends QCLIB's IMEM log buffer if advertised via the interface table,
+ * then re-points gd->console_out at the remaining SMEM space so that all
+ * further SPL logging is written directly to SMEM using the same
+ * console_record_putc()/puts() hooks.
+ *
+ * This is diagnostics infrastructure only: any failure here is logged and
+ * treated as non-fatal so it can never block boot.
+ * Return: 0 on success, or a negative error code on failure.
+ */
+static int ipq_spl_smem_console_log_init(void *ctx)
+{
+	struct ipq_spl_ctx *pctx = ctx;
+	struct udevice *smem;
+	struct smem_console_log *smem_log;
+	struct interface_table_entry qclib_log_entry;
+	size_t size;
+	char *data;
+	int len;
+	int ret;
+
+	ret = uclass_get_device(UCLASS_SMEM, 0, &smem);
+	if (ret) {
+		pr_err("Console log: failed to find SMEM node (ret=%d)\n", ret);
+		return ret;
+	}
+
+	size = sizeof(struct smem_console_log) + SMEM_CONSOLE_LOG_SIZE;
+	ret = smem_alloc(smem, -1, SMEM_SPL_CONSOLE_LOG, size);
+	if (ret) {
+		pr_err("Console log: failed to alloc SMEM item (ret=%d)\n", ret);
+		return ret;
+	}
+
+	smem_log = (struct smem_console_log *)smem_get(smem, -1,
+							SMEM_SPL_CONSOLE_LOG,
+							&size);
+	if (!smem_log) {
+		pr_err("Console log: failed to get SMEM item\n");
+		return -ENOENT;
+	}
+
+	smem_log->magic = SMEM_SPL_CONSOLE_LOG_MAGIC;
+	smem_log->size = size - sizeof(struct smem_console_log);
+	smem_log->write_offset = 0;
+	smem_log->flags = 0;
+
+	/* Drain the pre-DDR SRAM buffer (up to two installments, per membuff_getraw()) */
+	while ((len = membuff_getraw((struct membuff *)&gd->console_out, -1,
+				     true, &data)) > 0) {
+		if (len > smem_log->size - smem_log->write_offset) {
+			len = smem_log->size - smem_log->write_offset;
+			smem_log->flags |= SMEM_SPL_CONSOLE_LOG_OVERFLOW;
+		}
+		if (len <= 0)
+			break;
+		memcpy(smem_log->data + smem_log->write_offset, data, len);
+		smem_log->write_offset += len;
+	}
+
+	/* Append QCLIB's IMEM log buffer, if advertised via the interface table */
+	ret = ipq_spl_get_iftbl_entry_by_name(&pctx->if_tbl, QCLIB_LOG_BUFFER,
+					       &qclib_log_entry);
+	if (!ret) {
+		len = qclib_log_entry.size;
+		if (len > smem_log->size - smem_log->write_offset) {
+			len = smem_log->size - smem_log->write_offset;
+			smem_log->flags |= SMEM_SPL_CONSOLE_LOG_OVERFLOW;
+		}
+		if (len > 0) {
+			memcpy(smem_log->data + smem_log->write_offset,
+			       (void *)(uintptr_t)qclib_log_entry.address, len);
+			smem_log->write_offset += len;
+		}
+	} else {
+		pr_debug("Console log: QCLIB log buffer entry not found (ret=%d)\n",
+			 ret);
+	}
+
+	/* Switch live logging to write directly into the remaining SMEM space */
+	membuff_init((struct membuff *)&gd->console_out,
+		     smem_log->data + smem_log->write_offset,
+		     smem_log->size - smem_log->write_offset);
+	gd->flags |= GD_FLG_RECORD;
+
+	g_console_smem_log = smem_log;
+	g_console_smem_base = smem_log->write_offset;
+
+	return 0;
+}
+#endif /* CONFIG_CONSOLE_RECORD */
 
 /**
  * ipq_spl_tfa_fixup() - Perform fixups for tfa_bl31-meta image.
@@ -2985,6 +3185,9 @@ void spl_board_prepare_for_boot(void)
 #endif /* CONFIG_IPQ_TMEL_IPC_SUPPORT */
 
 	printf("U-Boot SPL, End\n");
+#ifdef CONFIG_CONSOLE_RECORD
+	ipq_spl_smem_console_log_sync();
+#endif /* CONFIG_CONSOLE_RECORD */
 	return;
 fail:
 	ipq_spl_error_handler(__FILE__, __LINE__,
@@ -3606,6 +3809,18 @@ void board_init_f(ulong dummy)
 	 * Clear BSS
 	 */
 	memset(__bss_start, 0, __bss_end - __bss_start);
+
+#ifdef CONFIG_CONSOLE_RECORD
+	/*
+	 * Capture console output into the pre-DDR SRAM buffer from this point
+	 * on, so boot logs survive even if UART output is disabled or lost.
+	 * Consolidated into SMEM later, once DDR/SMEM are available (see
+	 * ipq_spl_smem_console_log_init()).
+	 */
+	membuff_init((struct membuff *)&gd->console_out, g_console_record_buf,
+		     sizeof(g_console_record_buf));
+	gd->flags |= GD_FLG_RECORD;
+#endif /* CONFIG_CONSOLE_RECORD */
 
 #if defined(CFG_EMUL_FREQUENCY_DIVIDER)
 	ipq_spl_setup_arch_cntfreq();
