@@ -1064,6 +1064,33 @@ int embedded_dtb_select(void)
 #endif /* CONFIG_DTB_RESELECT */
 
 #if defined(CONFIG_SPL)
+#if defined(CONFIG_TARGET_IPQ5210)
+static bool hermosa_prefer_mbn_v7(void)
+{
+	static bool decision_valid;
+	static bool prefer_v7;
+	uint32_t hw_version;
+	uint32_t major;
+	uint32_t minor;
+
+	if (decision_valid)
+		return prefer_v7;
+
+	hw_version = ipq_get_soc_hw_version();
+	major = TCSR_SOC_HW_VERSION_MAJOR(hw_version);
+	minor = TCSR_SOC_HW_VERSION_MINOR(hw_version);
+	prefer_v7 = ((major << 8) | minor) < HERMOSA_HW_VERSION_1_2;
+
+	printf("TCSR_SOC_HW_VERSION=0x%08x (%u.%u)\n",
+	       hw_version, major, minor);
+	printf("%s\n", prefer_v7 ? "Preferring MBN v7 FIT configuration" :
+				    "Using default FIT configuration");
+	decision_valid = true;
+
+	return prefer_v7;
+}
+#endif
+
 int board_fit_config_name_match(const char *name)
 {
 	/*
@@ -1076,14 +1103,32 @@ int board_fit_config_name_match(const char *name)
 	 * In borad_init_r() - Matches "post-ddr" configuration node and
 	 * load the images mentioned in its <loadables>
 	 *
+	 * On hermosa (IPQ5210) only, if the chip's TCSR_SOC_HW_VERSION is
+	 * below 1.2, the FIT's MBN v7 dual-signed configuration nodes
+	 * ("pre-ddr-v7" / "post-ddr-v7") are preferred when present. Since
+	 * template.its orders the v7 nodes before their default
+	 * counterparts, matching both here means the v7 node wins if
+	 * present; if the FIT doesn't contain one (e.g. an older/
+	 * non-dual-signed image), the scan simply continues to the plain
+	 * node instead - no separate fallback logic is needed. All other
+	 * targets, and hermosa silicon >= 1.2, match only the plain node,
+	 * exactly as before this change.
 	 */
+	bool match_v7 = false;
+
+#if defined(CONFIG_TARGET_IPQ5210)
+	match_v7 = hermosa_prefer_mbn_v7();
+#endif
+
 	if (!(gd->flags & GD_FLG_SPL_INIT)) {
-		if (!strcmp(name, "pre-ddr")) {
+		if ((match_v7 && !strcmp(name, "pre-ddr-v7")) ||
+		    !strcmp(name, "pre-ddr")) {
 			printf("Selected FIT Config: %s\n", name);
 			return 0;
 		}
 	} else {
-		if (!strcmp(name, "post-ddr")) {
+		if ((match_v7 && !strcmp(name, "post-ddr-v7")) ||
+		    !strcmp(name, "post-ddr")) {
 			printf("Selected FIT Config: %s\n", name);
 			return 0;
 		}

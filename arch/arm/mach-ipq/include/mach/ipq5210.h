@@ -24,6 +24,23 @@
 #define TCSR_TZ_WONCE0				0x195C000
 #define TCSR_TZ_WONCE1				0x195C004
 
+/*
+ * TCSR SoC HW version register (major.minor chip revision)
+ *   bits[31:28] = family number, bits[27:16] = device number,
+ *   bits[15:8] = major version, bits[7:0] = minor version.
+ */
+#define TCSR_SOC_HW_VERSION			CONFIG_SOC_HW_VERSION_REG
+#define TCSR_SOC_HW_VERSION_MAJOR_MASK		0xFF00
+#define TCSR_SOC_HW_VERSION_MAJOR_SHIFT	8
+#define TCSR_SOC_HW_VERSION_MINOR_MASK		0xFF
+
+#define TCSR_SOC_HW_VERSION_MAJOR(val)		\
+	(((val) & TCSR_SOC_HW_VERSION_MAJOR_MASK) >> TCSR_SOC_HW_VERSION_MAJOR_SHIFT)
+#define TCSR_SOC_HW_VERSION_MINOR(val)		\
+	((val) & TCSR_SOC_HW_VERSION_MINOR_MASK)
+
+#define HERMOSA_HW_VERSION_1_2			0x0102
+
 #define ENABLE_EDL_MODE				BIT(0)
 
 #define EDL_RECOVERY_MODE			0x2
