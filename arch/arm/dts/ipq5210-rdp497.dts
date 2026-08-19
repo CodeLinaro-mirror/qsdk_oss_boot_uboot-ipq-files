@@ -15,6 +15,14 @@
 		serial0 = &uart1;
 	};
 
+	reserved-memory {
+		/* Bootloader reservation reduced to 3MB due to tiny u-boot */
+		bootloader@87800000 {
+			reg = <0x0 0x87800000 0x0 0x300000>;
+			no-map;
+		};
+	};
+
 	soc@0 {
 		qmp_ssphy_0: ssphy@7D000 {
 			status = "okay";
