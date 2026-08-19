@@ -487,6 +487,7 @@ struct cal_config {
 	u32 ddr_base_addr;
 	u32 ddr_rmem_size;
 	u32 caldata_addr;
+	u32 archive_owner_slot_id;
 	struct cal_per_dev_config dev_cfg[CONFIG_IPQ_MAX_PCIE];
 };
 

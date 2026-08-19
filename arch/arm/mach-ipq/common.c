@@ -3689,6 +3689,13 @@ static int populate_cfg(struct cal_dt_config *dt_cfg, struct cal_config *cfg)
 		cfg->caldata_addr = cfg->ddr_base_addr + (9 * SZ_1M);
 		cfg->cal_fw_header =
 			(struct cal_fw_header *)(uintptr_t)(cfg->ddr_base_addr + (10 * SZ_1M));
+		/*
+		 * This slot's own carveout hosts the shared cal_fw archive.
+		 * Its caldb write can overlap the archive's tail, so it must
+		 * be calibrated last, after every other slot has had a
+		 * chance to read its BDF/REGDB/FW_INI_CFG data out of it.
+		 */
+		cfg->archive_owner_slot_id = dt_cfg->pci_slot_id;
 		global_cfg_filled = true;
 	}
 
@@ -3786,6 +3793,7 @@ int cal_qcn9224(int debug)
 	}
 
 	memset(cfg, 0, sizeof(*cfg));
+	cfg->archive_owner_slot_id = CONFIG_IPQ_MAX_PCIE;
 
 	list_for_each_entry(dt_cfg, cal_list_head, list) {
 		ret = populate_cfg(dt_cfg, cfg);
@@ -3892,10 +3900,32 @@ int cal_qcn9224(int debug)
 		if (!cfg->dev_cfg[i].dev)
 			continue;
 
+		/*
+		 * Defer the archive-owning slot to last so the other slots
+		 * get a head start reading their cal data out of the shared
+		 * cal_fw archive before this slot's caldb write can corrupt
+		 * the archive's tail.
+		 */
+		if (i == cfg->archive_owner_slot_id)
+			continue;
+
 		ret = do_cal_qcn9224(cfg, &cfg->dev_cfg[i], debug);
 		if (ret) {
 			printf("failed to start cal on qcn9224[%d] %d\n",
 			       cfg->dev_cfg[i].pci_slot_id, ret);
+			goto out;
+		}
+	}
+
+	if (cfg->archive_owner_slot_id < CONFIG_IPQ_MAX_PCIE &&
+	    cfg->dev_cfg[cfg->archive_owner_slot_id].dev) {
+		struct cal_per_dev_config *owner_dev_cfg =
+			&cfg->dev_cfg[cfg->archive_owner_slot_id];
+
+		ret = do_cal_qcn9224(cfg, owner_dev_cfg, debug);
+		if (ret) {
+			printf("failed to start cal on qcn9224[%d] %d\n",
+			       owner_dev_cfg->pci_slot_id, ret);
 			goto out;
 		}
 	}
