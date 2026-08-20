@@ -120,7 +120,7 @@ struct machid_dts_map machid_dts[] = {
 	{
 		MACH_TYPE_IPQ5210_DB_HM01_C1,
 		"ipq5210-db-hm01-c1",
-		"db-hm01.1",
+		"db-hm01-c1",
 		"1"
 	},
 	{
@@ -132,7 +132,7 @@ struct machid_dts_map machid_dts[] = {
 	{
 		MACH_TYPE_IPQ5210_DB_HM02_C1,
 		"ipq5210-db-hm02-c1",
-		"db-hm02.1",
+		"db-hm02-c1",
 		"1"
 	},
 	{
