@@ -3151,6 +3151,10 @@ fail:
 }
 #endif /* CONFIG_SPL_FIT_IMAGE_POST_PROCESS */
 
+#if defined(CONFIG_TARGET_IPQ5210)
+bool hermosa_prefer_mbn_v7(void);
+#endif
+
 /**
  * bl2_plat_get_bl31_params_v2() - Retrieve and fixup BL31 parameters.
  * @bl32_entry:	Entry point for BL32 (OP-TEE).
@@ -3214,7 +3218,14 @@ struct bl_params *bl2_plat_get_bl31_params_v2(uintptr_t bl32_entry,
 			 */
 			node->ep_info->args.arg0 = if_tbl_entry.address;
 		} else if (node->image_id == ATF_BL33_IMAGE_ID) {
-			img_tbl = ipq_spl_get_img_ctx_by_name("uboot-meta");
+			img_tbl = NULL;
+
+#if defined(CONFIG_TARGET_IPQ5210)
+			if (hermosa_prefer_mbn_v7())
+				img_tbl = ipq_spl_get_img_ctx_by_name("uboot-meta-v7");
+#endif
+			if (!img_tbl || img_tbl->img_arch != IH_ARCH_ARM)
+				img_tbl = ipq_spl_get_img_ctx_by_name("uboot-meta");
 
 			if (img_tbl && img_tbl->img_arch == IH_ARCH_ARM) {
 				/* SPSR = 0x1D3 for 32-bit Mode */
