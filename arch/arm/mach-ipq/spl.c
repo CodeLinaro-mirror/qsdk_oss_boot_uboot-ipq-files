@@ -36,6 +36,7 @@
 #include <init.h>
 #include <image.h>
 #include <linux/mtd/spi-nor.h>
+#include <linux/sizes.h>
 #include <spl.h>
 #include <spl_load.h>
 #include <timestamp.h>
@@ -741,11 +742,14 @@ static void ipq_spl_log_otp_version(void);
  * Forward declarations for flash specific functions
  */
 static int (*get_guid_fn)(char *part_name, efi_guid_t *type_guid);
-static int ipq_spl_spinor_gpt_read(char *part_name, void *buf, ulong *read_sz);
+static int ipq_spl_spinor_gpt_read(char *part_name, void *buf, ulong *read_sz,
+					   ulong *part_sz);
 static int ipq_spl_spinor_get_guid(char *part_name, efi_guid_t *type_guid);
-static int ipq_spl_mmc_read(char *part_name, void *buf, ulong *read_sz);
+static int ipq_spl_mmc_read(char *part_name, void *buf, ulong *read_sz,
+				    ulong *part_sz);
 static int ipq_spl_mmc_get_guid(char *part_name, efi_guid_t *type_guid);
-static int ipq_spl_nand_read(char *part_name, void *buf, ulong *read_sz);
+static int ipq_spl_nand_read(char *part_name, void *buf, ulong *read_sz,
+				     ulong *part_sz);
 
 /**
  * fuse_info_array - Array of fuse information.
@@ -3386,30 +3390,30 @@ int ipq_spl_failsafe_get_env_info(u8 boot_device)
 	int ret;
 	env_t *env_addr;
 	ulong env_sz;
-	uint32_t crc_val;
-	bool crc_ok;
+	ulong part_sz;
+	uint32_t crc_val = 0;
 
 	env_addr = (env_t *)((ulong)IPQ_SPL_QCLIB_TEXT_BASE);
-	env_sz = (ulong)(IPQ_SPL_QCLIB_TEXT_SIZE);
+	env_sz = SZ_256K;
 
 	/**
 	 * Read the ENV partition
 	 */
 	if (boot_device == BOOT_DEVICE_NAND) {
 		ret = ipq_spl_nand_read((char *)IPQ_SPL_ENV_PARTITION,
-					(void *)env_addr, &env_sz);
+					(void *)env_addr, &env_sz, &part_sz);
 		if (ret)
 			return ret;
 
 	} else if (boot_device == BOOT_DEVICE_MMC1) {
 		ret = ipq_spl_mmc_read((char *)IPQ_SPL_ENV_PARTITION,
-					(void *)env_addr, &env_sz);
+					(void *)env_addr, &env_sz, &part_sz);
 		if (ret)
 			return ret;
 
 	} else if (boot_device == BOOT_DEVICE_SPI) {
 		ret = ipq_spl_spinor_gpt_read((char *)IPQ_SPL_ENV_PARTITION,
-					(void *)env_addr, &env_sz);
+					(void *)env_addr, &env_sz, &part_sz);
 		if (ret)
 			return ret;
 
@@ -3421,23 +3425,25 @@ int ipq_spl_failsafe_get_env_info(u8 boot_device)
 	/**
 	 * Verify ENV
 	 */
-	crc_val = crc32(0, env_addr->data, env_sz - ENV_HEADER_SIZE);
-	pr_debug("ENV info: ENV SZ = %lx\n", env_sz);
-	pr_debug("ENV info: ENV CRC = %x\n", env_addr->crc);
-	pr_debug("ENV info: ENV CRC calculated  = %x\n", crc_val);
-
-	if (crc_val == env_addr->crc)
-		crc_ok = 1;
-	else if (boot_device == BOOT_DEVICE_NAND)
-		/* TODO: Skip CRC for NAND for now,
-		 * since the NAND ENV is 512KB but SPL has only 300KB for ENV.
+	if (part_sz > env_sz) {
+		/*
+		 * The partition exceeds the SPL ENV buffer, so CRC validation
+		 * is skipped because only part of the environment was read.
 		 */
-		crc_ok = 1;
-	else
-		crc_ok = 0;
+		printf("ENV CRC skipped due to bigger partition size %lu KB\n",
+		       part_sz / SZ_1K);
+	} else {
+		/*
+		 * The complete ENV partition fits in the SPL ENV buffer.
+		 * * Hence CRC shall be verified.
+		 */
+		crc_val = crc32(0, env_addr->data, env_sz - ENV_HEADER_SIZE);
+		pr_debug("ENV info: ENV SZ = %lx\n", env_sz);
+		pr_debug("ENV info: ENV CRC = %x\n", env_addr->crc);
+		pr_debug("ENV info: ENV CRC calculated  = %x\n", crc_val);
+	}
 
-
-	if (crc_ok) {
+	if (part_sz > env_sz || crc_val == env_addr->crc) {
 		printf("Loading Environment ... OK\n");
 		gd->env_valid = ENV_VALID;
 		gd->env_addr = (ulong)env_addr->data;
@@ -3461,9 +3467,9 @@ int ipq_spl_failsafe_get_env_info(u8 boot_device)
 						     g_bootrec.env_bootfrom);
 		if (g_bootrec.env_bootfrom > 1)
 			g_bootrec.env_bootfrom = 0;
-
-	} else
+	} else {
 		printf("Loading Environment ... Failed due to bad CRC\n");
+	}
 
 	/*
 	 * print the ENV info
@@ -4423,7 +4429,9 @@ int spl_nand_get_uboot_raw_page(void)
  * ipq_spl_nand_read() - Read data from NAND partition
  * @part_name: Partition name to look up in MIBIB
  * @buf:       Destination buffer to store read data
- * @read_sz:   Pointer to return read size
+ * @read_sz:   In - maximum number of bytes to read;
+ *             Out - actual number of bytes read
+ * @part_sz:   Pointer to return the partition size in bytes
  *
  * This function locates the specified partition using the MIBIB
  * partition table, computes the corresponding NAND offset, and
@@ -4431,14 +4439,15 @@ int spl_nand_get_uboot_raw_page(void)
  *
  * Return: 0 on success, -ENOENT if not found, -EINVAL on invalid params
  */
-static int ipq_spl_nand_read(char *part_name, void *buf, ulong *read_sz)
+static int ipq_spl_nand_read(char *part_name, void *buf, ulong *read_sz,
+			     ulong *part_sz)
 {
 	struct mtd_info *mtd;
 	uint32_t offset, size;
 	int ret;
 	uint32_t start_blk, blk_cnt;
 
-	if (!part_name || !buf || !read_sz)
+	if (!part_name || !buf || !read_sz || !part_sz)
 		return -EINVAL;
 
 	/* Find partition using generic MIBIB lookup */
@@ -4458,6 +4467,7 @@ static int ipq_spl_nand_read(char *part_name, void *buf, ulong *read_sz)
 
 	printf("Found partition '%s' at offset 0x%x\n", part_name, offset);
 
+	*part_sz = size;
 	*read_sz = min_t(ulong, *read_sz, size);
 	ret = nand_spl_load_image(offset, *read_sz, buf);
 	if (ret) {
@@ -4594,6 +4604,7 @@ not_found:
  * @buf:        Destination buffer for the read data
  * @read_sz:    In  - maximum number of bytes to read;
  *              Out - actual number of bytes read, clamped to partition size
+ * @part_sz:    Pointer to return the partition size in bytes
  *
  * Looks up the named GPT partition on the specified block device using
  * spl_find_partition_info(), then reads up to @read_sz bytes from the
@@ -4608,14 +4619,15 @@ not_found:
  *         -EIO    if the block read transfers fewer blocks than expected.
  */
 static int ipq_spl_blk_read(enum uclass_id uclass_id, int devnum,
-			     const char *part_name, void *buf, ulong *read_sz)
+			     const char *part_name, void *buf, ulong *read_sz,
+			     ulong *part_sz)
 {
 	struct disk_partition disk_info;
 	struct blk_desc *bdev;
 	lbaint_t count;
 	int ret;
 
-	if (!part_name || !buf || !read_sz)
+	if (!part_name || !buf || !read_sz || !part_sz)
 		return -EINVAL;
 
 	/*
@@ -4632,7 +4644,8 @@ static int ipq_spl_blk_read(enum uclass_id uclass_id, int devnum,
 	if (IS_ERR_OR_NULL(bdev))
 		return -ENODEV;
 
-	*read_sz = min_t(ulong, *read_sz, disk_info.size << bdev->log2blksz);
+	*part_sz = disk_info.size << bdev->log2blksz;
+	*read_sz = min_t(ulong, *read_sz, *part_sz);
 	count = *read_sz >> bdev->log2blksz;
 
 	if (count != blk_dread(bdev, disk_info.start, count, buf))
@@ -4753,9 +4766,11 @@ static int ipq_spl_mmc_get_guid(char *part_name, efi_guid_t *type_guid)
 	return ipq_spl_blk_get_guid(UCLASS_MMC, 0, part_name, type_guid);
 }
 
-static int ipq_spl_mmc_read(char *part_name, void *buf, ulong *read_sz)
+static int ipq_spl_mmc_read(char *part_name, void *buf, ulong *read_sz,
+			    ulong *part_sz)
 {
-	return ipq_spl_blk_read(UCLASS_MMC, 0, part_name, buf, read_sz);
+	return ipq_spl_blk_read(UCLASS_MMC, 0, part_name, buf, read_sz,
+				part_sz);
 }
 #endif /*CONFIG_IPQ_MMC*/
 
@@ -4879,7 +4894,8 @@ static int ipq_spl_spinor_get_guid(char *part_name, efi_guid_t *type_guid)
 				    part_name, type_guid);
 }
 
-static int ipq_spl_spinor_gpt_read(char *part_name, void *buf, ulong *read_sz)
+static int ipq_spl_spinor_gpt_read(char *part_name, void *buf, ulong *read_sz,
+				   ulong *part_sz)
 {
 	struct spi_flash *flash;
 
@@ -4892,7 +4908,7 @@ static int ipq_spl_spinor_gpt_read(char *part_name, void *buf, ulong *read_sz)
 	}
 
 	return ipq_spl_blk_read(UCLASS_SPI, CONFIG_SF_DEFAULT_BUS,
-				part_name, buf, read_sz);
+				part_name, buf, read_sz, part_sz);
 }
 #endif /*CONFIG_IPQ_SPI_NOR*/
 
