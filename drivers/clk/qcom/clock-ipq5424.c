@@ -119,6 +119,7 @@
 #define IO_MACRO_CLK_100_MHZ				(100000000)
 #define IO_MACRO_CLK_50_MHZ				(50000000)
 #define IO_MACRO_CLK_24_MHZ				(24000000)
+#define CLK_24_MHZ				(24000000UL)
 
 static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 				     int *div, int *cdiv)
@@ -183,6 +184,14 @@ int msm_set_parent(struct clk *clk, struct clk *parent)
 
 ulong msm_get_rate(struct clk *clk)
 {
+	switch (clk->id) {
+	case GCC_USB0_MOCK_UTMI_CLK:
+	case GCC_USB1_MOCK_UTMI_CLK:
+		/* USB MOCK_UTMI clocks are configured to 24MHz from CXO */
+		clk->rate = CLK_24_MHZ;
+		break;
+	}
+
 	return (ulong)clk->rate;
 }
 
@@ -400,10 +409,10 @@ static ulong ipq5424_set_rate(struct clk *clk, ulong rate)
 					0, 0, CFG_CLK_SRC_GPLL0, 8);
 		break;
 	case GCC_USB0_MOCK_UTMI_CLK:
-		/* Default: 60MHz */
-		writel(1, priv->base + GCC_USB0_MOCK_UTMI_DIV_CDIVR);
+		/* Default: 24MHz */
+		writel(0, priv->base + GCC_USB0_MOCK_UTMI_DIV_CDIVR);
 		clk_rcg_set_rate_mnd(priv->base, GCC_USB0_MOCK_UTMI_CMD_RCGR,
-					19, 0, 0, CFG_CLK_SRC_GPLL4_OUT_AUX, 16);
+				1, 0, 0, CFG_CLK_SRC_CXO, 8);
 		break;
 	case GCC_USB0_AUX_CLK:
 		/* Default: 24MHz */
@@ -411,10 +420,10 @@ static ulong ipq5424_set_rate(struct clk *clk, ulong rate)
 					0, 0, CFG_CLK_SRC_CXO, 8);
 		break;
 	case GCC_USB1_MOCK_UTMI_CLK:
-		/* Default: 60MHz */
-		writel(1, priv->base + GCC_USB1_MOCK_UTMI_DIV_CDIVR);
+		/* Default: 24MHz */
+		writel(0, priv->base + GCC_USB1_MOCK_UTMI_DIV_CDIVR);
 		clk_rcg_set_rate_mnd(priv->base, GCC_USB1_MOCK_UTMI_CMD_RCGR,
-					19, 0, 0, CFG_CLK_SRC_GPLL4_OUT_AUX, 8);
+				1, 0, 0, CFG_CLK_SRC_CXO, 8);
 		break;
 	case UNIPHY0_NSS_RX_CLK:
 		fallthrough;
