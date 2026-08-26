@@ -251,6 +251,8 @@
 #define NSS_CC_PORT5_SRC_SEL_UNIPHY0_NSS_TX_CLK		(2 << 8)
 #define NSS_CC_PORT4_RX_SRC_SEL_RX_GCC			(1 << 8)
 #define NSS_CC_PORT4_TX_SRC_SEL_TX_GCC			(5 << 8)
+#define NSS_CC_PORT5_RX_SRC_SEL_RX_GCC			(1 << 8)
+#define NSS_CC_PORT5_TX_SRC_SEL_TX_GCC			(5 << 8)
 #define CMN_PLL_NSS_CLK_429M				(6 << 8)
 #define PCNOC_BFDCD_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
 #define SYSTEM_NOC_BFDCD_SRC_SEL_GPLL4_OUT_MAIN		(2 << 8)
@@ -686,24 +688,48 @@ static ulong ipq5210_set_rate(struct clk *clk, ulong rate)
 				    NSS_CC_PORT4_TX_CMD_RCGR + 0x8, div, cdiv,
 				    NSS_CC_PORT4_SRC_SEL_UNIPHY1_NSS_TX_CLK);
 		break;
-	case NSS_CC_PORT5_RX_CLK:
+	case NSS_CC_PORT5_RX_CLK: {
+		long parent_rate = clk_get_parent_rate(clk);
+
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
-		/* Port 5 doesn't need DIV4 configuration */
-		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT5_RX_CMD_RCGR,
-				    NSS_CC_PORT5_RX_CMD_RCGR + 0x8, div, cdiv,
-				    NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK);
+
+		/* Port 5 doesn't need DIV4 configuration, regardless of parent */
+		if (parent_rate > 0) {
+			/* External PHY/switch case: sourced from this port's UNIPHY */
+			clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT5_RX_CMD_RCGR,
+					    NSS_CC_PORT5_RX_CMD_RCGR + 0x8, div, cdiv,
+					    NSS_CC_PORT_RX_SRC_SEL_UNIPHY_NSS_RX_CLK);
+		} else {
+			/* Internal EPHY case: sourced from the fixed EPHY raw clock */
+			clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT5_RX_CMD_RCGR,
+					    NSS_CC_PORT5_RX_CMD_RCGR + 0x8, div, cdiv,
+					    NSS_CC_PORT5_RX_SRC_SEL_RX_GCC);
+		}
 		break;
-	case NSS_CC_PORT5_TX_CLK:
+	}
+	case NSS_CC_PORT5_TX_CLK: {
+		long parent_rate = clk_get_parent_rate(clk);
+
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
 			return ret;
-		/* Port 5 doesn't need DIV4 configuration */
-		clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT5_TX_CMD_RCGR,
-				    NSS_CC_PORT5_TX_CMD_RCGR + 0x8, div, cdiv,
-				    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
+
+		/* Port 5 doesn't need DIV4 configuration, regardless of parent */
+		if (parent_rate > 0) {
+			/* External PHY/switch case: sourced from this port's UNIPHY */
+			clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT5_TX_CMD_RCGR,
+					    NSS_CC_PORT5_TX_CMD_RCGR + 0x8, div, cdiv,
+					    NSS_CC_PORT_TX_SRC_SEL_UNIPHY_NSS_TX_CLK);
+		} else {
+			/* Internal EPHY case: sourced from the fixed EPHY raw clock */
+			clk_rcg_set_rate_v2(priv->base, NSS_CC_PORT5_TX_CMD_RCGR,
+					    NSS_CC_PORT5_TX_CMD_RCGR + 0x8, div, cdiv,
+					    NSS_CC_PORT5_TX_SRC_SEL_TX_GCC);
+		}
 		break;
+	}
 	case NSS_CC_PORT5_UNIPHY0_RX_CLK:
 		ret = calc_div_for_nss_port_clk(clk, rate, &div, &cdiv, &div4);
 		if (ret < 0)
