@@ -251,22 +251,27 @@
 				<&gcc GCC_USB0_MOCK_UTMI_CLK>,
 				<&gcc GCC_USB0_AUX_CLK>;
 			assigned-clock-rates = <200000000>,
-				<60000000>,
+				<24000000>,
 				<24000000>;
 			clocks = <&gcc GCC_USB0_MASTER_CLK>,
 				<&gcc GCC_USB0_AUX_CLK>,
 				<&gcc GCC_USB0_SLEEP_CLK>,
 				<&gcc GCC_USB0_MOCK_UTMI_CLK>,
 				<&gcc GCC_USB0_PHY_CFG_AHB_CLK>;
+			clock-names = "master",
+				"aux",
+				"sleep",
+				"ref",
+				"cfg_ahb";
 			resets = <&gcc GCC_USB_BCR>;
 			ranges;
-			qcom,quirk-ref-clk-per = <0x0C804010>;
-			qcom,quirk-ref-clk-adj = <0x8c00c8a0>;
 			status = "disabled";
 
 			dwc3@8a00000 {
 				compatible = "snps,dwc3";
 				reg = <0x0 0x8a00000 0x0 0xf8000>;
+				clocks = <&gcc GCC_USB0_MOCK_UTMI_CLK>;
+				clock-names = "ref";
 				dr_mode = "host";
 				snps,dis_u2_susphy_quirk;
 				snps,dis_u3_susphy_quirk;
@@ -289,23 +294,28 @@
 				<&gcc GCC_USB0_MOCK_UTMI_CLK>,
 				<&gcc GCC_USB0_AUX_CLK>;
 			assigned-clock-rates = <200000000>,
-				<60000000>,
+				<24000000>,
 				<24000000>;
 			clocks = <&gcc GCC_USB0_MASTER_CLK>,
 				<&gcc GCC_USB0_AUX_CLK>,
 				<&gcc GCC_USB0_SLEEP_CLK>,
 				<&gcc GCC_USB0_MOCK_UTMI_CLK>,
 				<&gcc GCC_USB0_PHY_CFG_AHB_CLK>;
+			clock-names = "master",
+				"aux",
+				"sleep",
+				"ref",
+				"cfg_ahb";
 			resets = <&gcc GCC_USB_BCR>;
 			ranges;
-			qcom,quirk-ref-clk-per = <0x0C804010>;
-			qcom,quirk-ref-clk-adj = <0x8c00c8a0>;
 			qcom,select-utmi-as-pipe-clk;
 			status = "disabled";
 
 			dwc3@8a00000 {
 				compatible = "snps,dwc3";
 				reg = <0x0 0x8a00000 0x0 0xf8000>;
+				clocks = <&gcc GCC_USB0_MOCK_UTMI_CLK>;
+				clock-names = "ref";
 				dr_mode = "host";
 				snps,dis_u2_susphy_quirk;
 				snps,dis_u3_susphy_quirk;
