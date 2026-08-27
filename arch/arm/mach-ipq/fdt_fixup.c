@@ -850,8 +850,8 @@ static int ipq_fdt_create_cal_config(void *blob, int node)
 		goto cleanup;
 	}
 
-	config->rmem_base_addr = (uint32_t)carveout.start;
-	config->rmem_size = (uint32_t)(carveout.end - carveout.start + 1);
+	config->rmem_base_addr = carveout.start;
+	config->rmem_size = (u32)(carveout.end - carveout.start + 1);
 
 	pval = fdt_getprop(blob, node, "qcom,board_id", &len);
 	if (pval)

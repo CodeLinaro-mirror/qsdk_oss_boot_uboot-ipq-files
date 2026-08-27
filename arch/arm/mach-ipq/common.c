@@ -3460,52 +3460,74 @@ static int do_cal_qcn9224(struct cal_config *cfg,
 		return -ENOMEM;
 	}
 
-	memset(tlv, 0, sizeof(struct uboot_cal_tlv));
-	tlv->magic = 0xCAFECACE;
-	tlv->pci_slot = dev_cfg->pci_slot_id;
-	tlv->caldb_addr = dev_cfg->caldb_addr;
-	tlv->caldb_size = dev_cfg->caldb_size;
-	tlv->host_ddr_status = dev_cfg->host_ddr_status;
-	tlv->hremote_addr = dev_cfg->hremote_addr;
-	tlv->hremote_size = dev_cfg->hremote_size;
-	tlv->rddm_addr = dev_cfg->rddm_addr;
-	tlv->rddm_size = dev_cfg->rddm_size;
-	tlv->num_images = MAX_IMG_TYPE;
+	/*
+	 * PCIE_LOCAL_RSV0 is a single 32-bit register — QCN9224 firmware
+	 * reads the TLV via this 32-bit address. After U-Boot relocates above
+	 * 4 GB the heap is also above 4 GB, so we need a lower-4-GB copy.
+	 * This path is never taken in crashdump boot (skip-reloc) because the
+	 * heap stays in 32-bit space there.
+	 */
+	struct uboot_cal_tlv *tlv_dma = tlv;
+	phys_addr_t tlv_lmb_addr = 0;
+
+	if ((uintptr_t)tlv > 0xFFFFFFFFUL) {
+		tlv_lmb_addr = lmb_alloc_base(
+			ALIGN(sizeof(*tlv), SZ_4K), SZ_4K,
+			0xFFFFFFFFUL, LMB_NONE);
+		if (!tlv_lmb_addr) {
+			free(tlv);
+			printf("Failed to alloc lower-4-GB buffer for cal tlv\n");
+			return -ENOMEM;
+		}
+		tlv_dma = (struct uboot_cal_tlv *)(uintptr_t)tlv_lmb_addr;
+	}
+
+	memset(tlv_dma, 0, sizeof(struct uboot_cal_tlv));
+	tlv_dma->magic = 0xCAFECACE;
+	tlv_dma->pci_slot = dev_cfg->pci_slot_id;
+	tlv_dma->caldb_addr = (u32)dev_cfg->caldb_addr;
+	tlv_dma->caldb_size = dev_cfg->caldb_size;
+	tlv_dma->host_ddr_status = (u32)dev_cfg->host_ddr_status;
+	tlv_dma->hremote_addr = (u32)dev_cfg->hremote_addr;
+	tlv_dma->hremote_size = dev_cfg->hremote_size;
+	tlv_dma->rddm_addr = (u32)dev_cfg->rddm_addr;
+	tlv_dma->rddm_size = dev_cfg->rddm_size;
+	tlv_dma->num_images = MAX_IMG_TYPE;
 
 	for (i = 0; i < MAX_IMG_TYPE; i++) {
 		switch (i) {
 		case BDF:
-			tlv->img[i].img_type = i;
-			tlv->img[i].img_sram_addr = 0;
-			tlv->img[i].img_host_addr = (u32)(uintptr_t)(bdf_addr);
-			tlv->img[i].img_size = bdf_size;
+			tlv_dma->img[i].img_type = i;
+			tlv_dma->img[i].img_sram_addr = 0;
+			tlv_dma->img[i].img_host_addr = (u32)(uintptr_t)(bdf_addr);
+			tlv_dma->img[i].img_size = bdf_size;
 			break;
 		case CALDATA:
-			tlv->img[i].img_type = i;
-			tlv->img[i].img_sram_addr = 0;
+			tlv_dma->img[i].img_type = i;
+			tlv_dma->img[i].img_sram_addr = 0;
 			memcpy(((void *)(uintptr_t)dev_cfg->host_ddr_status + SZ_4K),
 			       (void *)(uintptr_t)(cfg->caldata_addr + dev_cfg->caldata_offset),
 			       dev_cfg->caldata_size);
-			tlv->img[i].img_host_addr = dev_cfg->host_ddr_status + SZ_4K;
-			tlv->img[i].img_size = dev_cfg->caldata_size;
+			tlv_dma->img[i].img_host_addr = (u32)(dev_cfg->host_ddr_status + SZ_4K);
+			tlv_dma->img[i].img_size = dev_cfg->caldata_size;
 			break;
 		case RXGAIN:
-			tlv->img[i].img_type = i;
-			tlv->img[i].img_sram_addr = 0;
-			tlv->img[i].img_host_addr = (u32)(uintptr_t)rxgain_addr;
-			tlv->img[i].img_size = rxgain_size;
+			tlv_dma->img[i].img_type = i;
+			tlv_dma->img[i].img_sram_addr = 0;
+			tlv_dma->img[i].img_host_addr = (u32)(uintptr_t)rxgain_addr;
+			tlv_dma->img[i].img_size = rxgain_size;
 			break;
 		case REGDB:
-			tlv->img[i].img_type = i;
-			tlv->img[i].img_sram_addr = 0;
-			tlv->img[i].img_host_addr = (u32)(uintptr_t)regdb_addr;
-			tlv->img[i].img_size = regdb_size;
+			tlv_dma->img[i].img_type = i;
+			tlv_dma->img[i].img_sram_addr = 0;
+			tlv_dma->img[i].img_host_addr = (u32)(uintptr_t)regdb_addr;
+			tlv_dma->img[i].img_size = regdb_size;
 			break;
 		case FW_INI_CFG:
-			tlv->img[i].img_type = i;
-			tlv->img[i].img_sram_addr = 0;
-			tlv->img[i].img_host_addr = (u32)(uintptr_t)fw_ini_addr;
-			tlv->img[i].img_size = fw_ini_size;
+			tlv_dma->img[i].img_type = i;
+			tlv_dma->img[i].img_sram_addr = 0;
+			tlv_dma->img[i].img_host_addr = (u32)(uintptr_t)fw_ini_addr;
+			tlv_dma->img[i].img_size = fw_ini_size;
 			break;
 		default:
 			break;
@@ -3518,29 +3540,26 @@ static int do_cal_qcn9224(struct cal_config *cfg,
 
 	if (debug) {
 		printf("Dumping TLV:\n");
-		printf("magic: 0x%x\n", tlv->magic);
-		printf("pci_slot: 0x%x\n", tlv->pci_slot);
-		printf("caldb_addr: 0x%x\n", tlv->caldb_addr);
-		printf("caldb_size: 0x%x\n", tlv->caldb_size);
-		printf("host_ddr_status: 0x%x\n", tlv->host_ddr_status);
-		printf("hremote_addr: 0x%x\n", tlv->hremote_addr);
-		printf("hremote_size: 0x%x\n", tlv->hremote_size);
-		printf("rddm_addr: 0x%x\n", tlv->rddm_addr);
-		printf("rddm_size: 0x%x\n", tlv->rddm_size);
-		printf("num_images: 0x%x\n", tlv->num_images);
+		printf("magic: 0x%x\n", tlv_dma->magic);
+		printf("pci_slot: 0x%x\n", tlv_dma->pci_slot);
+		printf("caldb_addr: 0x%x\n", tlv_dma->caldb_addr);
+		printf("caldb_size: 0x%x\n", tlv_dma->caldb_size);
+		printf("host_ddr_status: 0x%x\n", tlv_dma->host_ddr_status);
+		printf("hremote_addr: 0x%x\n", tlv_dma->hremote_addr);
+		printf("hremote_size: 0x%x\n", tlv_dma->hremote_size);
+		printf("rddm_addr: 0x%x\n", tlv_dma->rddm_addr);
+		printf("rddm_size: 0x%x\n", tlv_dma->rddm_size);
+		printf("num_images: 0x%x\n", tlv_dma->num_images);
 
 		for (i = 0; i < MAX_IMG_TYPE; i++) {
-			printf("img_type:0x%x\n", tlv->img[i].img_type);
-			printf("img_sram_addr:0x%x\n", tlv->img[i].img_sram_addr);
-			printf("img_host_addr:0x%x\n", tlv->img[i].img_host_addr);
-			printf("img_size:0x%x\n", tlv->img[i].img_size);
+			printf("img_type:0x%x\n", tlv_dma->img[i].img_type);
+			printf("img_sram_addr:0x%x\n", tlv_dma->img[i].img_sram_addr);
+			printf("img_host_addr:0x%x\n", tlv_dma->img[i].img_host_addr);
+			printf("img_size:0x%x\n", tlv_dma->img[i].img_size);
 		}
 	}
 
 	writel(0xFF, (uintptr_t)dev_cfg->host_ddr_status);
-	/*
-	 *flush dcache
-	 */
 	flush_dcache_all();
 
 	/* Check if the target is in PBL, else do a force reset */
@@ -3550,7 +3569,7 @@ static int do_cal_qcn9224(struct cal_config *cfg,
 		qcn92xx_global_soc_reset(bar0_base, true);
 	}
 
-	writel(lower_32_bits((uintptr_t)tlv), bar0_base + PCIE_LOCAL_RSV0);
+	writel(lower_32_bits((uintptr_t)tlv_dma), bar0_base + PCIE_LOCAL_RSV0);
 	writel(0, bar0_base + BHI_STATUS);
 	writel(upper_32_bits(load_addr), bar0_base + BHI_IMGADDR_HIGH);
 	writel(lower_32_bits(load_addr), bar0_base + BHI_IMGADDR_LOW);
@@ -3584,6 +3603,8 @@ static int do_cal_qcn9224(struct cal_config *cfg,
 
 	printf("Calibration bin loaded successfully\n");
 
+	if (tlv_lmb_addr)
+		lmb_free(tlv_lmb_addr, ALIGN(sizeof(*tlv), SZ_4K));
 	free(tlv);
 
 	return 0;
@@ -3597,6 +3618,8 @@ fail:
 	/* Target MHI reset */
 	val = readl(bar0_base + MHICTRL);
 	writel(val | MHICTRL_RESET_MASK, bar0_base + MHICTRL);
+	if (tlv_lmb_addr)
+		lmb_free(tlv_lmb_addr, ALIGN(sizeof(*tlv), SZ_4K));
 	free(tlv);
 
 	return ret;
@@ -3812,9 +3835,11 @@ int cal_qcn9224(int debug)
 	if (debug) {
 		printf("Dumping the cal config\n");
 		printf("cal_fw_header: 0x%lx\n", (uintptr_t)cfg->cal_fw_header);
-		printf("ddr_base_addr: 0x%x\n", cfg->ddr_base_addr);
+		printf("ddr_base_addr: 0x%llx\n",
+		       (unsigned long long)cfg->ddr_base_addr);
 		printf("ddr_rmem_size: 0x%x\n", cfg->ddr_rmem_size);
-		printf("caldata_addr: 0x%x\n", cfg->caldata_addr);
+		printf("caldata_addr: 0x%llx\n",
+		       (unsigned long long)cfg->caldata_addr);
 		for (i = 0; i < CONFIG_IPQ_MAX_PCIE; i++) {
 			if (!cfg->dev_cfg[i].dev)
 				continue;
@@ -3829,18 +3854,18 @@ int cal_qcn9224(int debug)
 			       cfg->dev_cfg[i].caldata_offset);
 			printf("caldata_size[%d]: 0x%x\n", i,
 			       cfg->dev_cfg[i].caldata_size);
-			printf("cal_fw_image_addr[%d]: 0x%x\n", i,
-			       cfg->dev_cfg[i].cal_fw_image_addr);
-			printf("hremote_addr[%d]: 0x%x\n", i,
-			       cfg->dev_cfg[i].hremote_addr);
-			printf("caldb_addr[%d]: 0x%x\n", i,
-			       cfg->dev_cfg[i].caldb_addr);
+			printf("cal_fw_image_addr[%d]: 0x%llx\n", i,
+			       (unsigned long long)cfg->dev_cfg[i].cal_fw_image_addr);
+			printf("hremote_addr[%d]: 0x%llx\n", i,
+			       (unsigned long long)cfg->dev_cfg[i].hremote_addr);
+			printf("caldb_addr[%d]: 0x%llx\n", i,
+			       (unsigned long long)cfg->dev_cfg[i].caldb_addr);
 			printf("caldb_size[%d]: 0x%x\n", i,
 			       cfg->dev_cfg[i].caldb_size);
-			printf("host_ddr_status[%d]: 0x%x\n", i,
-			       cfg->dev_cfg[i].host_ddr_status);
-			printf("rddm_addr[%d]: 0x%x\n", i,
-			       cfg->dev_cfg[i].rddm_addr);
+			printf("host_ddr_status[%d]: 0x%llx\n", i,
+			       (unsigned long long)cfg->dev_cfg[i].host_ddr_status);
+			printf("rddm_addr[%d]: 0x%llx\n", i,
+			       (unsigned long long)cfg->dev_cfg[i].rddm_addr);
 		}
 	}
 
