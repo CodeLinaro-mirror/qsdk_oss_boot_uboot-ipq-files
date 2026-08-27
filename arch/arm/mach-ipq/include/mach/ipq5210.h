@@ -240,4 +240,13 @@ struct fuse_payload {
 
 #endif
 
+#ifdef CONFIG_IPQ_MINIDUMP
+/* CPU stack dump configuration for IPQ5210 (same as IPQ5424/Marina) */
+#define CPU_STACK_RESET_REASON_ADDR		0x086007B0
+#define CPU_STACK_RESET_REASON_HLOS_PANIC	0x6
+#define CPU_STACK_RESET_REASON_WD		0x5
+#define CPU_STACK_PTR_REG			EL1
+#define CPU_STACK_MAX_CPUS			4
+#endif /* CONFIG_IPQ_MINIDUMP */
+
 #endif

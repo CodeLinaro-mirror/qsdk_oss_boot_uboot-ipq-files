@@ -250,4 +250,13 @@ struct fuse_payload {
 	{SOFTSKU_UNIPHY2_SPEED_CONFIG_FEATURE_ID,    false},
 #endif /* CONFIG_IPQ_SOFTSKU_SUPPORT */
 
+#ifdef CONFIG_IPQ_MINIDUMP
+/* CPU stack dump configuration for IPQ9650 */
+#define CPU_STACK_RESET_REASON_ADDR		0x086007AC
+#define CPU_STACK_RESET_REASON_HLOS_PANIC	0x6
+#define CPU_STACK_RESET_REASON_WD		0x0
+#define CPU_STACK_PTR_REG			EL2
+#define CPU_STACK_MAX_CPUS			5
+#endif /* CONFIG_IPQ_MINIDUMP */
+
 #endif /* __IPQ9650_H__ */
