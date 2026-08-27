@@ -9,6 +9,7 @@
 #include <mach/ipq.h>
 #include <fdtdec.h>
 #include <config.h>
+#include <init.h>
 #include <mtd_node.h>
 #include <jffs2/load_kernel.h>
 #include <irq_func.h>
@@ -433,6 +434,30 @@ void ipq_spl_pre_reset_seq(void)
 	writel(U32_MAX, IPQ_SPL_GCC_RESET_STATUS_ADDR);
 }
 #endif /* CONFIG_SPL_BUILD */
+
+#if defined(CONFIG_ARCH_32BIT_SUPPORT) && defined(CONFIG_IPQ_DYNAMIC_RELOCATION)
+#define IPQ5210_TINY_USABLE_RAM_TOP	0x87c00000
+
+/*
+ * On 128MB DDR, clamp ram_top so dynamic relocation does not
+ * overlap the fixed secure firmware regions near the top of DRAM.
+ */
+phys_addr_t board_get_usable_ram_top(phys_size_t total_size)
+{
+	phys_addr_t top = gd->ram_base + get_effective_memsize();
+
+	switch (gd->ram_size) {
+	case SZ_128M:
+		if (IPQ5210_TINY_USABLE_RAM_TOP < top)
+			top = IPQ5210_TINY_USABLE_RAM_TOP;
+		break;
+	default:
+		break;
+	}
+
+	return top;
+}
+#endif
 
 uint32_t is_board_support_image_auth(void)
 {
