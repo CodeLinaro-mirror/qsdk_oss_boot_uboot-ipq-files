@@ -475,6 +475,22 @@ uint32_t is_board_support_image_auth(void)
 	return ret;
 }
 
+#ifdef CONFIG_IPQ_MVEW
+#define SOC_VER_MBN_V8_MAJOR		1
+#define SOC_VER_MBN_V8_MINOR		2
+
+uint32_t ipq_get_required_mbn_version(void)
+{
+	struct soc_info *socinfo = ipq_get_socinfo();
+
+	if (socinfo && socinfo->soc_version_major == SOC_VER_MBN_V8_MAJOR &&
+			socinfo->soc_version_minor == SOC_VER_MBN_V8_MINOR)
+		return 8;
+
+	return MVEW_MBN_VERSION_DEFAULT;
+}
+#endif
+
 void ipq_update_comm_type(void)
 {
 	struct ipq_board_info *bdinfo = ipq_get_bdinfo();

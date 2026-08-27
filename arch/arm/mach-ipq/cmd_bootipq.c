@@ -48,8 +48,25 @@
 #define PRIMARY_PARTITION		1
 #define SECONDARY_PARTITION		2
 
+/* MVEW (Multi-Version ELF Wrapper) outer wrapper carries kernel v7/v8 +
+ * itb + rootfs v7/v8 phdrs
+ */
+#define MAX_PROGRAM_HDRS		6
+
 #define ELF_HDR_PLUS_PHDR_SIZE		(sizeof(Elf32_Ehdr) + \
-				(NO_OF_PROGRAM_HDRS * sizeof(Elf32_Phdr)))
+				(MAX_PROGRAM_HDRS * sizeof(Elf32_Phdr)))
+
+/* p_flags tags in ELF's PF_MASKOS range (0x0ff00000), see include/elf.h */
+#define MVEW_WRAPPER_FLAG		(0xAu << 20)
+
+#define HASH_TARGET_KERNEL		0u
+#define HASH_TARGET_ROOTFS		1u
+#define HASH_P_FLAG(target, ver)	(((target) << 24) | ((ver) << 20))
+
+#define HASH_P_FLAG_MBN_V7		HASH_P_FLAG(HASH_TARGET_KERNEL, 7)
+#define HASH_P_FLAG_MBN_V8		HASH_P_FLAG(HASH_TARGET_KERNEL, 8)
+#define HASH_P_FLAG_ROOTFS_MBN_V7	HASH_P_FLAG(HASH_TARGET_ROOTFS, 7)
+#define HASH_P_FLAG_ROOTFS_MBN_V8	HASH_P_FLAG(HASH_TARGET_ROOTFS, 8)
 
 #define FIT_BOOTARGS_PROP		"append-bootargs"
 #ifndef IPQ_NAND_BOOTARGS_PRI
@@ -101,6 +118,9 @@ struct boot_config {
 	ulong load_address;
 	ulong size;
 	ulong meta_data_size;
+#ifdef CONFIG_IPQ_MVEW
+	ulong rootfs_meta_dram_addr; /* MVEW rootfs metadata DRAM addr */
+#endif
 	enum boot_stage stage;
 	enum bank active_bank;
 	bool debug;
@@ -119,6 +139,15 @@ struct ipq_image_info {
 	unsigned int img_offset;
 	unsigned int img_load_addr;
 	unsigned int img_size;
+#ifdef CONFIG_IPQ_MVEW
+	/* MVEW-only fields; unused for legacy single-version images */
+	bool is_mvew_format;
+	unsigned int meta_flash_offset;
+	unsigned int itb_flash_offset;
+	bool has_rootfs_meta;
+	unsigned int rootfs_meta_flash_offset;
+	unsigned int rootfs_meta_size;
+#endif
 };
 static struct ipq_image_info img_info;
 #endif
@@ -146,6 +175,17 @@ void update_load_addr(struct ipq_image_info *img_info)
 	boot_info.load_address -= img_info->img_offset;
 	boot_info.meta_data_size = img_info->img_offset;
 }
+
+/* MVEW sibling of update_load_addr(); anchors off itb_flash_offset since
+ * MVEW may have two metadata segments preceding .itb, not just one */
+#ifdef CONFIG_IPQ_MVEW
+void update_load_addr_mvew(struct ipq_image_info *img_info)
+{
+	boot_info.load_address = img_info->img_load_addr;
+	boot_info.load_address -= img_info->itb_flash_offset;
+	boot_info.meta_data_size = img_info->img_offset;
+}
+#endif
 #endif
 #ifdef CONFIG_MMC
 int set_mmc_bootargs(char *boot_args, char *part_name, int buflen,
@@ -486,6 +526,106 @@ static int parse_elf_image_phdr(struct ipq_image_info *img_info, unsigned int ad
 
 	return -EINVAL;
 }
+
+#ifdef CONFIG_IPQ_MVEW
+/* True if outer wrapper at addr is MVEW-tagged; p_flags masked by
+ * PF_MASKOS since only those bits are ours to define */
+bool is_mvew_wrapper(unsigned int addr)
+{
+	Elf32_Ehdr *ehdr = (Elf32_Ehdr *)(uintptr_t)addr;
+	Elf32_Phdr *phdr0;
+
+	if (!IS_ELF(*ehdr) || ehdr->e_type != ET_EXEC)
+		return false;
+
+	phdr0 = (Elf32_Phdr *)(uintptr_t)(addr + ehdr->e_phoff);
+
+	return (phdr0->p_type == PT_NULL &&
+		(phdr0->p_flags & PF_MASKOS) == MVEW_WRAPPER_FLAG);
+}
+
+/* MVEW sibling of parse_elf_image_phdr(); caller sets is_mvew_format */
+static int parse_elf_image_phdr_mvew(struct ipq_image_info *img_info, unsigned int addr)
+{
+	Elf32_Ehdr *ehdr;
+	Elf32_Phdr *phdr;
+	Elf32_Phdr *load_phdr = NULL;
+	Elf32_Phdr *hash_phdr = NULL;
+	Elf32_Phdr *rootfs_hash_phdr = NULL;
+	uint32_t wanted_hash_flag;
+	uint32_t wanted_rootfs_hash_flag;
+	uint32_t mbn_version;
+	int i;
+
+	ehdr = (Elf32_Ehdr *)(uintptr_t)addr;
+
+	if (!IS_ELF(*ehdr)) {
+		printf("It is not a elf image, support only 32-bit ELF\n");
+		return -EINVAL;
+	}
+
+	if (ehdr->e_type != ET_EXEC) {
+		printf("Not a valid elf image\n");
+		return -EINVAL;
+	}
+
+	/* fixed MAX_PROGRAM_HDRS bound; never trust e_phnum pre-auth */
+	phdr = (Elf32_Phdr *)(uintptr_t)(addr + ehdr->e_phoff);
+
+	mbn_version = ipq_get_required_mbn_version();
+	if (boot_info.debug)
+		printf("[debug] parse_elf_image_phdr_mvew: required_mbn_version=%u\n",
+			mbn_version);
+	if (mbn_version == 8) {
+		wanted_hash_flag = HASH_P_FLAG_MBN_V8;
+		wanted_rootfs_hash_flag = HASH_P_FLAG_ROOTFS_MBN_V8;
+	} else {
+		wanted_hash_flag = HASH_P_FLAG_MBN_V7;
+		wanted_rootfs_hash_flag = HASH_P_FLAG_ROOTFS_MBN_V7;
+	}
+
+	for (i = 0; i < MAX_PROGRAM_HDRS; ++i) {
+		printf("Parsing phdr");
+		printf("load addr 0x%x offset 0x%x size 0x%x type 0x%x flags 0x%x\n",
+			phdr[i].p_paddr, phdr[i].p_offset, phdr[i].p_filesz,
+			phdr[i].p_type, phdr[i].p_flags);
+
+		if (phdr[i].p_type == PT_LOAD)
+			load_phdr = &phdr[i];
+		else if (phdr[i].p_type == PT_NULL &&
+			 (phdr[i].p_flags & PF_MASKOS) == wanted_hash_flag)
+			hash_phdr = &phdr[i];
+		else if (phdr[i].p_type == PT_NULL &&
+			 (phdr[i].p_flags & PF_MASKOS) == wanted_rootfs_hash_flag)
+			rootfs_hash_phdr = &phdr[i];
+	}
+
+	if (!hash_phdr) {
+		printf("MVEW: no metadata segment for required MBN version\n");
+		return -EINVAL;
+	}
+
+	if (!load_phdr) {
+		printf("MVEW: no .itb (PT_LOAD) segment found\n");
+		return -EINVAL;
+	}
+
+	img_info->meta_flash_offset = hash_phdr->p_offset;
+	img_info->img_offset = hash_phdr->p_filesz;
+	/* covers both metadata segments, not just the chosen one */
+	img_info->itb_flash_offset = load_phdr->p_offset;
+	img_info->img_load_addr = load_phdr->p_paddr;
+	img_info->img_size = load_phdr->p_filesz;
+
+	img_info->has_rootfs_meta = (rootfs_hash_phdr != NULL);
+	if (img_info->has_rootfs_meta) {
+		img_info->rootfs_meta_flash_offset = rootfs_hash_phdr->p_offset;
+		img_info->rootfs_meta_size = rootfs_hash_phdr->p_filesz;
+	}
+
+	return 0;
+}
+#endif /* CONFIG_IPQ_MVEW */
 #endif
 
 #ifdef CONFIG_MMC
@@ -529,11 +669,29 @@ static int read_from_mmc(void)
 			if (n != cnt)
 				return CMD_RET_FAILURE;
 
+#ifdef CONFIG_IPQ_MVEW
+			if (is_mvew_wrapper(boot_info.load_address)) {
+				img_info.is_mvew_format = true;
+				if (parse_elf_image_phdr_mvew(&img_info,
+						boot_info.load_address))
+					return CMD_RET_FAILURE;
+
+				update_load_addr_mvew(&img_info);
+			} else {
+				img_info.is_mvew_format = false;
+				if (parse_elf_image_phdr(&img_info,
+						boot_info.load_address))
+					return CMD_RET_FAILURE;
+
+				update_load_addr(&img_info);
+			}
+#else
 			if (parse_elf_image_phdr(&img_info,
 					boot_info.load_address))
 				return CMD_RET_FAILURE;
 
 			update_load_addr(&img_info);
+#endif
 #endif
 		}
 
@@ -586,10 +744,27 @@ static int read_from_nand(void)
 		if (ret)
 			return CMD_RET_FAILURE;
 
+#ifdef CONFIG_IPQ_MVEW
+		if (is_mvew_wrapper(boot_info.load_address)) {
+			img_info.is_mvew_format = true;
+			if (parse_elf_image_phdr_mvew(&img_info,
+					boot_info.load_address))
+				return CMD_RET_FAILURE;
+
+			update_load_addr_mvew(&img_info);
+		} else {
+			img_info.is_mvew_format = false;
+			if (parse_elf_image_phdr(&img_info, boot_info.load_address))
+				return CMD_RET_FAILURE;
+
+			update_load_addr(&img_info);
+		}
+#else
 		if (parse_elf_image_phdr(&img_info, boot_info.load_address))
 			return CMD_RET_FAILURE;
 
 		update_load_addr(&img_info);
+#endif
 	}
 #endif
 	boot_info.size = ipq_ubi_get_volume_size("kernel");
@@ -636,10 +811,27 @@ static int read_from_nor(void)
 		if (ret)
 			return CMD_RET_FAILURE;
 
+#ifdef CONFIG_IPQ_MVEW
+		if (is_mvew_wrapper(boot_info.load_address)) {
+			img_info.is_mvew_format = true;
+			if (parse_elf_image_phdr_mvew(&img_info,
+					boot_info.load_address))
+				return CMD_RET_FAILURE;
+
+			update_load_addr_mvew(&img_info);
+		} else {
+			img_info.is_mvew_format = false;
+			if (parse_elf_image_phdr(&img_info, boot_info.load_address))
+				return CMD_RET_FAILURE;
+
+			update_load_addr(&img_info);
+		}
+#else
 		if (parse_elf_image_phdr(&img_info, boot_info.load_address))
 			return CMD_RET_FAILURE;
 
 		update_load_addr(&img_info);
+#endif
 	}
 #endif
 	boot_info.size = sfi->hlos.size;
@@ -683,10 +875,23 @@ int config_select(void)
 		ret = genimg_get_format((void *)request);
 		if ((ret != IMAGE_FORMAT_LEGACY) && (ret != IMAGE_FORMAT_FIT)) {
 #ifdef CONFIG_IPQ_ELF_AUTH
+			/* skip past metadata to reach FIT/legacy image */
+#ifdef CONFIG_IPQ_MVEW
+			if (is_mvew_wrapper(request)) {
+				if (!parse_elf_image_phdr_mvew(&img_info, request)) {
+					request += img_info.itb_flash_offset;
+					boot_info.load_address = request;
+				}
+			} else if (!parse_elf_image_phdr(&img_info, request)) {
+				request += img_info.img_offset;
+				boot_info.load_address = request;
+			}
+#else
 			if (!parse_elf_image_phdr(&img_info, request)) {
 				request += img_info.img_offset;
 				boot_info.load_address = request;
 			}
+#endif
 #endif
 		} else
 			goto get_img_config;
@@ -1051,31 +1256,48 @@ static int authenticate_rootfs_elf_ipc_v2(uint32_t rootfs_hdr)
 {
 	int ret;
 	u32 request;
-	struct ipq_image_info img_info;
+	uint32_t rootfs_blob_addr;
+	struct ipq_image_info rootfs_blob_info;
 	struct secure_auth_params auth_params = {0};
 
-	if (parse_elf_image_phdr(&img_info, rootfs_hdr))
+	/* img_info is the file-scope static set by read_from_*() */
+#ifdef CONFIG_IPQ_MVEW
+	if (img_info.is_mvew_format) {
+		if (!img_info.has_rootfs_meta) {
+			printf("Rootfs auth required but image carries no rootfs metadata\n");
+			return CMD_RET_FAILURE;
+		}
+		rootfs_blob_addr = boot_info.rootfs_meta_dram_addr;
+	} else {
+		rootfs_blob_addr = rootfs_hdr;
+	}
+#else
+	rootfs_blob_addr = rootfs_hdr;
+#endif
+
+	/* re-parse rootfs metadata's own inner ELF for authoritative size */
+	if (parse_elf_image_phdr(&rootfs_blob_info, rootfs_blob_addr))
 		return CMD_RET_FAILURE;
 
-	request = img_info.img_load_addr - img_info.img_offset;
+	request = rootfs_blob_info.img_load_addr - rootfs_blob_info.img_offset;
 
-	memcpy((void *)(uintptr_t)request, (void *)(uintptr_t)rootfs_hdr,
-	       img_info.img_offset);
+	memcpy((void *)(uintptr_t)request, (void *)(uintptr_t)rootfs_blob_addr,
+	       rootfs_blob_info.img_offset);
 
-	request += img_info.img_offset;
+	request += rootfs_blob_info.img_offset;
 
-	copy_rootfs(request, img_info.img_size);
+	copy_rootfs(request, rootfs_blob_info.img_size);
 
 	auth_params.type = ROOTFS_SEC_AUTH_SW_ID;
-	auth_params.addr = img_info.img_load_addr - img_info.img_offset;
-	auth_params.size = img_info.img_offset - 1;
+	auth_params.addr = rootfs_blob_info.img_load_addr - rootfs_blob_info.img_offset;
+	auth_params.size = rootfs_blob_info.img_offset - 1;
 	auth_params.load_seg_buff = NULL;
 	auth_params.load_seg_cnt = 0;
 	auth_params.load_seg_info_size = 0;
 	auth_params.relocate = 0;
 
 	ret = ipq_comm_handler(FUNC_SECURE_AUTH, &auth_params);
-	memset((void *)(uintptr_t)rootfs_hdr, 0, img_info.img_offset);
+	memset((void *)(uintptr_t)rootfs_blob_addr, 0, rootfs_blob_info.img_offset);
 	if (ret) {
 		printf("Rootfs Authentication is failed\n");
 		ret = CMD_RET_FAILURE;
@@ -1092,24 +1314,41 @@ static int authenticate_rootfs_elf_ipc_v3(uint32_t rootfs_hdr)
 {
 	int ret;
 	u32 request;
-	struct ipq_image_info img_info;
+	uint32_t rootfs_blob_addr;
+	struct ipq_image_info rootfs_blob_info;
 	struct secure_auth_params auth_params = {0};
 
-	if (parse_elf_image_phdr(&img_info, rootfs_hdr))
+	/* img_info is the file-scope static set by read_from_*() */
+#ifdef CONFIG_IPQ_MVEW
+	if (img_info.is_mvew_format) {
+		if (!img_info.has_rootfs_meta) {
+			printf("Rootfs auth required but image carries no rootfs metadata\n");
+			return CMD_RET_FAILURE;
+		}
+		rootfs_blob_addr = boot_info.rootfs_meta_dram_addr;
+	} else {
+		rootfs_blob_addr = rootfs_hdr;
+	}
+#else
+	rootfs_blob_addr = rootfs_hdr;
+#endif
+
+	/* re-parse rootfs metadata's own inner ELF for authoritative size */
+	if (parse_elf_image_phdr(&rootfs_blob_info, rootfs_blob_addr))
 		return CMD_RET_FAILURE;
 
-	request = img_info.img_load_addr - img_info.img_offset;
+	request = rootfs_blob_info.img_load_addr - rootfs_blob_info.img_offset;
 
-	memcpy((void *)(uintptr_t)request, (void *)(uintptr_t)rootfs_hdr,
-	       img_info.img_offset);
+	memcpy((void *)(uintptr_t)request, (void *)(uintptr_t)rootfs_blob_addr,
+	       rootfs_blob_info.img_offset);
 
-	request += img_info.img_offset;
+	request += rootfs_blob_info.img_offset;
 
-	copy_rootfs(request, img_info.img_size);
+	copy_rootfs(request, rootfs_blob_info.img_size);
 
 	auth_params.type = ROOTFS_SEC_AUTH_SW_ID;
-	auth_params.addr = img_info.img_load_addr - img_info.img_offset;
-	auth_params.size = img_info.img_offset - 1;
+	auth_params.addr = rootfs_blob_info.img_load_addr - rootfs_blob_info.img_offset;
+	auth_params.size = rootfs_blob_info.img_offset - 1;
 	auth_params.load_seg_buff = NULL;
 	auth_params.load_seg_cnt = 0;
 	auth_params.load_seg_info_size = 0;
@@ -1117,7 +1356,7 @@ static int authenticate_rootfs_elf_ipc_v3(uint32_t rootfs_hdr)
 	auth_params.flags = 1;
 
 	ret = ipq_comm_handler(FUNC_SECURE_AUTH, &auth_params);
-	memset((void *)(uintptr_t)rootfs_hdr, 0, img_info.img_offset);
+	memset((void *)(uintptr_t)rootfs_blob_addr, 0, rootfs_blob_info.img_offset);
 	if (ret) {
 		printf("Rootfs Authentication is failed\n");
 		ret = CMD_RET_FAILURE;
@@ -1531,6 +1770,50 @@ int read_kernel(void)
 	return ret;
 }
 
+#ifdef CONFIG_IPQ_MVEW
+/* boot_stage: relocate selected MVEW metadata next to .itb in DRAM,
+ * using the authoritative size from the metadata blob's own inner ELF
+ * rather than the outer wrapper's collage-authored p_filesz
+ */
+int relocate_mvew_metadata(void)
+{
+	struct ipq_image_info meta_info;
+	int secure_boot = is_board_support_image_auth();
+
+	if (!secure_boot)
+		return CMD_RET_SUCCESS;
+
+	if (!img_info.is_mvew_format)
+		return CMD_RET_SUCCESS;
+
+	/* capture before boot_info.load_address is reassigned below */
+	if (img_info.has_rootfs_meta) {
+		boot_info.rootfs_meta_dram_addr =
+			boot_info.load_address +
+				img_info.rootfs_meta_flash_offset;
+	}
+
+	if (parse_elf_image_phdr(&meta_info,
+			boot_info.load_address + img_info.meta_flash_offset))
+		return CMD_RET_FAILURE;
+
+	img_info.img_offset = meta_info.img_offset;
+
+	memmove((void *)(uintptr_t)(img_info.img_load_addr - img_info.img_offset),
+		(uint8_t *)boot_info.load_address + img_info.meta_flash_offset,
+		img_info.img_offset);
+
+	boot_info.load_address = img_info.img_load_addr - img_info.img_offset;
+	boot_info.meta_data_size = img_info.img_offset;
+
+	if (boot_info.debug)
+		printf("[debug]relocated MVEW metadata, kernel @ 0x%lx\n",
+				boot_info.load_address);
+
+	return CMD_RET_SUCCESS;
+}
+#endif
+
 int boot_kernel(void)
 {
 	char boot_cmd[CONFIG_SYS_MAXARGS];
@@ -1593,6 +1876,9 @@ int check_bootconfig(void)
 static const boot_stage state_sequence[] = {
 	check_bootconfig,
 	read_kernel,
+#ifdef CONFIG_IPQ_MVEW
+	relocate_mvew_metadata,
+#endif
 #ifdef CONFIG_IPQ_SECURE
 	image_authentication,
 #endif

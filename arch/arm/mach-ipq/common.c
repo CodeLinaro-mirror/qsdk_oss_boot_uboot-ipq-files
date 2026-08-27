@@ -404,6 +404,19 @@ __weak uint32_t ipq_get_soc_hw_version(void)
 	return readl(CONFIG_SOC_HW_VERSION_REG);
 }
 
+#ifdef CONFIG_IPQ_MVEW
+/*
+ * Default: boards without a real dual-MBN-version fuse mapping always
+ * require MBN v7 -- the only version that existed before MVEW. IPQ5210,
+ * the only target with CONFIG_IPQ_MVEW, overrides this with a
+ * strong definition in its own board .c.
+ */
+__weak uint32_t ipq_get_required_mbn_version(void)
+{
+	return MVEW_MBN_VERSION_DEFAULT;
+}
+#endif
+
 __weak void ipq_board_update_RFA_settings(void) {};
 
 __weak void ipq_bind_optee_driver(void) {};
