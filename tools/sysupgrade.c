@@ -288,6 +288,7 @@ int get_sections(void)
 							sizeof(sec->tmp_file));
 					if (!sec->pre_op(sec)) {
 						printf("Error extracting kernel from ubi\n");
+						closedir(dir);
 						return 0;
 					}
 				}
@@ -880,10 +881,12 @@ int get_ubi_volume_id(char *vol_name)
 
 	if (fgets(current_ubi_volumes_count, sizeof(current_ubi_volumes_count), fp) == NULL) {
 		printf(" Failed to get ubi volumes count \n");
+		fclose(fp);
 		return 0;
 	}
 	number_of_ubi_volumes = atoi(current_ubi_volumes_count);
 	printf("number of ubi volumes = %d\n", number_of_ubi_volumes);
+	fclose(fp);
 
 	for (i = 0; i < number_of_ubi_volumes; i++)
 	{
@@ -895,6 +898,7 @@ int get_ubi_volume_id(char *vol_name)
 		}
 		if (fgets(ubi_vol_name, sizeof(ubi_vol_name), fp) == NULL) {
 			printf(" Failed to get ubi volume name \n");
+			fclose(fp);
 			return 0;
 		}
 		if (strstr(ubi_vol_name, vol_name)) {
@@ -902,8 +906,8 @@ int get_ubi_volume_id(char *vol_name)
 			fclose(fp);
 			return i;
 		}
+		fclose(fp);
 	}
-
 	return -1;
 }
 
@@ -1080,9 +1084,11 @@ char * check_image_exist(char *imgname) {
 			printf("%s file found\n", in_file->d_name);
 			strlcat(extension, in_file->d_name, sizeof(extension));
 			strlcpy(in_file->d_name, extension, sizeof(extension));
+			closedir(FD);
 			return in_file->d_name;
 		}
 	}
+	closedir(FD);
 	return NULL;
 }
 
@@ -1637,6 +1643,7 @@ char *read_file(char *file_name, size_t *file_size)
 	}
 
 	if (read(fd, buffer, st.st_size) == -1) {
+		free(buffer);
 		close(fd);
 		return NULL;
 	}
