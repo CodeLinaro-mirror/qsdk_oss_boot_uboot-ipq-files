@@ -62,6 +62,7 @@
 
 #define CLK_2_5_MHZ					(2500000UL)
 #define CLK_12_5_MHZ					(12500000UL)
+#define CLK_24_MHZ					(24000000UL)
 #define CLK_25_MHZ					(25000000UL)
 #define CLK_78_125_MHZ					(78125000UL)
 #define CLK_50_MHZ					(50000000UL)
@@ -169,6 +170,10 @@ ulong msm_get_rate(struct clk *clk)
 	case GCC_BLSP1_QUP2_I2C_APPS_CLK:
 	case GCC_BLSP1_QUP3_I2C_APPS_CLK:
 		clk->rate = CLK_50_MHZ;
+		break;
+	case GCC_USB0_MOCK_UTMI_CLK:
+		/* USB MOCK_UTMI clocks are configured to 24MHz from CXO */
+		clk->rate = CLK_24_MHZ;
 		break;
 	};
 
@@ -365,8 +370,9 @@ static ulong ipq5332_set_rate(struct clk *clk, ulong rate)
 				 4, CFG_CLK_SRC_GPLL0);
 		break;
 	case GCC_USB0_MOCK_UTMI_CLK:
+		/* Default: 24MHz */
 		clk_rcg_set_rate_mnd(priv->base, GCC_USB0_MOCK_UTMI_CMD_RCGR,
-					19, 1, 2, CFG_CLK_SRC_GPLL0, 8);
+				1, 0, 0, CFG_CLK_SRC_CXO, 8);
 		break;
 	case GCC_USB0_AUX_CLK:
 		clk_rcg_set_rate(priv->base, GCC_USB0_AUX_CMD_RCGR,
