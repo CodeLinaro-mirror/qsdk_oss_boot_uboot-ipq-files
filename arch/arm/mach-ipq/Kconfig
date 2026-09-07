@@ -200,7 +200,7 @@ config IPQ_SPI_NOR
 	select SPI
 	select MISC
 	select SPI_QUP if TARGET_IPQ9574 || TARGET_IPQ5332
-	select MSM_GENI_SPI if TARGET_IPQ5424 || TARGET_IPQ5210 || TARGET_IPQ9650 || TARGET_IPQ5610
+	select MSM_GENI_SPI if TARGET_IPQ5424 || TARGET_IPQ5210 || TARGET_IPQ9650
 	select DM_SPI
 	select DM_SPI_FLASH
 	select SPI_FLASH_STMICRO
@@ -1069,19 +1069,6 @@ config TARGET_IPQ9650
 	  - QSPI NAND / NOR / eMMC
 	  - USB 3.0/I2C/UART/PCIe Gen3 2Lane
 	  - 2.5G/10G Ethernet Ports
-
-config TARGET_IPQ5610
-	bool "QTI IPQ5610"
-	imply QCOM_GENI_SE
-	imply IPQ_MULTI_DTB_SUPPORT
-	imply NOR_BLK
-	select CMD_CACHE
-	imply GPT_UPDATE_PARAMS
-	imply DMA
-	imply DMA_CHANNELS
-	help
-	  Support for IPQ5610 SoC.
-	  - Board Open Platform Specifications.
 
 endchoice
 

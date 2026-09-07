@@ -55,9 +55,6 @@
 #if defined(CONFIG_TARGET_IPQ9650)
 #include <asm/arch/ipq9650.h>
 #endif
-#if defined(CONFIG_TARGET_IPQ5610)
-#include <asm/arch/ipq5610.h>
-#endif
 
 #ifndef __IPQ_H__
 #define __IPQ_H__
