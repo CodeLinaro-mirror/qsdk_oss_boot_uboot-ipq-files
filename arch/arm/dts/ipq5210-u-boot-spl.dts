@@ -251,10 +251,26 @@
 			status = "okay";
 		};
 
+		apsspll: pll@b116000 {
+			bootph-all;
+			compatible = "qcom,ipq5210-clk-pll",
+					"qcom,ipq-clk-pll";
+			reg = <0 0x0b116000 0 0x1000>;
+			clock-output-names = "apsspll";
+			status = "okay";
+		};
+
+		apss_cpu: apss-cpu-clock@b111000 {
+			bootph-all;
+			compatible = "qcom,ipq5210-apss";
+			reg = <0 0x0b111000 0 0x1000>;
+			#clock-cells = <1>;
+		};
+
 		pll_init: qcom,ipq-init-plls {
 			bootph-all;
 			compatible = "qcom,ipq-init-plls";
-			plls = <&gpll0 &gpll2 &gpll4>;
+			plls = <&gpll0 &gpll2 &gpll4 &apsspll>;
 			status = "okay";
 		};
 
@@ -273,13 +289,15 @@
 				 <&gcc GCC_PCNOC_TS_CLK>,
 				 <&gcc GCC_CNOC_QOSGEN_EXTREF_CLK>;
 
-			assigned-clocks = <&gcc GCC_PCNOC_BFDCD_CLK>,
+			assigned-clocks = <&apss_cpu APCS_ALIAS0_CLK>,
+					  <&gcc GCC_PCNOC_BFDCD_CLK>,
 					  <&gcc GCC_SYSTEM_NOC_BFDCD_CLK>,
 					  <&gcc GCC_APSS_AXI_CLK>,
 					  <&gcc GCC_APSS_AHB_CLK>,
 					  <&gcc GCC_QDSS_TSCTR_CLK>,
 					  <&gcc GCC_QDSS_AT_CLK>;
-			assigned-clock-rates = <100000000>,
+			assigned-clock-rates = <1600000000>,
+					       <100000000>,
 					       <266666666>,
 					       <800000000>,
 					       <100000000>,

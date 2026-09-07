@@ -205,4 +205,6 @@
 #define GCC_USB_CMN_HCLK		194
 #define GCC_USB_CMN_LDO_CLK		195
 #define GCC_QUPV3_I2C_SE4_CLK		196
+#define APSS_SILVER_CLK			197
+#define APSS_L3_CLK			198
 #endif

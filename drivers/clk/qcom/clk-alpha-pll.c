@@ -587,6 +587,33 @@ static void clk_huayra_pll_regsettings(struct clk_alpha_pll *pll,
 			   config->user_ctl_val, config->user_ctl_val);
 }
 
+static void clk_huayra_pll_v2_regsettings(struct clk_alpha_pll *pll,
+					const struct alpha_pll_config *config)
+{
+	if (!pll || !config) {
+		pr_err("pll regsettings: invalid arguments\n");
+		return;
+	}
+
+	/*
+	 * Write the config ctl config
+	 */
+	clk_alpha_pll_write_config(PLL_CONFIG_CTL(pll),
+				   config->config_ctl_val);
+
+	clk_alpha_pll_write_config(PLL_CONFIG_CTL_U(pll),
+				   config->config_ctl_hi_val);
+
+	/*
+	 * Write the test ctl config
+	 */
+	clk_alpha_pll_write_config(PLL_TEST_CTL(pll),
+				   config->test_ctl_val);
+
+	clk_alpha_pll_write_config(PLL_TEST_CTL_U(pll),
+				   config->test_ctl_hi_val);
+}
+
 static void clk_zonda_pll_regsettings(struct clk_alpha_pll *pll,
 					  const struct alpha_pll_config *config)
 {
@@ -842,6 +869,26 @@ static void clk_huayra_v2_pll_configure(struct clk_alpha_pll *pll,
 
 	if (pll->flags & SUPPORTS_FSM_MODE)
 		clk_huayra_pll_set_fsm_mode(pll);
+}
+
+static void clk_huayra_v3_pll_configure(struct clk_alpha_pll *pll,
+				const struct alpha_pll_config *config)
+{
+	if (!pll || !config) {
+		pr_err("pll configure: invalid arguments\n");
+		return;
+	}
+
+	/*
+	 * Skip, if already enabled
+	 */
+	if (clk_alpha_pll_is_enabled(pll))
+		return;
+
+	/*
+	 * Set register settings
+	 */
+	clk_huayra_pll_v2_regsettings(pll, config);
 }
 
 static void
@@ -1736,6 +1783,15 @@ const struct alpha_pll_ops clk_alpha_pll_huayra_v2_ops = {
 	.configure = clk_huayra_v2_pll_configure,
 };
 
+const struct alpha_pll_ops clk_alpha_pll_huayra_v3_ops = {
+	.enable = clk_huayra_pll_enable,
+	.disable = clk_alpha_pll_disable,
+	.is_enabled = clk_alpha_pll_is_enabled,
+	.set_rate = clk_huayra_pll_set_rate,
+	.prepare = clk_alpha_pll_prepare,
+	.configure = clk_huayra_v3_pll_configure,
+};
+
 const struct alpha_pll_ops clk_alpha_pll_lucid_fastn6rf_ops = {
 	.enable = clk_lucid_fastn6rf_pll_enable,
 	.disable = clk_lucid_fastn6rf_pll_disable,
@@ -1804,6 +1860,22 @@ static struct clk_alpha_pll ipq5424_l3_pll = {
 	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_ZONDA],
 };
 
+/*
+ * APSS PLL offsets for IPQ5210 follow the APSS-Huayra layout from Linux.
+ */
+static const u8 ipq5210_apss_pll_offsets[][PLL_OFF_MAX_REGS] = {
+	[CLK_ALPHA_PLL_TYPE_HUAYRA] = {
+		[PLL_OFF_L_VAL] = 0x08,
+		[PLL_OFF_ALPHA_VAL] = 0x10,
+		[PLL_OFF_USER_CTL] = 0x18,
+		[PLL_OFF_CONFIG_CTL] = 0x20,
+		[PLL_OFF_CONFIG_CTL_U] = 0x24,
+		[PLL_OFF_STATUS] = 0x28,
+		[PLL_OFF_TEST_CTL] = 0x30,
+		[PLL_OFF_TEST_CTL_U] = 0x34,
+	},
+};
+
 static struct clk_alpha_pll ipq5210_gpll0 = {
 	.regs = ipq5424_pll_offsets[CLK_ALPHA_PLL_TYPE_DEFAULT],
 };
@@ -1816,6 +1888,10 @@ static struct clk_alpha_pll ipq5210_gpll4 = {
 	.regs = ipq5424_pll_offsets[CLK_ALPHA_PLL_TYPE_DEFAULT],
 };
 
+static struct clk_alpha_pll ipq5210_apss_pll = {
+	.regs = ipq5210_apss_pll_offsets[CLK_ALPHA_PLL_TYPE_HUAYRA],
+};
+
 static struct clk_alpha_pll ipq9650_gpll0 = {
 	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_LUCID_FAST_N6RF],
 };
@@ -1826,6 +1902,14 @@ static struct clk_alpha_pll ipq9650_gpll2 = {
 
 static struct clk_alpha_pll ipq9650_gpll4 = {
 	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_LUCID_FAST_N6RF],
+};
+
+static struct clk_alpha_pll ipq9650_apss_pll = {
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_ZONDA],
+};
+
+static struct clk_alpha_pll ipq9650_l3_pll = {
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_ZONDA],
 };
 
 /**
@@ -1950,6 +2034,19 @@ static const struct alpha_pll_config ipq5210_gpll4_config = {
 	.main_output_mask = BIT(0),
 };
 
+static const struct alpha_pll_config ipq5210_apss_pll_config = {
+	.alpha = 0x0,
+	.l = 0x3B,
+	.config_ctl_val = 0x4001075b,
+	.config_ctl_hi_val = 0x6,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x400003,
+	.early_output_mask = BIT(3),
+	.aux2_output_mask = BIT(2),
+	.aux_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+};
+
 static const struct alpha_pll_config ipq9650_gpll0_config = {
 	.alpha = 0x5555,
 	.l = 0x21,
@@ -1998,6 +2095,38 @@ static const struct alpha_pll_config ipq9650_gpll4_config = {
 	.user_ctl_hi1_val = 0x0,
 	.odd_output_mask = BIT(2),
 	.even_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+};
+
+static const struct alpha_pll_config ipq9650_apss_pll_config = {
+	.alpha = 0x0,
+	.l = 0x39,
+	.config_ctl_val = 0x08200920,
+	.config_ctl_hi_val = 0x05008001,
+	.config_ctl_hi1_val = 0x04000000,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.test_ctl_hi1_val = 0x0,
+	.user_ctl_val = 0x01000009,
+	.early_output_mask = BIT(3),
+	.aux2_output_mask = BIT(2),
+	.aux_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+};
+
+static const struct alpha_pll_config ipq9650_l3_pll_config = {
+	.alpha = 0x0,
+	.l = 0x31,
+	.config_ctl_val = 0x08200920,
+	.config_ctl_hi_val = 0x05008001,
+	.config_ctl_hi1_val = 0x04000000,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.test_ctl_hi1_val = 0x0,
+	.user_ctl_val = 0x01000009,
+	.early_output_mask = BIT(3),
+	.aux2_output_mask = BIT(2),
+	.aux_output_mask = BIT(1),
 	.main_output_mask = BIT(0),
 };
 
@@ -2054,6 +2183,11 @@ static const struct clk_alpha_pll_desc ipq5210_plls[] = {
 		.pll_config = &ipq5210_gpll4_config,
 		.pll_ops = &clk_alpha_pll_ops,
 	}, {
+		.name = "apsspll",
+		.pll = &ipq5210_apss_pll,
+		.pll_config = &ipq5210_apss_pll_config,
+		.pll_ops = &clk_alpha_pll_huayra_v3_ops,
+	}, {
 		/**
 		 * List Terminator
 		 */
@@ -2076,6 +2210,16 @@ static const struct clk_alpha_pll_desc ipq9650_plls[] = {
 		.pll = &ipq9650_gpll4,
 		.pll_config = &ipq9650_gpll4_config,
 		.pll_ops = &clk_alpha_pll_lucid_fastn6rf_ops,
+	}, {
+		.name = "apsspll",
+		.pll = &ipq9650_apss_pll,
+		.pll_config = &ipq9650_apss_pll_config,
+		.pll_ops = &clk_alpha_pll_zonda_ops,
+	}, {
+		.name = "l3pll",
+		.pll = &ipq9650_l3_pll,
+		.pll_config = &ipq9650_l3_pll_config,
+		.pll_ops = &clk_alpha_pll_zonda_ops,
 	}, {
 		/**
 		 * List Terminator

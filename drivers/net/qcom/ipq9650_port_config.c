@@ -1066,7 +1066,7 @@ static struct ppe_table_addr_config ipq9650_ppe_table_addrs = {
 		.increment		= 0x4,		/* CST_STATE_INC (4 bytes per entry) */
 	},
 	.ipo_action = {
-		.base_addr		= 0x0b0000,	/* IPO_CSR_BASE_ADDR */
+		.base_addr		= 0x540000,	/* IPE_L2_BASE_ADDR */
 		.offset			= 0x8000,	/* IPO_ACTION_OFFSET */
 		.increment		= 0x20,		/* IPO_ACTION_INC (32 bytes per entry) */
 	},

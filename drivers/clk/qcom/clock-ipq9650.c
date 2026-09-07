@@ -72,6 +72,8 @@
 #define GCC_QDSS_AT_SRC_SEL_GPLL4_OUT_MAIN		BIT(8)
 #define GCC_APSS_AHB_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
 #define GCC_APSS_AXI_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
+#define APSS_SILVER_SRC_SEL_APSSPLL_OUT_EARLY		2
+#define APSS_L3_SRC_SEL_APSSPLL_OUT_EARLY		2
 
 /* clock domains */
 #define GCC_QUPV3_2X_CORE_CMD_RCGR			(0x0100C)
@@ -82,6 +84,8 @@
 #define GCC_XO_CMD_RCGR					(0x34004)
 #define GCC_APSS_AHB_CMD_RCGR				(0x2400C)
 #define GCC_APSS_AXI_CMD_RCGR				(0x24004)
+#define APSS_SILVER_CMD_GFMUX				(0x00080)
+#define APSS_L3_CMD_GFMUX				(0x00080)
 
 /* clocks */
 #define GCC_MPM_AHB_CBCR				(0x37014)
@@ -132,12 +136,14 @@
 #define CLK_1_25_MHZ				(1250000UL)
 #define CLK_2_5_MHZ				(2500000UL)
 #define CLK_12_5_MHZ				(12500000UL)
+#define CLK_24_MHZ				(24000000UL)
 #define CLK_25_MHZ				(25000000UL)
 #define CLK_78_125_MHZ				(78125000UL)
 #define CLK_50_MHZ				(50000000UL)
 #define CLK_125_MHZ				(125000000UL)
 #define CLK_156_25_MHZ				(156250000UL)
 #define CLK_312_5_MHZ				(312500000UL)
+#define GFMUX_UPDATE_TIMEOUT_US			1000
 
 /* Core NSS Clocks */
 #define NSS_CC_NSS_CSR_CBCR			(0x00714)
@@ -305,6 +311,14 @@ int msm_set_parent(struct clk *clk, struct clk *parent)
 
 ulong msm_get_rate(struct clk *clk)
 {
+	switch (clk->id) {
+	case GCC_USB0_MOCK_UTMI_CLK:
+	case GCC_USB1_MOCK_UTMI_CLK:
+		/* USB MOCK_UTMI clocks are configured to 24MHz from CXO */
+		clk->rate = CLK_24_MHZ;
+		break;
+	}
+
 	return (ulong)clk->rate;
 }
 
@@ -361,6 +375,35 @@ static int calc_div_for_nss_port_clk(struct clk *clk, ulong rate,
 	};
 
 	return 0;
+}
+
+static void clk_gfmux_set_rate(phys_addr_t base, uint32_t cmd_gfmux,
+			       int source)
+{
+	u32 cfg;
+	u32 sts_bit;
+	int timeout = GFMUX_UPDATE_TIMEOUT_US;
+
+	if (source < 0 || source > 3)
+		return;
+
+	/* setup src select */
+	cfg = readl(base + cmd_gfmux + RCG_CFG_REG);
+	cfg &= ~GENMASK(3, 0);
+	cfg |= source;
+
+	/* Write new clock configuration */
+	writel(cfg, base + cmd_gfmux + RCG_CFG_REG);
+
+
+	/* Wait for update to complete */
+	sts_bit = 31 - source;
+	do {
+		cfg = readl(base + cmd_gfmux + RCG_CFG_REG);
+		if (cfg & BIT(sts_bit))
+			return;
+		udelay(1);
+	} while (--timeout);
 }
 
 static ulong ipq9650_set_rate(struct clk *clk, ulong rate)
@@ -456,10 +499,10 @@ static ulong ipq9650_set_rate(struct clk *clk, ulong rate)
 					0, 0, CFG_CLK_SRC_GPLL0, 8);
 		break;
 	case GCC_USB0_MOCK_UTMI_CLK:
-		/* Default: 60MHz */
-		writel(1, priv->base + GCC_USB0_MOCK_UTMI_DIV_CDIVR);
+		/* Default: 24MHz */
+		writel(0, priv->base + GCC_USB0_MOCK_UTMI_DIV_CDIVR);
 		clk_rcg_set_rate_mnd(priv->base, GCC_USB0_MOCK_UTMI_CMD_RCGR,
-					19, 0, 0, CFG_CLK_SRC_GPLL4_OUT_AUX, 16);
+					1, 0, 0, CFG_CLK_SRC_CXO, 8);
 		break;
 	case GCC_USB0_AUX_CLK:
 		/* Default: 24MHz */
@@ -467,10 +510,10 @@ static ulong ipq9650_set_rate(struct clk *clk, ulong rate)
 					0, 0, CFG_CLK_SRC_CXO, 8);
 		break;
 	case GCC_USB1_MOCK_UTMI_CLK:
-		/* Default: 60MHz */
-		writel(1, priv->base + GCC_USB1_MOCK_UTMI_DIV_CDIVR);
+		/* Default: 24MHz */
+		writel(0, priv->base + GCC_USB1_MOCK_UTMI_DIV_CDIVR);
 		clk_rcg_set_rate_mnd(priv->base, GCC_USB1_MOCK_UTMI_CMD_RCGR,
-					19, 0, 0, CFG_CLK_SRC_GPLL4_OUT_AUX, 8);
+					1, 0, 0, CFG_CLK_SRC_CXO, 8);
 		break;
 	case GCC_PCIE0_AUX_CLK:
 		fallthrough;
@@ -778,6 +821,14 @@ static ulong ipq9650_set_rate(struct clk *clk, ulong rate)
 		} else {
 			ret = -EINVAL;
 		}
+		break;
+	case APSS_SILVER_CLK:
+		clk_gfmux_set_rate(priv->base, APSS_SILVER_CMD_GFMUX,
+				   APSS_SILVER_SRC_SEL_APSSPLL_OUT_EARLY);
+		break;
+	case APSS_L3_CLK:
+		clk_gfmux_set_rate(priv->base, APSS_L3_CMD_GFMUX,
+				   APSS_L3_SRC_SEL_APSSPLL_OUT_EARLY);
 		break;
 	default:
 		return -EINVAL;
@@ -1147,6 +1198,15 @@ static struct msm_clk_data ipq9650_nsscc_data = {
 	.set_rate = ipq9650_set_rate,
 };
 
+static struct msm_clk_data ipq9650_apss_data = {
+	.resets = ipq9650_gcc_resets,
+	.num_resets = ARRAY_SIZE(ipq9650_gcc_resets),
+	.clks = ipq9650_clks,
+	.num_clks = ARRAY_SIZE(ipq9650_clks),
+	.enable = ipq9650_enable,
+	.set_rate = ipq9650_set_rate,
+};
+
 static const struct udevice_id gcc_ipq9650_of_match[] = {
 	{
 		.compatible = "qcom,ipq9650-gcc",
@@ -1159,6 +1219,14 @@ static const struct udevice_id nsscc_ipq9650_of_match[] = {
 	{
 		.compatible = "qcom,ipq9650-nsscc",
 		.data = (ulong)&ipq9650_nsscc_data,
+	},
+	{ }
+};
+
+static const struct udevice_id apss_ipq9650_of_match[] = {
+	{
+		.compatible = "qcom,ipq9650-apss",
+		.data = (ulong)&ipq9650_apss_data,
 	},
 	{ }
 };
@@ -1177,5 +1245,13 @@ U_BOOT_DRIVER(nsscc_ipq9650) = {
 	.of_match	= nsscc_ipq9650_of_match,
 	.bind		= qcom_cc_bind,
 	.probe		= ipq9650_nsscc_probe,
+	.flags		= DM_FLAG_PRE_RELOC | DM_FLAG_DEFAULT_PD_CTRL_OFF,
+};
+
+U_BOOT_DRIVER(apss_ipq9650) = {
+	.name		= "apss_ipq9650",
+	.id		= UCLASS_NOP,
+	.of_match	= apss_ipq9650_of_match,
+	.bind		= qcom_cc_bind,
 	.flags		= DM_FLAG_PRE_RELOC | DM_FLAG_DEFAULT_PD_CTRL_OFF,
 };
