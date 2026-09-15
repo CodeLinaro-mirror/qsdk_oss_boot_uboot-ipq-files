@@ -11,3 +11,11 @@
 	model = "Qualcomm Technologies, Inc. IPQ5610-EMULATION";
 	compatible = "qcom,ipq5610-emulation", "qcom,ipq5610";
 };
+
+&qmp_tmel {
+	status = "okay";
+};
+
+&tmelcom {
+	status = "okay";
+};

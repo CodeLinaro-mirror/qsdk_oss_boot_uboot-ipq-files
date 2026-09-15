@@ -44,6 +44,7 @@ static int tmelcom_remove(struct udevice *dev)
 
 static const struct udevice_id tmelcom_ids[] = {
 	{ .compatible = "qcom,tmelcom" },
+	{ .compatible = "qcom,tmelcom-qmp-client" },
 	{ }
 };
 
@@ -52,7 +53,7 @@ int ipq_get_tmelcom_device(struct tmelcom **tmelcom_priv)
 	struct udevice *tmelcom_udev;
 	int ret;
 
-	ret = uclass_get_device_by_name(UCLASS_MISC, "qcom,tmelcom",
+	ret = uclass_get_device_by_driver(UCLASS_MISC, DM_DRIVER_GET(tmelcom),
 					&tmelcom_udev);
 	if (ret) {
 		log_err("TMELCOM: Failed to find device node: %d\n", ret);
