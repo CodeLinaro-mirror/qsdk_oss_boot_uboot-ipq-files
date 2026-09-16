@@ -222,6 +222,8 @@ struct pbl_shared_data {
  * live SPL logging generated after consolidation (through end of SPL).
  */
 #define SMEM_CONSOLE_LOG_SIZE		0x4000
+#define DCB_SETTINGS			"dcb_settings"
+#define IPQ_SPL_DCB_IMG_NAME		"dcb"
 
 /*
  * Image version table definitions
@@ -719,6 +721,7 @@ typedef void (*ipq_spl_jump_img_entry_t)(void *arg1, void *arg2);
 static int ipq_spl_dpr_fixup(void *ctx);
 static int ipq_spl_xcfg_fixup(void *ctx);
 static int ipq_spl_qclib_fixup(void *ctx);
+static int ipq_spl_dcb_fixup(void *ctx);
 static int ipq_spl_tfa_fixup(void *ctx);
 static int ipq_spl_optee_fixup(void *ctx);
 static int ipq_spl_uboot_fixup(void *ctx);
@@ -842,6 +845,10 @@ struct ipq_spl_img_ctx img_tbl_fit[] = {
 		.auth = true,
 		.fixup = ipq_spl_qclib_fixup,
 #endif
+	}, {
+		.img_name = IPQ_SPL_DCB_IMG_NAME,
+		.optional = true,
+		.fixup = ipq_spl_dcb_fixup,
 	}, {
 		.img_name = "tfa_bl31-meta",
 		.sw_id = IPQ_SPL_TZ_TEE_SEC_AUTH_SWID,
@@ -2331,6 +2338,63 @@ struct ipq_spl_img_ctx *ipq_spl_get_img_ctx_by_name(char *img_name)
 	return NULL;
 }
 
+static int ipq_spl_set_iftbl_entry(struct interface_table *if_tbl,
+				   const char *name, u64 address, u32 size,
+				   u32 attributes)
+{
+	struct interface_table_entry *entry;
+	size_t name_len;
+	u32 entry_idx;
+
+	if (!if_tbl || !name)
+		return -EINVAL;
+
+	name_len = strlen(name);
+	if (name_len >= sizeof(if_tbl->if_table_entries[0].entry_name))
+		return -ENAMETOOLONG;
+
+	for (entry_idx = 0; entry_idx < if_tbl->num_entries; entry_idx++) {
+		entry = &if_tbl->if_table_entries[entry_idx];
+		if (!strcmp(entry->entry_name, name))
+			goto update_entry;
+	}
+
+	if (if_tbl->num_entries >= if_tbl->max_entries ||
+	    if_tbl->num_entries >= MAX_ENTRIES)
+		return -ENOSPC;
+
+	entry = &if_tbl->if_table_entries[if_tbl->num_entries];
+	memset(entry, 0, sizeof(*entry));
+	memcpy(entry->entry_name, name, name_len + 1);
+	if_tbl->num_entries++;
+
+update_entry:
+	entry->address = address;
+	entry->size = size;
+	entry->attributes = attributes;
+
+	return 0;
+}
+
+static int ipq_spl_update_dcb_settings_entry(struct ipq_spl_ctx *pctx)
+{
+	struct ipq_spl_img_ctx *dcb_img;
+
+	if (!pctx)
+		return -EINVAL;
+
+	if (memcmp(pctx->if_tbl.magic_key, MAGIC_KEY, strlen(MAGIC_KEY)))
+		return 0;
+
+	dcb_img = ipq_spl_get_img_ctx_by_name(IPQ_SPL_DCB_IMG_NAME);
+	if (!dcb_img || !dcb_img->load_addr || !dcb_img->img_sz)
+		return 0;
+
+	return ipq_spl_set_iftbl_entry(&pctx->if_tbl, DCB_SETTINGS,
+				       dcb_img->load_addr, dcb_img->img_sz,
+				       0);
+}
+
 /**
  * ipq_spl_dpr_fixup() - Perform fixups for the DPR ELF image.
  * @ctx:	Pointer to the global SPL context.
@@ -2342,6 +2406,30 @@ struct ipq_spl_img_ctx *ipq_spl_get_img_ctx_by_name(char *img_name)
 static int ipq_spl_dpr_fixup(void *ctx)
 {
 	pr_debug("DPR fixup skipped\n");
+	return 0;
+}
+
+static int ipq_spl_dcb_fixup(void *ctx)
+{
+	int ret;
+	struct ipq_spl_ctx *pctx = ctx;
+
+	if (!pctx) {
+		pr_err("Invalid SPL context\n");
+		return -EINVAL;
+	}
+
+	if (!pctx->img_tbl) {
+		pr_err("Image table is NULL\n");
+		return -EINVAL;
+	}
+
+	ret = ipq_spl_update_dcb_settings_entry(pctx);
+	if (ret) {
+		pr_err("Failed to update DCB settings entry (ret=%d)\n", ret);
+		return ret;
+	}
+
 	return 0;
 }
 
@@ -2437,8 +2525,8 @@ static int ipq_spl_xcfg_fixup(void *ctx)
 	 * Note: The last 10 KB is reserved for QCCONFIG
 	 * and must not be cleared.
 	 */
-	if (!ipq_spl_tmel_bypass_enabled()) {
 #if defined(CONFIG_IPQ_LCP_DARE)
+	if (!ipq_spl_tmel_bypass_enabled()) {
 		/*
 		 * Get LCP DARE key from TME PRNG
 		 */
@@ -2448,7 +2536,13 @@ static int ipq_spl_xcfg_fixup(void *ctx)
 			pr_err("Failed to get LCP DARE key (ret=%d)\n", ret);
 			return ret;
 		}
+	}
 #endif /* CONFIG_IPQ_LCP_DARE */
+
+	ret = ipq_spl_update_dcb_settings_entry(pctx);
+	if (ret) {
+		pr_err("Failed to update DCB settings entry (ret=%d)\n", ret);
+		return ret;
 	}
 
 	return 0;
@@ -3099,8 +3193,14 @@ void board_fit_image_post_process(const void *fit, int node, void **p_image,
 			img_tbl_fit[uc_index].img_sz = *p_size;
 
 			if (fit_image_get_arch(fit, node, &img_arch)) {
-				pr_err("Failed to get architecture for %s\n", img_name);
-				goto fail;
+				if (img_tbl_fit[uc_index].fixup ==
+				    ipq_spl_dcb_fixup) {
+					img_arch = IH_ARCH_INVALID;
+				} else {
+					pr_err("Failed to get architecture for %s\n",
+					       img_name);
+					goto fail;
+				}
 			}
 			img_tbl_fit[uc_index].img_arch = img_arch;
 
