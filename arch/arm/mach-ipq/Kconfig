@@ -615,6 +615,11 @@ config IPQ_CRASHDUMP_TO_MEMORY
 	depends on IPQ_CRASHDUMP
 	default n
 
+config IPQ_DUMP_TO_MEM_DDR_RETENTION
+	bool "IPQ DDR Retention support for crashdump over DDR Memory"
+	depends on IPQ_CRASHDUMP_TO_MEMORY
+	default y
+
 config IPQ_CRASHDUMP_TO_NVMEMORY
 	bool "IPQ Collect Crashdump over Non-Volatile Memory (eMMC / NAND)"
 	depends on IPQ_CRASHDUMP
