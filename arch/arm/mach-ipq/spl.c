@@ -71,6 +71,7 @@
 #include <sysreset.h>
 #include <blk.h>
 #include <qcom_voltage_control.h>
+#include <fdt_support.h>
 
 /**
  * PBL Boot interface
@@ -1493,6 +1494,34 @@ void ipq_spl_malloc_init_f(void)
 #endif
 
 #if defined(CONFIG_CLK_QCOM_PLL)
+#if defined(CONFIG_TARGET_IPQ9650)
+static int ipq_spl_update_ipq9650_v2_pll_compatible(void)
+{
+	static const char compatible[sizeof("qcom,ipq9650-clk-pll") +
+				     sizeof("qcom,ipq-clk-pll")] =
+		"qcom,ipq9650-v2-clk-pll";
+	void *fdt = (void *)gd->fdt_blob;
+	int node;
+	int ret;
+
+	node = fdt_path_offset(fdt, "/soc@0/pll@fa80000");
+	if (node < 0)
+		return node;
+
+	ret = fdt_setprop_inplace(fdt, node, "compatible", compatible,
+				  sizeof(compatible));
+	if (ret)
+		return ret;
+
+	node = fdt_path_offset(fdt, "/soc@0/pll@faa0000");
+	if (node < 0)
+		return node;
+
+	return fdt_setprop_inplace(fdt, node, "compatible", compatible,
+				   sizeof(compatible));
+}
+#endif
+
 /**
  * ipq_spl_probe_and_enable_plls() - Probe and enable all PLLs.
  *
@@ -1505,6 +1534,14 @@ int ipq_spl_probe_and_enable_plls(void)
 	ofnode node, p_handle;
 	struct udevice *pll_dev;
 	u32 index, num_plls;
+
+#if defined(CONFIG_TARGET_IPQ9650)
+	if (TCSR_SOC_HW_VERSION_MAJOR(ipq_get_soc_hw_version()) >= 2) {
+		ret = ipq_spl_update_ipq9650_v2_pll_compatible();
+		if (ret)
+			return ret;
+	}
+#endif
 
 	node = ofnode_by_compatible(ofnode_null(), "qcom,ipq-init-plls");
 	if (!ofnode_valid(node)) {
