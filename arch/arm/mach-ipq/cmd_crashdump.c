@@ -3593,7 +3593,7 @@ void ipq_do_dump_data(crashdump_config_t *dump_config)
 			(hdr->nos_memdumps * sizeof(memdump_list_info_t)) -
 			iface_cfg->dump2mem_rsvd_addr;
 
-		if ((iface_cfg->dump2mem_curr_addr + hdr->total_dump_sz)
+		if ((iface_cfg->dump2mem_rsvd_addr + hdr->total_dump_sz)
 				> iface_cfg->dump2mem_rsvd_limit) {
 			printf("Error: Not enough memory in rsvd mem" \
 					" to save dumps\n");
