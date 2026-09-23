@@ -3851,6 +3851,53 @@ static inline void ipq_edma_disable_rings(struct ipq_edma_hw *ehw)
 }
 
 /*
+ * Clear EDMA ring base addresses after the rings and EDMA block are disabled.
+ * A zero base address is the reset/unconfigured value for these registers.
+ */
+static void ipq_edma_clear_ring_bases(struct ipq_edma_hw *ehw)
+{
+	const phys_addr_t reg_base = ehw->iobase;
+	const struct edma_hw_cfg *hw_cfg = ehw->hw_cfg;
+	int i;
+
+	for (i = 0; i < ehw->max_txdesc_rings; i++) {
+		phys_addr_t ring_base = reg_base + hw_cfg->txdesc.base_offset +
+			i * hw_cfg->txdesc.ring_increment;
+
+		writel(0, ring_base + hw_cfg->txdesc.base_addr.offset);
+		writel(0, ring_base + hw_cfg->txdesc.base_addr_high.offset);
+		writel(0, ring_base + hw_cfg->txdesc.base_addr2.offset);
+		writel(0, ring_base + hw_cfg->txdesc.base_addr2_high.offset);
+	}
+
+	for (i = 0; i < ehw->max_txcmpl_rings; i++) {
+		phys_addr_t ring_base = reg_base + hw_cfg->txcmpl.base_offset +
+			i * hw_cfg->txcmpl.ring_increment;
+
+		writel(0, ring_base + hw_cfg->txcmpl.base_addr.offset);
+		writel(0, ring_base + hw_cfg->txcmpl.base_addr_high.offset);
+	}
+
+	for (i = 0; i < ehw->max_rxfill_rings; i++) {
+		phys_addr_t ring_base = reg_base + hw_cfg->rxfill.base_offset +
+			i * hw_cfg->rxfill.ring_increment;
+
+		writel(0, ring_base + hw_cfg->rxfill.base_addr.offset);
+		writel(0, ring_base + hw_cfg->rxfill.base_addr_high.offset);
+	}
+
+	for (i = 0; i < ehw->max_rxdesc_rings; i++) {
+		phys_addr_t ring_base = reg_base + hw_cfg->rxdesc.base_offset +
+			i * hw_cfg->rxdesc.ring_increment;
+
+		writel(0, ring_base + hw_cfg->rxdesc.base_addr.offset);
+		writel(0, ring_base + hw_cfg->rxdesc.base_addr_high.offset);
+		writel(0, ring_base + hw_cfg->rxdesc.base_addr2.offset);
+		writel(0, ring_base + hw_cfg->rxdesc.base_addr2_high.offset);
+	}
+}
+
+/*
  * EDMA interrupt disable
  */
 static void ipq_edma_disable_intr(struct ipq_edma_hw *ehw)
@@ -5467,14 +5514,41 @@ fail:
 static int ipq_eth_remove(struct udevice *dev)
 {
 	struct ipq_eth_dev *priv = dev_get_priv(dev);
+	struct ipq_edma_hw *ehw = &priv->hw;
 	int i;
+
+	/*
+	 * Disable global edma
+	 */
+	writel(0, ehw->iobase + ehw->hw_cfg->global.port_ctrl.offset);
 
 	for (i = 0; i < CONFIG_ETH_MAX_MAC; ++i) {
 		if (priv->port[i]) {
+			ppe_port_bridge_txmac_set(priv->ppe.base, priv->port[i]->id, false);
+
+			/* Stop the PHY driver before forcing BMCR power-down. */
+			if (priv->port[i]->phydev) {
+				/* Set BMCR.PDOWN while preserving the other BMCR bits. */
+				phy_modify(priv->port[i]->phydev, MDIO_MMD_PMAPMD,
+					   MII_BMCR, BMCR_PDOWN, BMCR_PDOWN);
+			}
+
 			free(priv->port[i]);
 			priv->port[i] = NULL;
 		}
 	}
+
+	/*
+	 * Disable interrupts
+	 */
+	ipq_edma_disable_intr(ehw);
+
+	/*
+	 * Disable rings
+	 */
+	ipq_edma_disable_rings(ehw);
+
+	ipq_edma_clear_ring_bases(ehw);
 
 	return 0;
 }
@@ -5940,7 +6014,7 @@ U_BOOT_DRIVER(eth_ipq) = {
 	.ops	= &ipq_eth_ops,
 	.priv_auto = sizeof(struct ipq_eth_dev),
 	.plat_auto = sizeof(struct eth_pdata),
-	.flags = DM_FLAG_ALLOC_PRIV_DMA,
+	.flags = DM_FLAG_ALLOC_PRIV_DMA | DM_FLAG_OS_PREPARE | DM_FLAG_ACTIVE_DMA,
 };
 
 #ifdef CONFIG_PHY_AQUANTIA
