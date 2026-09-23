@@ -2130,6 +2130,38 @@ static const struct alpha_pll_config ipq9650_l3_pll_config = {
 	.main_output_mask = BIT(0),
 };
 
+static const struct alpha_pll_config ipq9650_v2_apss_pll_config = {
+	.alpha = 0x0,
+	.l = 0x37,
+	.config_ctl_val = 0x08200920,
+	.config_ctl_hi_val = 0x05008001,
+	.config_ctl_hi1_val = 0x04000000,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.test_ctl_hi1_val = 0x0,
+	.user_ctl_val = 0x01000009,
+	.early_output_mask = BIT(3),
+	.aux2_output_mask = BIT(2),
+	.aux_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+};
+
+static const struct alpha_pll_config ipq9650_v2_l3_pll_config = {
+	.alpha = 0x0,
+	.l = 0x2f,
+	.config_ctl_val = 0x08200920,
+	.config_ctl_hi_val = 0x05008001,
+	.config_ctl_hi1_val = 0x04000000,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.test_ctl_hi1_val = 0x0,
+	.user_ctl_val = 0x01000009,
+	.early_output_mask = BIT(3),
+	.aux2_output_mask = BIT(2),
+	.aux_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+};
+
 /**
  * List of Target specific PLL descriptors
  */
@@ -2227,6 +2259,24 @@ static const struct clk_alpha_pll_desc ipq9650_plls[] = {
 	}
 };
 
+static const struct clk_alpha_pll_desc ipq9650_v2_plls[] = {
+	{
+		.name = "apsspll",
+		.pll = &ipq9650_apss_pll,
+		.pll_config = &ipq9650_v2_apss_pll_config,
+		.pll_ops = &clk_alpha_pll_zonda_ops,
+	}, {
+		.name = "l3pll",
+		.pll = &ipq9650_l3_pll,
+		.pll_config = &ipq9650_v2_l3_pll_config,
+		.pll_ops = &clk_alpha_pll_zonda_ops,
+	}, {
+		/**
+		 * List Terminator
+		 */
+	}
+};
+
 /**
  * List of Target specific PLL table information
  */
@@ -2243,6 +2293,11 @@ const struct clk_alpha_pll_tbl ipq5210_pll_tbl = {
 const struct clk_alpha_pll_tbl ipq9650_pll_tbl = {
 	.pll_desc_base = ipq9650_plls,
 	.num_plls = ARRAY_SIZE(ipq9650_plls),
+};
+
+const struct clk_alpha_pll_tbl ipq9650_v2_pll_tbl = {
+	.pll_desc_base = ipq9650_v2_plls,
+	.num_plls = ARRAY_SIZE(ipq9650_v2_plls),
 };
 
 /**
@@ -2264,7 +2319,10 @@ clk_alpha_pll_desc *ipq_clk_pll_lookup(struct udevice *dev, const char *name)
 		return NULL;
 	}
 
-	pll_tbl = (const struct clk_alpha_pll_tbl *)dev_get_driver_data(dev);
+	if (device_is_compatible(dev, "qcom,ipq9650-v2-clk-pll"))
+		pll_tbl = &ipq9650_v2_pll_tbl;
+	else
+		pll_tbl = (const struct clk_alpha_pll_tbl *)dev_get_driver_data(dev);
 
 	if (!pll_tbl || !pll_tbl->pll_desc_base || !pll_tbl->num_plls) {
 		pr_err("pll lookup: invalid pll table\n");
@@ -2449,6 +2507,9 @@ static const struct udevice_id ipq_clk_pll_of_match[] = {
 	}, {
 		.compatible = "qcom,ipq9650-clk-pll",
 		.data = (ulong)&ipq9650_pll_tbl
+	}, {
+		.compatible = "qcom,ipq9650-v2-clk-pll",
+		.data = (ulong)&ipq9650_v2_pll_tbl
 	}, {
 		/**
 		 * List Terminator
