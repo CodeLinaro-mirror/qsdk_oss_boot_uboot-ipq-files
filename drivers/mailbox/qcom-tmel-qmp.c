@@ -455,8 +455,8 @@ static void tmel_qmp_rx(struct tmel *tdev)
 
 	switch (mdev->local_state) {
 	case LINK_NEGOTIATION:
-		if (!(mdev->mcore.bits.link_state) ||
-		    !(mdev->ucore.bits.link_state)) {
+		if (!(mdev->ucore.bits.link_state) ||
+		    !(mdev->ucore.bits.link_state_ack)) {
 			dev_err(mdev->dev, "rx irq:link down state\n");
 			break;
 		}
@@ -472,16 +472,36 @@ static void tmel_qmp_rx(struct tmel *tdev)
 		/* No need to handle until local opens */
 		break;
 	case LOCAL_CONNECTING:
-		/* Ack to remote ch_state change */
-		mdev->mcore.bits.ch_state_ack = mdev->ucore.bits.ch_state;
-		mdev->local_state = CHANNEL_CONNECTED;
-		/* Make sure state is updated before waking up the client */
-		wmb();
-		mdev->ch_complete = true;
-		dev_dbg(mdev->dev, "Set to channel connected");
-		tmel_qmp_send_irq(mdev);
+		if (!(mdev->ucore.bits.ch_state)) {
+			dev_err(mdev->dev, "rx irq:channel not connected\n");
+			break;
+		}
+
+		/* check remote ch_state change */
+		if (mdev->mcore.bits.ch_state_ack != mdev->ucore.bits.ch_state) {
+			/* Ack to remote ch_state change */
+			mdev->mcore.bits.ch_state_ack = mdev->ucore.bits.ch_state;
+			tmel_qmp_send_irq(mdev);
+			break;
+		}
+
+		/* check remote ch_state change ack */
+		if (mdev->mcore.bits.ch_state_ack &&
+		    mdev->ucore.bits.ch_state_ack) {
+			mdev->local_state = CHANNEL_CONNECTED;
+			/* Make sure state is updated before waking up the client */
+			wmb();
+			mdev->ch_complete = true;
+			dev_dbg(mdev->dev, "Set to channel connected");
+			break;
+		}
+
 		break;
 	case CHANNEL_CONNECTED:
+		/* check if rx completed */
+		if (tdev->rx_done)
+			break;
+
 		/* Check for remote channel down */
 		if (!(mdev->ucore.bits.ch_state)) {
 			mdev->local_state = LOCAL_CONNECTING;
@@ -502,6 +522,8 @@ static void tmel_qmp_rx(struct tmel *tdev)
 		/* Check if remote is Transmitting */
 		if (!(mdev->ucore.bits.tx != mdev->mcore.bits.tx_ack))
 			break;
+
+		/* Check if RX failed */
 		if (mdev->ucore.bits.frag_size == 0 ||
 		    mdev->ucore.bits.frag_size > QMP_MAX_PKT_SIZE) {
 			dev_err(mdev->dev, "Rx frag size error %d\n",
@@ -511,7 +533,8 @@ static void tmel_qmp_rx(struct tmel *tdev)
 		tmel_qmp_recv_data(tdev, QMP_CTRL_DATA_SIZE);
 		break;
 	case LOCAL_DISCONNECTING:
-		if (!(mdev->mcore.bits.ch_state)) {
+		/* check for ch_state change */
+		if (!(mdev->ucore.bits.ch_state)) {
 			tmel_qmp_clr_mcore_ch_state(mdev);
 			mdev->local_state = LINK_CONNECTED;
 			dev_dbg(mdev->dev, "Channel closed");
@@ -755,12 +778,16 @@ static int tmel_process_request(struct tmel *tdev, u32 msg_uid, void *msg_buf,
 	 * to acknowledge it
 	 */
 	retry = MAX_IRQ_RETRY;
-	while (!tdev->rx_done && retry--) {
+	while (retry--) {
 		/*
 		 * Make sure we see the updated value of rx_done
 		 */
 		rmb();
 		tmel_check_for_irq(tdev);
+
+		if (tdev->rx_done &&
+		    mdev->mcore.bits.rx_done_ack == mdev->ucore.bits.rx_done_ack)
+			break;
 	}
 
 	if (!tdev->rx_done) {
@@ -1351,6 +1378,7 @@ static int tmel_qmp_shutdown(struct mbox_chan *chan)
 {
 	struct tmel *tdev = dev_get_priv(chan->dev);
 	struct qmp_device *mdev = tdev->mdev;
+	int retry;
 
 	if (!mdev)
 		return -EINVAL;
@@ -1360,7 +1388,17 @@ static int tmel_qmp_shutdown(struct mbox_chan *chan)
 		mdev->mcore.bits.ch_state = 0;
 		tmel_qmp_send_irq(mdev);
 
-		tmel_check_for_irq(tdev);
+		retry = MAX_IRQ_RETRY;
+		while (mdev->local_state == LOCAL_DISCONNECTING && retry--) {
+			/* Observe state updated by tmel_qmp_rx(). */
+			rmb();
+			tmel_check_for_irq(tdev);
+		}
+
+		if (mdev->local_state == LOCAL_DISCONNECTING) {
+			dev_err(mdev->dev, "Timeout waiting for channel close\n");
+			return -ETIMEDOUT;
+		}
 	}
 
 	return 0;
@@ -1571,6 +1609,9 @@ static int tmel_qmp_mbox_probe(struct udevice *dev)
 	/* Configure and enable interrupts */
 	set_interrupt_flags(tdev);
 	enable_interrupt(tdev);
+
+	/* Clear pending interrupts */
+	clear_pending_interrupt(tdev);
 
 	return 0;
 
