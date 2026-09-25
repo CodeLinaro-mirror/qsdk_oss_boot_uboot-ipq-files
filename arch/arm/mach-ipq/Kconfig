@@ -102,6 +102,16 @@ config SPL_QCOM_FUSE_VOLTAGE_CONTROL
 	  requested rail voltage and program the configured regulator before
 	  DDR initialization starts.
 
+config SPL_MP8899_REGULATOR
+	bool "MP8899 I2C regulator in SPL"
+	depends on SPL
+	depends on SPL_DM
+	depends on SPL_DM_I2C
+	depends on SPL_DM_REGULATOR
+	help
+	  Enable the MP8899 I2C regulator backend used by Qualcomm fuse
+	  voltage control in SPL.
+
 config ARCH_64BIT_SUPPORT
 	bool "IPQSOC 64-bit support"
 	select ARM64
