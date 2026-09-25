@@ -1042,6 +1042,7 @@ static int ipq9650_enable(struct clk *clk)
 
 static const struct qcom_reset_map ipq9650_gcc_resets[] = {
 	[GCC_SDCC_BCR] = {0x33000, 0},
+	[GCC_QPIC_BCR]			= {0x32000, 0},
 	[GCC_USB0_PHY_BCR]		= {0x2C06C, 0},
 	[GCC_USB3PHY_0_PHY_BCR]		= {0x2C070, 0},
 	[GCC_QUSB2_0_PHY_BCR]		= {0x2C068, 0},
