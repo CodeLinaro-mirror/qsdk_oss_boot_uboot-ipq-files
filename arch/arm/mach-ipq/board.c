@@ -1065,7 +1065,7 @@ int embedded_dtb_select(void)
 
 #if defined(CONFIG_SPL)
 #if defined(CONFIG_TARGET_IPQ5210)
-static bool hermosa_prefer_mbn_v7(void)
+bool hermosa_prefer_mbn_v7(void)
 {
 	static bool decision_valid;
 	static bool prefer_v7;

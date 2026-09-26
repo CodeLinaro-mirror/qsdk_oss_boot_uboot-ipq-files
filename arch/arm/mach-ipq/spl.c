@@ -71,6 +71,7 @@
 #include <sysreset.h>
 #include <blk.h>
 #include <qcom_voltage_control.h>
+#include <fdt_support.h>
 
 /**
  * PBL Boot interface
@@ -1493,6 +1494,34 @@ void ipq_spl_malloc_init_f(void)
 #endif
 
 #if defined(CONFIG_CLK_QCOM_PLL)
+#if defined(CONFIG_TARGET_IPQ9650)
+static int ipq_spl_update_ipq9650_v2_pll_compatible(void)
+{
+	static const char compatible[sizeof("qcom,ipq9650-clk-pll") +
+				     sizeof("qcom,ipq-clk-pll")] =
+		"qcom,ipq9650-v2-clk-pll";
+	void *fdt = (void *)gd->fdt_blob;
+	int node;
+	int ret;
+
+	node = fdt_path_offset(fdt, "/soc@0/pll@fa80000");
+	if (node < 0)
+		return node;
+
+	ret = fdt_setprop_inplace(fdt, node, "compatible", compatible,
+				  sizeof(compatible));
+	if (ret)
+		return ret;
+
+	node = fdt_path_offset(fdt, "/soc@0/pll@faa0000");
+	if (node < 0)
+		return node;
+
+	return fdt_setprop_inplace(fdt, node, "compatible", compatible,
+				   sizeof(compatible));
+}
+#endif
+
 /**
  * ipq_spl_probe_and_enable_plls() - Probe and enable all PLLs.
  *
@@ -1505,6 +1534,14 @@ int ipq_spl_probe_and_enable_plls(void)
 	ofnode node, p_handle;
 	struct udevice *pll_dev;
 	u32 index, num_plls;
+
+#if defined(CONFIG_TARGET_IPQ9650)
+	if (TCSR_SOC_HW_VERSION_MAJOR(ipq_get_soc_hw_version()) >= 2) {
+		ret = ipq_spl_update_ipq9650_v2_pll_compatible();
+		if (ret)
+			return ret;
+	}
+#endif
 
 	node = ofnode_by_compatible(ofnode_null(), "qcom,ipq-init-plls");
 	if (!ofnode_valid(node)) {
@@ -3114,6 +3151,10 @@ fail:
 }
 #endif /* CONFIG_SPL_FIT_IMAGE_POST_PROCESS */
 
+#if defined(CONFIG_TARGET_IPQ5210)
+bool hermosa_prefer_mbn_v7(void);
+#endif
+
 /**
  * bl2_plat_get_bl31_params_v2() - Retrieve and fixup BL31 parameters.
  * @bl32_entry:	Entry point for BL32 (OP-TEE).
@@ -3177,7 +3218,14 @@ struct bl_params *bl2_plat_get_bl31_params_v2(uintptr_t bl32_entry,
 			 */
 			node->ep_info->args.arg0 = if_tbl_entry.address;
 		} else if (node->image_id == ATF_BL33_IMAGE_ID) {
-			img_tbl = ipq_spl_get_img_ctx_by_name("uboot-meta");
+			img_tbl = NULL;
+
+#if defined(CONFIG_TARGET_IPQ5210)
+			if (hermosa_prefer_mbn_v7())
+				img_tbl = ipq_spl_get_img_ctx_by_name("uboot-meta-v7");
+#endif
+			if (!img_tbl || img_tbl->img_arch != IH_ARCH_ARM)
+				img_tbl = ipq_spl_get_img_ctx_by_name("uboot-meta");
 
 			if (img_tbl && img_tbl->img_arch == IH_ARCH_ARM) {
 				/* SPSR = 0x1D3 for 32-bit Mode */
