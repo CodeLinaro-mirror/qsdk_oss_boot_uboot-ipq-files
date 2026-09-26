@@ -118,7 +118,8 @@ static const struct qcom_voltage_policy_state ipq5210_soc_cx_policy[] = {
 };
 
 static const struct qcom_voltage_policy_state ipq9650_soc_cx_policy[] = {
-	{ QVC_MODE_MASK_NOMINAL, 750000, 820000, 820000 },
+	{ QVC_MODE_MASK_NOMINAL, 750000, 750000, 750000 },
+	{ QVC_MODE_MASK_NOMINAL, 755000, 820000, 820000 },
 };
 
 static const struct qcom_voltage_policy_state ipq9650_ddr_cx_policy[] = {
