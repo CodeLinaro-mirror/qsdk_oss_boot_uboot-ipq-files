@@ -71,6 +71,33 @@
 		method = "smc";
 	};
 
+	soc_cx_gpio_reg: soc-cx-gpio-regulator {
+		bootph-pre-ram;
+		compatible = "qcom,gpio-regulator";
+		regulator-name = "soc_cx";
+		regulator-min-microvolt = <850000>;
+		regulator-max-microvolt = <920000>;
+		gpios = <&tlmm 22 GPIO_ACTIVE_HIGH>;
+		states = <
+			850000 0x0
+			920000 0x1
+		>;
+	};
+
+	voltage_control: voltage-control {
+		bootph-pre-ram;
+		compatible = "qcom,ipq5210-fuse-voltage-control",
+			     "qcom,fuse-voltage-control";
+
+		soc_cx_vc: soc_cx {
+			bootph-pre-ram;
+			qcom,rail-name = "soc_cx";
+			qcom,backend = "gpio";
+			qcom,mode = "nominal";
+			regulator = <&soc_cx_gpio_reg>;
+		};
+	};
+
 	soc@0 {
 		bootph-all;
 		compatible = "simple-bus";
