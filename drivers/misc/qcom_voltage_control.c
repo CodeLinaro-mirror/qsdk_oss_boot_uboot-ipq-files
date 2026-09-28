@@ -152,7 +152,7 @@ static const struct qvc_rail_desc ipq9650_rails[] = {
 		.default_mode = QCOM_VOLTAGE_MODE_NOMINAL,
 		.nominal = {
 			.fuse = { 0x000A03F8, 15, 0x7f, true },
-			.vref_uv = 820000,
+			.vref_uv = 750000,
 			.valid = true,
 		},
 		.default_uv = 820000,
