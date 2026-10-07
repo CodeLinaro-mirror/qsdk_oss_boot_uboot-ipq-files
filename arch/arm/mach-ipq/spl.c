@@ -3505,8 +3505,8 @@ int ipq_spl_failsafe_get_env_info(u8 boot_device)
 		if (g_bootrec.env_failover > 1)
 			g_bootrec.env_failover = 0;
 
-		g_bootrec.env_bootlimit = env_get_hex("bootlimit",
-						      g_bootrec.env_bootlimit);
+		g_bootrec.env_bootlimit = env_get_ulong("bootlimit", 10,
+						       g_bootrec.env_bootlimit);
 		if ((g_bootrec.env_bootlimit == 0) ||
 		    (g_bootrec.env_bootlimit > 31))
 			g_bootrec.env_bootlimit =
@@ -3528,7 +3528,7 @@ int ipq_spl_failsafe_get_env_info(u8 boot_device)
 	else
 		printf("Failsafe info: failover = DISABLED\n");
 
-	printf("Failsafe info: bootlimit = %x\n", g_bootrec.env_bootlimit);
+	printf("Failsafe info: bootlimit = %u\n", g_bootrec.env_bootlimit);
 
 	printf("Failsafe info: bootfrom = %s\n",
 		bootset_str(g_bootrec.env_bootfrom));
