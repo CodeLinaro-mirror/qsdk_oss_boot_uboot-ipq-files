@@ -124,7 +124,9 @@ static const struct qcom_voltage_policy_state ipq9650_soc_cx_policy[] = {
 
 static const struct qcom_voltage_policy_state ipq9650_ddr_cx_policy[] = {
 	{ QVC_MODE_MASK_NOMINAL, 750000, 815000, 815000 },
-	{ QVC_MODE_MASK_TURBO, 815000, 960000, 960000 },
+	{ QVC_MODE_MASK_TURBO, 750000, 800000, 815000 },
+	{ QVC_MODE_MASK_TURBO, 805000, 890000, 890000 },
+	{ QVC_MODE_MASK_TURBO, 895000, 960000, 960000 },
 };
 
 static const struct qvc_rail_desc ipq5210_rails[] = {
@@ -181,7 +183,7 @@ static const struct qvc_rail_desc ipq9650_rails[] = {
 		},
 		.turbo = {
 			.fuse = { 0x000A0410, 23, 0x7f, true },
-			.vref_uv = 960000,
+			.vref_uv = 890000,
 			.valid = true,
 		},
 		.default_uv = 960000,
