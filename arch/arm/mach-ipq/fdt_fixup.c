@@ -363,6 +363,33 @@ __weak void ipq_fdt_fixup_socinfo(void *blob)
 
 __weak void ipq_fdt_fixup_board(void *blob) {}
 
+/**
+ * ipq_fdt_fixup_ddr_retention() - Apply FDT fixup when DDR retention bit is set
+ */
+#ifdef CONFIG_IPQ_DUMP_TO_MEM_DDR_RETENTION
+void ipq_fdt_fixup_ddr_retention(void *blob)
+{
+	int nodeoff;
+
+	if (!(ipq_read_tcsr_boot_misc() & DDR_RETENTION_MASK))
+		return;
+
+	nodeoff = fdt_path_offset(blob, "/reserved-memory/minidump_mem@0");
+	if (nodeoff < 0) {
+		debug("%s: minidump_mem node not found\n", __func__);
+		return;
+	}
+
+	/* Remove reusable property to make it no-map */
+	fdt_delprop(blob, nodeoff, "reusable");
+
+	/* Remove compatible property */
+	fdt_delprop(blob, nodeoff, "compatible");
+}
+#else
+void ipq_fdt_fixup_ddr_retention(void *blob) {}
+#endif
+
 #if defined(CONFIG_EFI_PARTITION)
 void ipq_memcpy16(u16 *src, u8 *dst, int size)
 {
@@ -997,6 +1024,7 @@ static const fdt_fixup_t fixup_functions[] = {
 	ipq_fdt_fixup_sku_based_usb_config,
 	ipq_fdt_fixup_dload_disable,
 	ipq_fdt_fixup_board,
+	ipq_fdt_fixup_ddr_retention,
 	NULL
 };
 

@@ -3615,6 +3615,10 @@ void ipq_do_dump_data(crashdump_config_t *dump_config)
 		flush_dcache_range((unsigned long)iface_cfg->dump2mem_rsvd_addr,
 				   (unsigned long)iface_cfg->dump2mem_rsvd_addr +
 				   sizeof(memdump_hdr_t));
+
+		/* Mark dump_to_mem as successful */
+		gd->board_type |= DUMP_TO_MEM_SUCCESS;
+		debug("dump_to_mem completed successfully, DDR retention will be enabled\n");
 		break;
 #endif /* CONFIG_IPQ_CRASHDUMP_TO_MEMORY */
 
@@ -3755,6 +3759,15 @@ void reset_crashdump(int reset_version)
 	int ret = -1;
 	struct scm_param param;
 	unsigned int cookie = ipq_read_tcsr_boot_misc();
+	unsigned int cookie_new = cookie;
+
+#ifdef CONFIG_IPQ_DUMP_TO_MEM_DDR_RETENTION
+	/* Enable DDR retention if dump_to_mem was successful */
+	if (gd->board_type & DUMP_TO_MEM_SUCCESS) {
+		printf("Enabling DDR retention...\n");
+		cookie_new |= DDR_RETENTION_MASK;
+	}
+#endif
 
 	switch(reset_version) {
 	case RESET_V1:
@@ -3774,26 +3787,21 @@ void reset_crashdump(int reset_version)
 		}
 
 	case RESET_V2:
-		if (cookie & DLOAD_ENABLE)
-			cookie |= CRASHDUMP_RESET;
+		if (cookie_new & DLOAD_ENABLE)
+			cookie_new |= CRASHDUMP_RESET;
 #ifdef CONFIG_FAILSAFE
 		else if (!ipq_iscrashed_crashdump_disabled())
-			cookie &= ~MARK_UBOOT_MILESTONE;
+			cookie_new &= ~MARK_UBOOT_MILESTONE;
 #endif
 
-		cookie &= DLOAD_DISABLE;
+		cookie_new &= DLOAD_DISABLE;
 	}
 
-	if(cookie & CRASHDUMP_RESET
-#ifdef CONFIG_FAILSAFE
-		|| !(cookie & MARK_UBOOT_MILESTONE)
-#endif
-		)
-	{
+	if (cookie_new != cookie) {
 		do {
 			ret = -ENOTSUPP;
 			IPQ_SCM_IO_WRITE(param, (uintptr_t)TCSR_BOOT_MISC_REG,
-						cookie);
+						cookie_new);
 			ret = ipq_scm_call(&param);
 
 			if (ret) {
