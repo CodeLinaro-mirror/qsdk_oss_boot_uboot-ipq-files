@@ -3215,7 +3215,7 @@ __weak int ipq_read_tcsr_boot_misc(void)
 	return *dmagic;
 }
 
-#if IS_ENABLED(CONFIG_SPL)
+#if IS_ENABLED(CONFIG_SPL) && !IS_ENABLED(CONFIG_SYSRESET)
 __weak void ipq_spl_pre_reset_seq(void) {}
 
 void reset_cpu(void)
@@ -3240,7 +3240,7 @@ void reset_cpu(void)
 	while (1)
 		asm volatile("wfi");
 }
-#endif /* CONFIG_SPL */
+#endif /* CONFIG_SPL && !CONFIG_SYSRESET */
 
 #ifdef CONFIG_IPQ_PCIE
 void pci_select_window(uintptr_t bar0_base, u32 offset)

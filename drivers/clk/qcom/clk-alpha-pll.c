@@ -1912,6 +1912,18 @@ static struct clk_alpha_pll ipq9650_l3_pll = {
 	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_ZONDA],
 };
 
+static struct clk_alpha_pll ipq5610_gpll0 = {
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_LUCID_FAST_N6RF],
+};
+
+static struct clk_alpha_pll ipq5610_gpll2 = {
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_ZONDA],
+};
+
+static struct clk_alpha_pll ipq5610_gpll4 = {
+	.regs = clk_alpha_pll_regs[CLK_ALPHA_PLL_TYPE_LUCID_FAST_N6RF],
+};
+
 /**
  * List of Target specific PLL Configs
  */
@@ -2162,6 +2174,57 @@ static const struct alpha_pll_config ipq9650_v2_l3_pll_config = {
 	.main_output_mask = BIT(0),
 };
 
+static const struct alpha_pll_config ipq5610_gpll0_config = {
+	.alpha = 0x5555,
+	.l = 0x21,
+	.config_ctl_val = 0x20485699,
+	.config_ctl_hi_val = 0x00002261,
+	.config_ctl_hi1_val = 0xB2923BBC,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.test_ctl_hi1_val = 0x0,
+	.user_ctl_val = 0x1,
+	.user_ctl_hi_val = 0x805,
+	.user_ctl_hi1_val = 0x0,
+	.odd_output_mask = BIT(2),
+	.even_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+};
+
+static const struct alpha_pll_config ipq5610_gpll2_config = {
+	.alpha = 0x0,
+	.l = 0x30,
+	.config_ctl_val = 0x08200920,
+	.config_ctl_hi_val = 0x05008001,
+	.config_ctl_hi1_val = 0x0,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.test_ctl_hi1_val = 0x0,
+	.user_ctl_val = 0x8,
+	.early_output_mask = BIT(3),
+	.aux2_output_mask = BIT(2),
+	.aux_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+	.post_div_val = 0x2,
+};
+
+static const struct alpha_pll_config ipq5610_gpll4_config = {
+	.alpha = 0x0,
+	.l = 0x32,
+	.config_ctl_val = 0x20485699,
+	.config_ctl_hi_val = 0x00002261,
+	.config_ctl_hi1_val = 0xB2923BBC,
+	.test_ctl_val = 0x0,
+	.test_ctl_hi_val = 0x0,
+	.test_ctl_hi1_val = 0x0,
+	.user_ctl_val = 0x1,
+	.user_ctl_hi_val = 0x805,
+	.user_ctl_hi1_val = 0x0,
+	.odd_output_mask = BIT(2),
+	.even_output_mask = BIT(1),
+	.main_output_mask = BIT(0),
+};
+
 /**
  * List of Target specific PLL descriptors
  */
@@ -2277,6 +2340,29 @@ static const struct clk_alpha_pll_desc ipq9650_v2_plls[] = {
 	}
 };
 
+static const struct clk_alpha_pll_desc ipq5610_plls[] = {
+	{
+		.name = "gpll0",
+		.pll = &ipq5610_gpll0,
+		.pll_config = &ipq5610_gpll0_config,
+		.pll_ops = &clk_alpha_pll_lucid_fastn6rf_ops,
+	}, {
+		.name = "gpll2",
+		.pll = &ipq5610_gpll2,
+		.pll_config = &ipq5610_gpll2_config,
+		.pll_ops = &clk_alpha_pll_zonda_ops,
+	}, {
+		.name = "gpll4",
+		.pll = &ipq5610_gpll4,
+		.pll_config = &ipq5610_gpll4_config,
+		.pll_ops = &clk_alpha_pll_lucid_fastn6rf_ops,
+	}, {
+		/**
+		 * List Terminator
+		 */
+	}
+};
+
 /**
  * List of Target specific PLL table information
  */
@@ -2298,6 +2384,11 @@ const struct clk_alpha_pll_tbl ipq9650_pll_tbl = {
 const struct clk_alpha_pll_tbl ipq9650_v2_pll_tbl = {
 	.pll_desc_base = ipq9650_v2_plls,
 	.num_plls = ARRAY_SIZE(ipq9650_v2_plls),
+};
+
+const struct clk_alpha_pll_tbl ipq5610_pll_tbl = {
+	.pll_desc_base = ipq5610_plls,
+	.num_plls = ARRAY_SIZE(ipq5610_plls),
 };
 
 /**
@@ -2510,6 +2601,9 @@ static const struct udevice_id ipq_clk_pll_of_match[] = {
 	}, {
 		.compatible = "qcom,ipq9650-v2-clk-pll",
 		.data = (ulong)&ipq9650_v2_pll_tbl
+	}, {
+		.compatible = "qcom,ipq5610-clk-pll",
+		.data = (ulong)&ipq5610_pll_tbl
 	}, {
 		/**
 		 * List Terminator

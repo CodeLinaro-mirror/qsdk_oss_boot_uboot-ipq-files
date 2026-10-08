@@ -344,6 +344,7 @@ config SHARED_IPC_INTERRUPT_REG
 	hex "Shared IPC interrupt register"
 	default 0xF40000C if TARGET_IPQ5424
 	default 0xF40000C if TARGET_IPQ9650
+	default 0xF40000C if TARGET_IPQ5610
 	default 0xB111008 if TARGET_IPQ5210
 	default 0
 	help
@@ -1114,12 +1115,40 @@ config TARGET_IPQ5610
 	imply IPQ_MULTI_DTB_SUPPORT
 	imply NOR_BLK
 	select CMD_CACHE
+	imply MISC
+	imply IPQ_BOARD_DEFAULT
 	imply GPT_UPDATE_PARAMS
 	imply DMA
 	imply DMA_CHANNELS
+	select BAM_DMA if DMA
+	imply LIST_FUSE
+	imply IPQ_TMEL_IPC_SUPPORT
+	imply IPQ_TMEL_PRNG_IPC_SUPPORT
+	imply IPQ_LCP_DARE
+	imply IPQ_SOFTSKU_SUPPORT
+	imply LIST_FUSE_V2 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
+	imply SCM_V2
+	imply IPQ_SECURE
+	imply CMD_AES_256
+	imply AES_256_DERIVE_KEY
+	imply SECURE_AUTH_V3 if IPQ_SECURE && SCM_V2 || IPQ_TMEL_IPC_SUPPORT
+	imply RUNTIME_SF_ENV_UPDATE if ENV_IS_IN_SPI_FLASH
+	imply MDIO_AHB
+	select TEE
+	select OPTEE
+	imply FUSE_IPQ
+	imply FUSEIPQ_V3 if IPQ_SECURE && SCM_V2
+	imply FAILSAFE_V2
+	imply BOOT_BANK_FIXUP
+	select BOOT_BANK_SMEM_READ
 	help
 	  Support for IPQ5610 SoC.
 	  - Board Open Platform Specifications.
+	  - Quad Cores A53, Nom@1.2G, L1@32KB L2@512KB
+	  - DDR3L/DDR4
+	  - QSPI NAND / NOR / eMMC
+	  - USB 3.0/I2C/UART/PCIe Gen3 2Lane
+	  - 2.5G/10G Ethernet Ports
 
 endchoice
 

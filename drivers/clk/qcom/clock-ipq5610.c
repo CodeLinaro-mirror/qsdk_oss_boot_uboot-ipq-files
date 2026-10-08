@@ -21,17 +21,40 @@
 #define	GCC_QUPV3_UART1_CMD_RCGR		0x5004
 #define GCC_SDCC1_APPS_CMD_RCGR			0x33004
 #define GCC_QUPV3_SPI0_CMD_RCGR			0x02018
-#define GCC_QPIC_CMD_RCGR			(0x32020)
-#define GCC_QPIC_IO_MACRO_CMD_RCGR		(0x32004)
+#define GCC_QPIC_CMD_RCGR			0x32020
+#define GCC_QPIC_IO_MACRO_CMD_RCGR		0x32004
+#define GCC_QUPV3_2X_CORE_CMD_RCGR		0x0100C
+#define GCC_PCNOC_BFDCD_CMD_RCGR		0x31004
+#define GCC_SYSTEM_NOC_BFDCD_CMD_RCGR		0x2E004
+#define GCC_ANOC0_AXI_BFDCD_CMD_RCGR		0x2E088
+#define GCC_QDSS_TSCTR_CMD_RCGR			0x2D01C
+#define GCC_XO_CMD_RCGR				0x34004
+#define GCC_APSS_AHB_CMD_RCGR			0x2400C
+#define GCC_APSS_AXI_CMD_RCGR			0x24004
+#define GCC_QDSS_AT_CMD_RCGR			0x2D004
 
-#define IO_MACRO_CLK_400_MHZ			(400000000)
-#define IO_MACRO_CLK_320_MHZ			(320000000)
-#define IO_MACRO_CLK_266_MHZ			(266000000)
-#define IO_MACRO_CLK_228_MHZ			(228000000)
-#define IO_MACRO_CLK_200_MHZ			(200000000)
-#define IO_MACRO_CLK_100_MHZ			(100000000)
-#define IO_MACRO_CLK_50_MHZ			(50000000)
-#define IO_MACRO_CLK_24_MHZ			(24000000)
+/* Clock source selections */
+#define GCC_QPIC_SRC_SEL_GPLL0_OUT_MAIN			BIT(8)
+#define GCC_QPIC_IO_MACRO_SRC_SEL_GPLL0_OUT_MAIN	BIT(8)
+#define GCC_QUPV3_2X_CORE_SRC_SEL_GPLL0_OUT_MAIN	BIT(8)
+#define GCC_ANOC0_AXI_BFDCD_SRC_SEL_GPLL4_OUT_MAIN	(2 << 8)
+#define GCC_QDSS_TSCTR_SRC_SEL_GPLL4_OUT_MAIN		BIT(8)
+#define GCC_XO_SRC_SEL_XO				(0 << 8)
+#define GCC_QDSS_AT_SRC_SEL_GPLL4_OUT_MAIN		BIT(8)
+#define GCC_APSS_AHB_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
+#define GCC_APSS_AXI_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
+#define GCC_PCNOC_BFDCD_SRC_SEL_GPLL0_OUT_MAIN		BIT(8)
+#define GCC_SYSTEM_NOC_BFDCD_SRC_SEL_GPLL4_OUT_MAIN	(2 << 8)
+
+/* IO Macro clock rates */
+#define IO_MACRO_CLK_400_MHZ				(400000000)
+#define IO_MACRO_CLK_320_MHZ				(320000000)
+#define IO_MACRO_CLK_266_MHZ				(266000000)
+#define IO_MACRO_CLK_228_MHZ				(228000000)
+#define IO_MACRO_CLK_200_MHZ				(200000000)
+#define IO_MACRO_CLK_100_MHZ				(100000000)
+#define IO_MACRO_CLK_50_MHZ				(50000000)
+#define IO_MACRO_CLK_24_MHZ				(24000000)
 
 int msm_set_parent(struct clk *clk, struct clk *parent)
 {
@@ -50,7 +73,6 @@ ulong msm_get_rate(struct clk *clk)
 static ulong ipq5610_set_rate(struct clk *clk, ulong rate)
 {
 	struct msm_clk_priv *priv = dev_get_priv(clk->dev);
-	int src, div;
 
 	switch (clk->id) {
 	case GCC_QUPV3_UART1_CLK:
@@ -66,45 +88,100 @@ static ulong ipq5610_set_rate(struct clk *clk, ulong rate)
 				     31, 0, 0, CFG_CLK_SRC_GPLL0, 16);
 		break;
 	case GCC_QPIC_CLK:
-		/* GCC_QPIC_CLK: 100 MHz */
+		/* GCC_QPIC_CLK: 100 MHz  */
 		clk_rcg_set_rate_v2(priv->base, GCC_QPIC_CMD_RCGR,
-				    0, 0xF, 0, CFG_CLK_SRC_GPLL0);
+				    0, 0xF, 0, GCC_QPIC_SRC_SEL_GPLL0_OUT_MAIN);
 		break;
 	case GCC_QPIC_IO_MACRO_CLK:
-		src = CFG_CLK_SRC_GPLL0;
-		div = 0;
-
-		switch (rate) {
-		case IO_MACRO_CLK_24_MHZ:
-			src = CFG_CLK_SRC_CXO;
-			div = 0;
-			break;
-		case IO_MACRO_CLK_50_MHZ:
-			div = 31;
-			break;
-		case IO_MACRO_CLK_100_MHZ:
-			div = 15;
-			break;
-		case IO_MACRO_CLK_200_MHZ:
-			div = 7;
-			break;
-		case IO_MACRO_CLK_228_MHZ:
-			div = 6;
-			break;
-		case IO_MACRO_CLK_266_MHZ:
-			div = 5;
-			break;
-		case IO_MACRO_CLK_320_MHZ:
-			div = 4;
-			break;
-		case IO_MACRO_CLK_400_MHZ:
-			div = 3;
-			break;
-		default:
-			return -EINVAL;
+		{
+			int src = GCC_QPIC_IO_MACRO_SRC_SEL_GPLL0_OUT_MAIN;
+			int div = 0;
+			switch (rate) {
+			case IO_MACRO_CLK_24_MHZ:
+				src = CFG_CLK_SRC_CXO;
+				div = 0;
+				break;
+			case IO_MACRO_CLK_50_MHZ:
+				div = 31;
+				break;
+			case IO_MACRO_CLK_100_MHZ:
+				div = 15;
+				break;
+			case IO_MACRO_CLK_200_MHZ:
+				div = 7;
+				break;
+			case IO_MACRO_CLK_228_MHZ:
+				div = 6;
+				break;
+			case IO_MACRO_CLK_266_MHZ:
+				div = 5;
+				break;
+			case IO_MACRO_CLK_320_MHZ:
+				div = 4;
+				break;
+			case IO_MACRO_CLK_400_MHZ:
+				div = 3;
+				break;
+			default:
+				return -EINVAL;
+			}
+			clk_rcg_set_rate_v2(priv->base, GCC_QPIC_IO_MACRO_CMD_RCGR,
+					    0, div, 0, src);
 		}
-		clk_rcg_set_rate_v2(priv->base, GCC_QPIC_IO_MACRO_CMD_RCGR,
-				    0, div, 0, src);
+		break;
+	case GCC_QUPV3_2X_CORE_CLK:
+		/* GCC_QUPV3_2X_CORE_CLK: 200 MHz  */
+		clk_rcg_set_rate_v2(priv->base, GCC_QUPV3_2X_CORE_CMD_RCGR,
+				    0, 7, 0,
+				    GCC_QUPV3_2X_CORE_SRC_SEL_GPLL0_OUT_MAIN);
+		break;
+	case GCC_PCNOC_BFDCD_CLK:
+		/* GCC_PCNOC_BFDCD_CLK: 100 MHz  */
+		clk_rcg_set_rate_v2(priv->base, GCC_PCNOC_BFDCD_CMD_RCGR,
+				    0, 0xF, 0,
+				    GCC_PCNOC_BFDCD_SRC_SEL_GPLL0_OUT_MAIN);
+		break;
+	case GCC_SYSTEM_NOC_BFDCD_CLK:
+		/* GCC_SYSTEM_NOC_BFDCD_CLK: 266 MHz  */
+		clk_rcg_set_rate_v2(priv->base, GCC_SYSTEM_NOC_BFDCD_CMD_RCGR,
+				    0, 8, 0,
+				    GCC_SYSTEM_NOC_BFDCD_SRC_SEL_GPLL4_OUT_MAIN);
+		break;
+	case GCC_ANOC0_AXI_BFDCD_CLK:
+		/* GCC_ANOC0_AXI_BFDCD_CLK: 342 MHz  */
+		clk_rcg_set_rate_v2(priv->base, GCC_ANOC0_AXI_BFDCD_CMD_RCGR,
+				    0, 6, 0,
+				    GCC_ANOC0_AXI_BFDCD_SRC_SEL_GPLL4_OUT_MAIN);
+		break;
+	case GCC_QDSS_TSCTR_CLK:
+		/* GCC_QDSS_TSCTR_CLK: 600 MHz  */
+		clk_rcg_set_rate_v2(priv->base, GCC_QDSS_TSCTR_CMD_RCGR,
+				    0, 3, 0,
+				    GCC_QDSS_TSCTR_SRC_SEL_GPLL4_OUT_MAIN);
+		break;
+	case GCC_XO_CLK:
+		/* GCC_XO_CLK: 24 MHz  */
+		clk_rcg_set_rate_v2(priv->base, GCC_XO_CMD_RCGR,
+				    0, 1, 0,
+				    GCC_XO_SRC_SEL_XO);
+		break;
+	case GCC_QDSS_AT_CLK:
+		/* GCC_QDSS_AT_CLK: 240 MHz  */
+		clk_rcg_set_rate_v2(priv->base, GCC_QDSS_AT_CMD_RCGR,
+				    0, 9, 0,
+				    GCC_QDSS_AT_SRC_SEL_GPLL4_OUT_MAIN);
+		break;
+	case GCC_APSS_AHB_CLK:
+		/* GCC_APSS_AHB_CLK: 100 MHz  */
+		clk_rcg_set_rate_v2(priv->base, GCC_APSS_AHB_CMD_RCGR,
+				    0, 0xF, 0,
+				    GCC_APSS_AHB_SRC_SEL_GPLL0_OUT_MAIN);
+		break;
+	case GCC_APSS_AXI_CLK:
+		/* GCC_APSS_AXI_CLK: 800 MHz  */
+		clk_rcg_set_rate_v2(priv->base, GCC_APSS_AXI_CMD_RCGR,
+				    0, 1, 0,
+				    GCC_APSS_AXI_SRC_SEL_GPLL0_OUT_MAIN);
 		break;
 	default:
 		return -EINVAL;
@@ -114,13 +191,18 @@ static ulong ipq5610_set_rate(struct clk *clk, ulong rate)
 }
 
 static const struct gate_clk ipq5610_clks[] = {
+	GATE_CLK(GCC_QUPV3_AHB_MST_CLK,		0x01014, 0x00000001),
+	GATE_CLK(GCC_QUPV3_AHB_SLV_CLK,		0x0102C, 0x00000001),
 	GATE_CLK(GCC_QUPV3_UART1_CLK,		0x5020, 0x00000001),
 	GATE_CLK(GCC_SDCC1_AHB_CLK,		0x3303C, 0x00000001),
 	GATE_CLK(GCC_SDCC1_APPS_CLK,		0x3302C, 0x00000001),
 	GATE_CLK(GCC_QUPV3_SPI0_CLK,		0x0202C, 0x00000001),
+	GATE_CLK(GCC_QUPV3_2X_CORE_CLK,		0x01020, 0x00000001),
+	GATE_CLK(GCC_QUPV3_CORE_CLK,		0x01018, 0x00000001),
+	GATE_CLK(GCC_QUPV3_SLEEP_CLK,		0x01028, 0x00000001),
 	GATE_CLK(GCC_QPIC_CLK,			0x32028, 0x00000001),
-	GATE_CLK(GCC_QPIC_AHB_CLK,		0x32010, 0x00000001),
 	GATE_CLK(GCC_QPIC_IO_MACRO_CLK,		0x3200C, 0x00000001),
+	GATE_CLK(GCC_QPIC_AHB_CLK,		0x32010, 0x00000001),
 };
 
 static int ipq5610_enable(struct clk *clk)
