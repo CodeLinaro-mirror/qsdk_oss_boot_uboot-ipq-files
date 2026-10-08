@@ -106,7 +106,7 @@
 		pcie1: pci@10000000 {
 			pinctrl-names = "default";
 			pinctrl-0 = <&pci1_pin>;
-			status = "okay";
+			status = "disabled";
 			perst-gpios = <&tlmm 26 GPIO_ACTIVE_LOW>;
 		};
 
