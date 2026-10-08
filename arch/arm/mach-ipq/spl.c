@@ -720,6 +720,9 @@ typedef void (*ipq_spl_jump_img_entry_t)(void *arg1, void *arg2);
  */
 static int ipq_spl_dpr_fixup(void *ctx);
 static int ipq_spl_xcfg_fixup(void *ctx);
+#if defined(CONFIG_TARGET_IPQ5610)
+static int ipq_spl_shrm_fixup(void *ctx);
+#endif
 static int ipq_spl_qclib_fixup(void *ctx);
 static int ipq_spl_dcb_fixup(void *ctx);
 static int ipq_spl_tfa_fixup(void *ctx);
@@ -833,7 +836,16 @@ struct ipq_spl_img_ctx img_tbl_fit[] = {
 		.auth = true,
 		.fixup = ipq_spl_xcfg_fixup,
 #endif
-	}, {
+	},
+#if defined(CONFIG_TARGET_IPQ5610)
+	{
+		.img_name = "shrm-meta",
+		.sw_id = IPQ_SPL_SHRM_SEC_AUTH_SWID,
+		.auth = true,
+		.fixup = ipq_spl_shrm_fixup,
+	},
+#endif
+	{
 		.img_name = "qclib-meta",
 		.sw_id = IPQ_SPL_QCLIB_DDR_SEC_AUTH_SWID,
 		.auth = true,
@@ -2547,6 +2559,22 @@ static int ipq_spl_xcfg_fixup(void *ctx)
 
 	return 0;
 }
+
+#if defined(CONFIG_TARGET_IPQ5610)
+/**
+ * ipq_spl_shrm_fixup() - Perform fixups for the SHRM ELF image.
+ * @ctx:	Pointer to the global SPL context.
+ *
+ * The SHRM image is authenticated as part of the FIT boot chain;
+ * no further fixup is currently required.
+ * Return: 0 on success, or a negative error code on failure.
+ */
+static int ipq_spl_shrm_fixup(void *ctx)
+{
+	pr_debug("SHRM fixup skipped\n");
+	return 0;
+}
+#endif /* CONFIG_TARGET_IPQ5610 */
 
 /**
  * ipq_spl_qclib_fixup() - Perform fixups for qclib-meta image and jump to it.
