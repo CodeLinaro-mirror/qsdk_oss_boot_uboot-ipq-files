@@ -3138,6 +3138,29 @@ exit:
 }
 #endif /* CONFIG_IPQ_CRASHDUMP_TO_FLASH */
 
+#ifdef CONFIG_IPQ_COMPRESSED_CRASHDUMP
+/**
+ * is_compress_buf_in_dram() - check the temporary compression buffer placed
+ * right below the given address lies within a single DRAM bank
+ * &start - start address of the dump to be compressed
+ */
+static bool is_compress_buf_in_dram(uint64_t start)
+{
+	int i;
+
+	if (start < TEMP_COMPRESS_BUF_SZ)
+		return false;
+
+	for (i = 0; i < CONFIG_NR_DRAM_BANKS; i++) {
+		if (start - TEMP_COMPRESS_BUF_SZ >= gd->bd->bi_dram[i].start &&
+		    start <= gd->bd->bi_dram[i].start + gd->bd->bi_dram[i].size)
+			return true;
+	}
+
+	return false;
+}
+#endif /* CONFIG_IPQ_COMPRESSED_CRASHDUMP */
+
 /**
  * dump_to_dst() - Do the actual dumping based on the requested dump entry
  * &dump_config - crashdump configuration info
@@ -3162,8 +3185,8 @@ static int dump_to_dst(crashdump_config_t *dump_config,
 	if (dump_entry->compression_support) {
 		phys_addr_t compressed_out_sz;
 
-		if ((dump_entry->start_addr + dump_entry->size) ==
-				dump_config->ram_top)
+		if (!iface_cfg->comp_out_addr &&
+		    is_compress_buf_in_dram(dump_entry->start_addr))
 		{
 			iface_cfg->comp_out_addr = dump_entry->start_addr
 				- TEMP_COMPRESS_BUF_SZ;
