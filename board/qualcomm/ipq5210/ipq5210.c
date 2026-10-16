@@ -35,6 +35,7 @@ extern u8 get_boot_mode(void);
 #define MACH_TYPE_IPQ5210_RDP502		0x8080201
 #define MACH_TYPE_IPQ5210_RDP503		0x8080202
 #define MACH_TYPE_IPQ5210_RDP504		0x8080203
+#define MACH_TYPE_IPQ5210_HM035			0x8080204
 #define MACH_TYPE_IPQ5210_RDP505		0x8080300
 #define MACH_TYPE_IPQ5210_RDP511		0x8080400
 #define MACH_TYPE_IPQ5210_RDP512		0x8080401
@@ -181,6 +182,12 @@ struct machid_dts_map machid_dts[] = {
 		MACH_TYPE_IPQ5210_RDP504,
 		"ipq5210-rdp504",
 		"rdp504",
+		"1"
+	},
+	{
+		MACH_TYPE_IPQ5210_HM035,
+		"ipq5210-hm035",
+		"hm035",
 		"1"
 	},
 	{
