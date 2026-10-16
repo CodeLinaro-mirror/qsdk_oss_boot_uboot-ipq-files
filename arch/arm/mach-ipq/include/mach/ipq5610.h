@@ -33,6 +33,8 @@
 #define QFPROM_CORR_TME_OEM_ATE_ROW0_LSB	0xA40E8
 #define QFPROM_CORR_TME_OEM_ATE_ROW1_LSB	0xA40F0
 
+/* Rootfs Authentication Fuse - Required for Secure Boot */
+#define ROOTFS_AUTH_FUSE			0xA4060
 #define OEM_SEC_BOOT_ENABLE			BIT(7)
 
 #ifdef CONFIG_BOOT_BANK_FIXUP

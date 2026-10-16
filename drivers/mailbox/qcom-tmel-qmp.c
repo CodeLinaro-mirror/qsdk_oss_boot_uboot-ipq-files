@@ -1645,6 +1645,10 @@ static const struct udevice_id tmel_qmp_mbox_of_match[] = {
 		.compatible = "qcom,tmel-qmp-mbox",
 		.data = (ulong)&config_ipq5210_nsec
 	},
+	{
+		.compatible = "qti,tmel-qmp-mbox",
+		.data = (ulong)&config_ipq5210_nsec
+	},
 	{}
 };
 

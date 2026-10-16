@@ -1141,6 +1141,7 @@ config TARGET_IPQ5610
 	imply FAILSAFE_V2
 	imply BOOT_BANK_FIXUP
 	select BOOT_BANK_SMEM_READ
+	imply IPQ_ELF_AUTH
 	help
 	  Support for IPQ5610 SoC.
 	  - Board Open Platform Specifications.
