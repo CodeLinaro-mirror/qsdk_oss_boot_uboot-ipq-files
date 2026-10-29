@@ -10,8 +10,8 @@
 #include <asm/arch/dt-bindings/reset/qcom,qce2204-nsscc.h>
 
 / {
-	model = "Qualcomm Technologies, Inc. IPQ5210 HM035";
-	compatible = "qcom,ipq5210-hm035", "qcom,ipq5210";
+	model = "Qualcomm Technologies, Inc. IPQ5210 HM036";
+	compatible = "qcom,ipq5210-hm036", "qcom,ipq5210";
 
 	aliases {
 		serial0 = &uart1;
